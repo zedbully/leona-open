@@ -1,0 +1,35 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+local.properties
+captures/
+
+# Native build output
+.cxx/
+.externalNativeBuild/
+
+# Keystores and signing
+*.jks
+*.keystore
+debug.keystore
+release.keystore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Kotlin
+.kotlin/
+
+# Closed-source modules kept out of the public repo
+private/

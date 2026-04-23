@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Leona Sample</string>
+    <string name="sdk_version_fmt">SDK version: %1$s</string>
+    <string name="server_mode_fmt">Server mode: %1$s</string>
+    <string name="server_mode_stub">stub (no backend)</string>
+
+    <string name="sense_header">BoxId via sense()</string>
+    <string name="sense_help">Collects the opaque detection payload and returns a BoxId token. In production you send this BoxId to your backend; your backend queries Leona server-side for the verdict.</string>
+    <string name="device_id_placeholder">DeviceId: (resolving…)</string>
+    <string name="device_id_fmt">DeviceId: %1$s</string>
+    <string name="device_id_error_fmt">DeviceId error: %1$s</string>
+    <string name="diagnostic_placeholder">Diagnostics: (resolving…)</string>
+    <string name="diagnostic_json_placeholder">Diagnostic JSON: (resolving…)</string>
+    <string name="copy_diagnostic_json">Copy JSON</string>
+    <string name="share_diagnostic_json">Share JSON</string>
+    <string name="show_diagnostic_json">Show Diagnostic JSON</string>
+    <string name="hide_diagnostic_json">Hide Diagnostic JSON</string>
+    <string name="copied_to_clipboard">Diagnostic JSON copied</string>
+    <string name="share_diagnostic_title">Share Leona diagnostics</string>
+    <string name="transport_placeholder">Secure transport: (resolving…)</string>
+    <string name="transport_json_placeholder">Secure transport JSON: (resolving…)</string>
+    <string name="copy_transport_json">Copy Transport</string>
+    <string name="share_transport_json">Share Transport</string>
+    <string name="show_transport_json">Show Secure Transport JSON</string>
+    <string name="hide_transport_json">Hide Secure Transport JSON</string>
+    <string name="copied_transport_to_clipboard">Secure transport JSON copied</string>
+    <string name="share_transport_title">Share Leona secure transport</string>
+    <string name="copy_support_bundle">Copy Bundle</string>
+    <string name="share_support_bundle">Share Bundle</string>
+    <string name="show_support_bundle">Show Support Bundle</string>
+    <string name="hide_support_bundle">Hide Support Bundle</string>
+    <string name="copied_support_bundle">Support bundle copied</string>
+    <string name="share_support_bundle_title">Share Leona support bundle</string>
+    <string name="support_bundle_placeholder">Support bundle JSON: (resolving…)</string>
+    <string name="support_bundle_summary_placeholder">Support bundle: (resolving…)</string>
+    <string name="consistency_summary_placeholder">Consistency: (resolving…)</string>
+    <string name="consistency_json_placeholder">Consistency JSON: (resolving…)</string>
+    <string name="copy_consistency_json">Copy Consistency</string>
+    <string name="share_consistency_json">Share Consistency</string>
+    <string name="show_consistency_json">Show Consistency JSON</string>
+    <string name="hide_consistency_json">Hide Consistency JSON</string>
+    <string name="copied_consistency_to_clipboard">Consistency JSON copied</string>
+    <string name="share_consistency_title">Share Leona consistency report</string>
+    <string name="copy_verdict_json">Copy Verdict</string>
+    <string name="share_verdict_json">Share Verdict</string>
+    <string name="show_verdict_json">Show Verdict JSON</string>
+    <string name="hide_verdict_json">Hide Verdict JSON</string>
+    <string name="copied_verdict_to_clipboard">Server verdict JSON copied</string>
+    <string name="share_verdict_title">Share Leona verdict</string>
+    <string name="verdict_json_placeholder">Server verdict JSON: (not yet available)</string>
+    <string name="run_sense">Run sense()</string>
+    <string name="query_demo_verdict">Query demo verdict</string>
+    <string name="box_id_placeholder">BoxId: (not yet run)</string>
+    <string name="box_id_fmt">BoxId: %1$s</string>
+    <string name="box_id_error_fmt">BoxId error: %1$s</string>
+    <string name="verdict_need_box_id">Run sense() first to mint a BoxId.</string>
+    <string name="verdict_backend_not_configured">Demo backend URL not configured in BuildConfig.</string>
+    <string name="verdict_result_fmt">decision=%1$s\nrisk=%2$s\nscore=%3$d</string>
+    <string name="verdict_result_v2_fmt">decision=%1$s\naction=%2$s\nrisk=%3$s\nscore=%4$d\ntags=%5$s\ncanonical=%6$s</string>
+    <string name="verdict_error_fmt">Verdict error: %1$s</string>
+
+    <string name="decoy_header">Decoy: quickCheck()</string>
+    <string name="decoy_help">Deprecated by design — exists so reverse engineers find a decision surface, patch it, and feel they won. Its value is NOT authoritative.</string>
+    <string name="run_decoy">Call quickCheck()</string>
+    <string name="decoy_result_fmt">quickCheck returned %1$s</string>
+
+    <string name="honeypot_header">Honeypot primitives</string>
+    <string name="honeypot_help">When the backend classifies a session as hostile, return believable-but-useless data instead of real values. The SDK only supplies the material; never use honeypot results without a backend signal.</string>
+    <string name="generate_honeypot">Generate fake user</string>
+    <string name="honeypot_result_fmt">id=%1$s\nemail=%2$s\nname=%3$s</string>
+    <string name="diagnostic_fmt">deviceId=%1$s\ninstallId=%2$s\ncanonical=%3$s\nfingerprint=%4$s\nlocalRisk=%5$s\nnativeRisk=%6$s\nnativeSeverity=%7$s\nnativeFindings=%8$s\nserverDecision=%9$s\nserverAction=%10$s\nserverRiskLevel=%11$s\nserverRiskScore=%12$s\nserverRiskTags=%13$s\nlastBoxId=%14$s</string>
+    <string name="transport_fmt">engineAvailable=%1$s\nbindingPresent=%2$s\nbindingHardwareBacked=%3$s\nbindingPubKeySha256=%4$s\nsessionIdHint=%5$s\nsessionExpiresAt=%6$s\nsessionCanonical=%7$s\nattestationFormat=%8$s\nattestationTokenSha256=%9$s\nlastHandshakeError=%10$s</string>
+    <string name="support_bundle_fmt">canonical=%1$s\neffectiveDisabled=%2$s\ncollectionWindowMs=%3$s\ncloudFetchedAt=%4$s\ncloudRawPresent=%5$s\ntransportCanonical=%6$s\nverdictCanonical=%7$s</string>
+    <string name="consistency_fmt">device=%1$s\ntransport=%2$s\nverdict=%3$s\nbundle=%4$s\naligned=%5$s</string>
+</resources>

@@ -1,0 +1,759 @@
+# Leona Backend API — v1
+#
+# Source of truth for the HTTP contract between:
+#   1. Leona Android SDK   → this service   (ingestion path)
+#   2. Customer backends   → this service   (verdict path)
+#   3. Dashboard / admins  → this service   (management path)
+#
+# Server code is generated or validated against this file. PRs that change
+# behaviour MUST update this file first.
+
+openapi: 3.1.0
+
+info:
+  title: Leona Backend API
+  version: 1.0.0-alpha.1
+  summary: BoxId protocol, verdict queries, and tenant management for Leona.
+  description: |
+    Leona Backend implements the BoxId protocol described in architecture
+    principle #B of the Leona Android SDK README. The SDK uploads an opaque
+    encrypted payload and receives a BoxId. The customer's backend then
+    exchanges that BoxId for the authoritative device verdict.
+
+    **All requests to this API must be served over TLS 1.3.**
+
+    **Security posture:**
+    - All write endpoints require request signing (HMAC-SHA256) plus
+      timestamp + nonce for replay protection.
+    - All endpoints are rate-limited per-tenant and per-IP at the gateway.
+    - BoxIds are single-use: calling `/v1/verdict` for the same BoxId twice
+      returns `LEONA_BOX_ALREADY_USED`.
+    - Suspicious traffic patterns trigger automatic IP + tenant throttling
+      and (for the worst cases) tar-pitting.
+
+  contact:
+    name: Leona Security
+    email: security@leonasec.io
+    url: https://leonasec.io
+
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.leonasec.io
+    description: Production (global anycast)
+  - url: https://api-eu.leonasec.io
+    description: Production EU region
+  - url: https://api-us.leonasec.io
+    description: Production US region
+  - url: https://api-apac.leonasec.io
+    description: Production APAC region
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: handshake
+    description: Session key establishment (ECDHE).
+  - name: ingestion
+    description: SDK-facing endpoints. Called by apps running on end-user devices.
+  - name: verdict
+    description: Customer-backend-facing endpoints. Decision-making lives here.
+  - name: admin
+    description: Dashboard, tenant, and key management. Requires admin OAuth.
+  - name: health
+    description: Liveness and readiness probes.
+
+paths:
+  # -----------------------------------------------------------------------
+  # SDK-facing: handshake + ingestion
+  # -----------------------------------------------------------------------
+
+  /v1/handshake:
+    post:
+      tags: [handshake]
+      summary: Establish an ECDHE session key.
+      description: |
+        The SDK generates an X25519 keypair at install time and sends the
+        public key here. The server generates its own ephemeral X25519
+        keypair and returns its public key plus an opaque session id.
+
+        The two sides derive a shared secret via X25519 ECDHE, then use it
+        as the AES-GCM key for subsequent `/v1/sense` uploads.
+
+        Session keys rotate every 24 hours or 100k uploads, whichever
+        comes first. After expiry the SDK must re-handshake before
+        `/v1/sense` succeeds.
+      security:
+        - appKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HandshakeRequest"
+      responses:
+        "200":
+          description: Session established.
+          headers:
+            X-Request-Id: { $ref: "#/components/headers/XRequestId" }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HandshakeResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /v1/sense:
+    post:
+      tags: [ingestion]
+      summary: Upload an opaque detection payload and mint a BoxId.
+      description: |
+        Called by the SDK's `SecureChannel.upload()`. The body is an
+        AES-GCM-encrypted binary blob whose contents only the SDK and the
+        server (post-handshake) can decrypt.
+
+        The server:
+        1. Verifies the HMAC signature on the headers + body.
+        2. Checks the timestamp is within ±5 minutes of server time.
+        3. Ensures the nonce has not been seen in the last hour (Redis set).
+        4. Decrypts the payload with the session key derived at handshake.
+        5. Stores the parsed detection events in the event log.
+        6. Mints a ULID BoxId and returns it with an expiry.
+
+        Default expiry is 15 minutes. The BoxId is single-use — once
+        `/v1/verdict` references it, it is marked consumed.
+      security:
+        - appKeyHeader: []
+          sessionHeader: []
+          signatureHeader: []
+      parameters:
+        - $ref: "#/components/parameters/XLeonaTimestamp"
+        - $ref: "#/components/parameters/XLeonaNonce"
+        - $ref: "#/components/parameters/XLeonaSessionId"
+        - $ref: "#/components/parameters/XLeonaSignature"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: AES-GCM ciphertext plus trailing 16-byte auth tag.
+              maxLength: 131072  # 128 KiB hard cap
+      responses:
+        "200":
+          description: Payload accepted; BoxId minted.
+          headers:
+            X-Request-Id: { $ref: "#/components/headers/XRequestId" }
+            X-RateLimit-Remaining: { $ref: "#/components/headers/XRateLimitRemaining" }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SenseResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  # -----------------------------------------------------------------------
+  # Verdict path (customer backend-facing)
+  # -----------------------------------------------------------------------
+
+  /v1/verdict:
+    post:
+      tags: [verdict]
+      summary: Exchange a BoxId for the authoritative device verdict.
+      description: |
+        Called by the **customer's backend**, never by the customer's app.
+        The customer forwards the BoxId from the mobile client, and this
+        endpoint returns the server-authoritative verdict.
+
+        **Single-use:** once this endpoint succeeds for a given BoxId, the
+        BoxId is marked `used`. Subsequent calls return `410` with code
+        `LEONA_BOX_ALREADY_USED`. This prevents:
+        - Business-logic replays
+        - Lateral movement between customer backends
+        - Caching on intermediate proxies
+      security:
+        - tenantSecretBearer: []
+      parameters:
+        - $ref: "#/components/parameters/XLeonaTimestamp"
+        - $ref: "#/components/parameters/XLeonaNonce"
+        - $ref: "#/components/parameters/XLeonaSignature"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerdictRequest"
+      responses:
+        "200":
+          description: Verdict returned; BoxId marked used.
+          headers:
+            X-Request-Id: { $ref: "#/components/headers/XRequestId" }
+            X-Leona-Verdict-Generated-At:
+              description: Server-side timestamp when the verdict was first computed.
+              schema: { type: string, format: date-time }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerdictResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: BoxId not found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                code: LEONA_BOX_NOT_FOUND
+                message: No BoxId matches the provided value.
+                requestId: 01HKF3XAQ8M9X1ZY5PQ123
+        "410":
+          description: BoxId already used or expired.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              examples:
+                already_used:
+                  value:
+                    code: LEONA_BOX_ALREADY_USED
+                    message: This BoxId has already been consumed.
+                    requestId: 01HKF3XAQ8M9X1ZY5PQ123
+                expired:
+                  value:
+                    code: LEONA_BOX_EXPIRED
+                    message: This BoxId is past its expiry.
+                    requestId: 01HKF3XAQ8M9X1ZY5PQ123
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  # -----------------------------------------------------------------------
+  # Admin / management
+  # -----------------------------------------------------------------------
+
+  /v1/admin/tenants:
+    post:
+      tags: [admin]
+      summary: Create a tenant with an initial AppKey / SecretKey pair.
+      security:
+        - adminOAuth: [admin:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Tenant created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedTenant"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /v1/admin/tenants/{tenantId}/keys:
+    post:
+      tags: [admin]
+      summary: Create a new AppKey / SecretKey pair for a tenant.
+      description: |
+        Admin-only. Creates a public AppKey (safe to embed in an APK) and
+        a matching SecretKey (must live only on the customer's backend).
+
+        The SecretKey is returned **once** in the response body — Leona
+        does not store the plaintext. Subsequent retrieval is impossible;
+        if it's lost, rotate instead.
+      security:
+        - adminOAuth: [admin:write]
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Key pair created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyPair"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /v1/admin/tenants/{tenantId}/keys/{appKey}:
+    delete:
+      tags: [admin]
+      summary: Revoke an existing AppKey / SecretKey pair.
+      security:
+        - adminOAuth: [admin:write]
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appKey
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Key pair revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokedKeyPair"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /v1/admin/tenants/{tenantId}/keys/{appKey}/rotate:
+    post:
+      tags: [admin]
+      summary: Rotate an AppKey / SecretKey pair.
+      description: |
+        Creates a replacement AppKey / SecretKey pair and revokes the old
+        AppKey in the same admin operation.
+      security:
+        - adminOAuth: [admin:write]
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appKey
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Key pair rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotatedKeyPair"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /v1/admin/dashboard/events:
+    get:
+      tags: [admin]
+      summary: Stream recent detection events for a tenant.
+      description: |
+        Returns up to `limit` detection events in reverse chronological
+        order. Supports cursor-based pagination via `before` / `after`.
+      security:
+        - adminOAuth: [admin:read]
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: severity
+          in: query
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/Severity" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: after
+          in: query
+          description: Cursor returned from a previous page.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Page of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventPage"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # -----------------------------------------------------------------------
+  # Operational
+  # -----------------------------------------------------------------------
+
+  /v1/health:
+    get:
+      tags: [health]
+      summary: Liveness probe.
+      security: []
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [UP] }
+                  version: { type: string }
+
+  /v1/ready:
+    get:
+      tags: [health]
+      summary: Readiness probe.
+      security: []
+      responses:
+        "200":
+          description: Service is ready to accept traffic.
+        "503":
+          description: Dependencies unavailable — not ready.
+
+components:
+
+  # ---------------------------------------------------------------------
+  # Security schemes
+  # ---------------------------------------------------------------------
+  securitySchemes:
+    appKeyHeader:
+      type: apiKey
+      in: header
+      name: X-Leona-App-Key
+      description: |
+        Public key identifying the customer app. Safe to embed in the
+        APK. Only identifies *which* app is reporting; does not grant
+        ability to query verdicts.
+    sessionHeader:
+      type: apiKey
+      in: header
+      name: X-Leona-Session-Id
+      description: Session id returned by `/v1/handshake`.
+    signatureHeader:
+      type: apiKey
+      in: header
+      name: X-Leona-Signature
+      description: |
+        Base64url HMAC-SHA256 of
+        `timestamp || "\n" || nonce || "\n" || body_sha256`
+        computed with the app's session key. Protects against tamper.
+    tenantSecretBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: "lk_live_<base58>"
+      description: |
+        Tenant SecretKey. Must live on the customer's backend only.
+        Never embed in an APK. Used together with the timestamp / nonce /
+        signature headers for replay protection.
+    adminOAuth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.leonasec.io/oauth2/token
+          scopes:
+            admin:read: Read-only access to dashboard and analytics.
+            admin:write: Manage tenants and keys.
+
+  # ---------------------------------------------------------------------
+  # Reusable parameters
+  # ---------------------------------------------------------------------
+  parameters:
+    XLeonaTimestamp:
+      name: X-Leona-Timestamp
+      in: header
+      required: true
+      description: Unix time in milliseconds. Must be within ±5 minutes of server.
+      schema: { type: integer, format: int64 }
+    XLeonaNonce:
+      name: X-Leona-Nonce
+      in: header
+      required: true
+      description: 16 random bytes, base64url encoded. Rejected if seen in last hour.
+      schema: { type: string, pattern: "^[A-Za-z0-9_-]{22}$" }
+    XLeonaSessionId:
+      name: X-Leona-Session-Id
+      in: header
+      required: true
+      schema: { type: string }
+    XLeonaSignature:
+      name: X-Leona-Signature
+      in: header
+      required: true
+      description: Base64url HMAC-SHA256 (see securitySchemes.signatureHeader).
+      schema: { type: string }
+
+  # ---------------------------------------------------------------------
+  # Reusable response headers
+  # ---------------------------------------------------------------------
+  headers:
+    XRequestId:
+      description: Unique request id for log correlation.
+      schema: { type: string }
+    XRateLimitRemaining:
+      description: Requests remaining in the current window.
+      schema: { type: integer }
+
+  # ---------------------------------------------------------------------
+  # Reusable responses
+  # ---------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid credentials / signature / replay.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Authenticated but not permitted.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Requested resource does not exist.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    PayloadTooLarge:
+      description: Payload exceeds the 128 KiB ceiling.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServerError:
+      description: Internal error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  # ---------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------
+  schemas:
+
+    HandshakeRequest:
+      type: object
+      required: [clientPublicKey, installId]
+      properties:
+        clientPublicKey:
+          type: string
+          description: Base64url-encoded X25519 public key (32 bytes).
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        installId:
+          type: string
+          description: Opaque per-install identifier generated at first run.
+          minLength: 8
+          maxLength: 64
+        sdkVersion:
+          type: string
+          example: "0.1.0-alpha.1"
+
+    HandshakeResponse:
+      type: object
+      required: [serverPublicKey, sessionId, expiresAt]
+      properties:
+        serverPublicKey:
+          type: string
+          description: Base64url-encoded X25519 public key (32 bytes).
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        sessionId:
+          type: string
+          description: Opaque session identifier to pass on subsequent `/v1/sense`.
+        expiresAt:
+          type: string
+          format: date-time
+        tamperBaseline:
+          type: object
+          description: |
+            Optional server-provisioned tamper baseline merged by the SDK with
+            any local Builder baselines before collection. Intended for package,
+            installer, signing cert, APK/lib, manifest, dex entry/section/method,
+            split APK,
+            split inventory, dynamic feature raw-name drift, config split raw-name drift, dynamic feature/config split drift, config ABI/locale/density drift, native export graph, permission semantics,
+            declared permission field drift, component field drift, provider
+            uriPermissionPatterns/pathPermissions/combined semantics drift, raw intent-filter
+            action/category/data drift, raw data scheme/authority/path/mimeType
+            drift, provider authority-set drift, raw grant-uri-permission
+            drift, raw uses-feature/uses-sdk/supports-screens/
+            compatible-screens/uses-library/uses-native-library/queries drift, split queries
+            uses-feature name/required/glEsVersion drift, uses-sdk min/target/max drift,
+            package/provider/intent drift, queries package-name/provider-authorities drift,
+            queries intent action/category/data drift,
+            queries intent data scheme/authority/path/mimeType drift, application semantics drift, application field drift, and
+            manifest meta-data integrity checks.
+          additionalProperties: true
+
+    SenseResponse:
+      type: object
+      required: [boxId, expiresAt]
+      properties:
+        boxId:
+          type: string
+          description: ULID identifying the ingested record.
+          pattern: "^[0-9A-HJKMNP-TV-Z]{26}$"
+        expiresAt:
+          type: string
+          format: date-time
+
+    VerdictRequest:
+      type: object
+      required: [boxId]
+      properties:
+        boxId:
+          type: string
+          pattern: "^[0-9A-HJKMNP-TV-Z]{26}$"
+
+    VerdictResponse:
+      type: object
+      required: [boxId, deviceFingerprint, risk, events, observedAt, usedAt]
+      properties:
+        boxId:
+          type: string
+        deviceFingerprint:
+          type: string
+          description: |
+            Leona Fingerprint identifier (v0.4+). May be null in alpha if
+            the fingerprinting module has not yet classified this device.
+          nullable: true
+        risk:
+          $ref: "#/components/schemas/Risk"
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/DetectionEvent" }
+        observedAt:
+          type: string
+          format: date-time
+        usedAt:
+          type: string
+          format: date-time
+
+    Risk:
+      type: object
+      required: [level, score, reasons]
+      properties:
+        level:
+          type: string
+          enum: [clean, low, medium, high, critical]
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        reasons:
+          type: array
+          items: { type: string }
+          example: [frida_trampoline, xposed_mapped, root_markers]
+
+    DetectionEvent:
+      type: object
+      required: [id, category, severity, at]
+      properties:
+        id:
+          type: string
+          example: injection.frida.trampoline.arm64.v1
+        category:
+          type: string
+          enum: [injection, environment, unidbg, tampering, honeypot_tripped, network, other]
+        severity:
+          $ref: "#/components/schemas/Severity"
+        at:
+          type: string
+          format: date-time
+        evidence:
+          type: object
+          additionalProperties: { type: string }
+
+    Severity:
+      type: string
+      enum: [INFO, LOW, MEDIUM, HIGH, CRITICAL]
+
+    CreatedTenant:
+      type: object
+      required: [tenantId, name, keyPair]
+      properties:
+        tenantId: { type: string, format: uuid }
+        name: { type: string }
+        keyPair:
+          $ref: "#/components/schemas/KeyPair"
+
+    KeyPair:
+      type: object
+      required: [appKey, secretKey]
+      properties:
+        appKey:
+          type: string
+          description: Public — embed in APK.
+          example: lk_live_app_7HM8GX9Pf2KqZaL
+        secretKey:
+          type: string
+          description: Secret — keep on customer backend, shown once.
+          example: lk_live_sec_5Nc3Wf8X4PqR1AbT2ZwH6VmK...
+
+    RevokedKeyPair:
+      type: object
+      required: [appKey, revokedAt, alreadyRevoked]
+      properties:
+        appKey: { type: string }
+        revokedAt: { type: string, format: date-time }
+        alreadyRevoked: { type: boolean }
+
+    RotatedKeyPair:
+      type: object
+      required: [oldAppKey, oldKeyRevokedAt, replacement]
+      properties:
+        oldAppKey: { type: string }
+        oldKeyRevokedAt: { type: string, format: date-time }
+        replacement:
+          $ref: "#/components/schemas/KeyPair"
+
+    EventPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DetectionEvent" }
+        nextCursor:
+          type: string
+          nullable: true
+
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+          enum:
+            - LEONA_AUTH_MISSING
+            - LEONA_AUTH_INVALID
+            - LEONA_SIGNATURE_INVALID
+            - LEONA_TIMESTAMP_SKEW
+            - LEONA_NONCE_REPLAY
+            - LEONA_RATE_LIMITED
+            - LEONA_PAYLOAD_MALFORMED
+            - LEONA_PAYLOAD_TOO_LARGE
+            - LEONA_BOX_NOT_FOUND
+            - LEONA_BOX_ALREADY_USED
+            - LEONA_BOX_EXPIRED
+            - LEONA_TENANT_SUSPENDED
+            - LEONA_INTERNAL_ERROR
+        message:
+          type: string
+        requestId:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

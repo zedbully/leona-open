@@ -1,0 +1,25 @@
+# Workspace caches
+.gocache/
+.gradle-home/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary release artifacts
+/tmp/
+
+# Nested project local files
+**/local.properties
+**/.DS_Store
+**/.gradle/
+**/.cxx/
+**/.externalNativeBuild/
+
+# Optional/closed-source modules kept out of public release
+**/private/
+
+# Unused local side folders
+sm/

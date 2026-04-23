@@ -1,0 +1,756 @@
+/*
+ * Copyright 2026 Leona Contributors.
+ * Licensed under the Apache License, Version 2.0.
+ */
+package io.leonasec.leona.config
+
+/**
+ * Configuration for the Leona SDK. Immutable — build once, pass to
+ * `Leona.init`. Use [Builder] to construct.
+ */
+class LeonaConfig private constructor(
+    /** Enable the runtime injection detector (Frida, Xposed, Substrate, …). */
+    val injectionDetectionEnabled: Boolean,
+    /** Enable the environment detector (emulator, root, debugger, …). */
+    val environmentDetectionEnabled: Boolean,
+    /** Reporting endpoint for detection events. Null disables reporting. */
+    val reportingEndpoint: String?,
+    /** API key for server-side attribution. */
+    val apiKey: String?,
+    /** Optional tenant or organization identifier for multi-tenant backends. */
+    val tenantId: String?,
+    /** Logical app identifier used by Leona-managed server-side policies. */
+    val appId: String,
+    /** Deployment region used when deriving Leona-managed defaults. */
+    val region: LeonaRegion,
+    /** Enable transport when secure reporting is configured. */
+    val transportEnabled: Boolean,
+    /** Enable cloud-delivered runtime configuration. */
+    val cloudConfigEnabled: Boolean,
+    /** Optional endpoint for cloud-delivered runtime configuration. */
+    val cloudConfigEndpoint: String?,
+    /** Whether init should block on first cloud config refresh. */
+    val syncInit: Boolean,
+    /** Extra certificate verification switch for future private-core policy. */
+    val verifyServerCert: Boolean,
+    /** Minimum gap between full Java-side snapshot collections. Negative disables throttling. */
+    val disableCollectionWindowMs: Long,
+    /** Field-level disable list for privacy and compatibility downgrades. */
+    val disabledSignals: Set<String>,
+    /** Optional distribution channel label. */
+    val channel: String?,
+    /** Optional extra business context, trimmed to 1024 chars. */
+    val extraInfo: String?,
+    /** Whether the embedding app is a first-party/trusted distribution. */
+    val firstPartyMode: Boolean,
+    /** Whether to emit verbose native logs — disable for release builds. */
+    val verboseNativeLogging: Boolean,
+    /** Prefer generating the device-binding key inside StrongBox when available. */
+    val preferStrongBoxBackedKey: Boolean,
+    /** Optional host → certificate pin map used by OkHttp's CertificatePinner. */
+    val certificatePins: Map<String, Set<String>>,
+    /** Optional device attestation plug point (Play Integrity / OEM / enterprise). */
+    val attestationProvider: AttestationProvider?,
+    /** Optional expected package name baseline for repackaging detection. */
+    val expectedPackageName: String?,
+    /** Optional installer allowlist; empty means no installer baseline. */
+    val allowedInstallerPackages: Set<String>,
+    /** Optional signing certificate allowlist; values are lower-case SHA-256 digests. */
+    val allowedSigningCertSha256: Set<String>,
+    /** Optional APK file hash baseline; lower-case SHA-256 digest. */
+    val expectedApkSha256: String?,
+    /** Optional native library hash baselines keyed by filename. */
+    val expectedNativeLibSha256: Map<String, String>,
+    /** Optional AndroidManifest.xml entry hash baseline from the base APK zip. */
+    val expectedManifestEntrySha256: String?,
+    /** Optional classes*.dex hash baselines keyed by entry name. */
+    val expectedDexSha256: Map<String, String>,
+    /** Optional DEX internal section hashes keyed by `classes.dex#section_name`. */
+    val expectedDexSectionSha256: Map<String, String>,
+    /** Optional DEX method code hashes keyed by `classes.dex#Lpkg/Cls;->method(sig)ret`. */
+    val expectedDexMethodSha256: Map<String, String>,
+    /** Optional split APK hash baselines keyed by split filename. */
+    val expectedSplitApkSha256: Map<String, String>,
+    /** Optional fingerprint over the sorted split APK filename inventory. */
+    val expectedSplitInventorySha256: String?,
+    /** Optional fingerprint over normalized dynamic-feature split names. */
+    val expectedDynamicFeatureSplitSha256: String?,
+    /** Optional fingerprint over raw dynamic-feature split filenames. */
+    val expectedDynamicFeatureSplitNameSha256: String?,
+    /** Optional fingerprint over normalized config split axes. */
+    val expectedConfigSplitAxisSha256: String?,
+    /** Optional fingerprint over raw config split filenames. */
+    val expectedConfigSplitNameSha256: String?,
+    /** Optional fingerprint over normalized config split ABI axes. */
+    val expectedConfigSplitAbiSha256: String?,
+    /** Optional fingerprint over normalized config split locale axes. */
+    val expectedConfigSplitLocaleSha256: String?,
+    /** Optional fingerprint over normalized config split density axes. */
+    val expectedConfigSplitDensitySha256: String?,
+    /** Optional ELF section hashes keyed by `libname.so#section_name`. */
+    val expectedElfSectionSha256: Map<String, String>,
+    /** Optional ELF exported symbol fingerprints keyed by `libname.so#symbol_name`. */
+    val expectedElfExportSymbolSha256: Map<String, String>,
+    /** Optional ELF export graph hashes keyed by library filename. */
+    val expectedElfExportGraphSha256: Map<String, String>,
+    /** Optional hash over sorted requested permissions. */
+    val expectedRequestedPermissionsSha256: String?,
+    /** Optional hash over requested permissions plus semantic flags. */
+    val expectedRequestedPermissionSemanticsSha256: String?,
+    /** Optional hash over app-declared permission semantics. */
+    val expectedDeclaredPermissionSemanticsSha256: String?,
+    /** Optional fine-grained declared permission field baselines keyed by `permission:name#field`. */
+    val expectedDeclaredPermissionFieldValues: Map<String, String>,
+    /** Optional manifest component fingerprints keyed by `type:componentName`. */
+    val expectedComponentSignatureSha256: Map<String, String>,
+    /** Optional fine-grained component field baselines keyed by `type:name#field`. */
+    val expectedComponentFieldValues: Map<String, String>,
+    /** Optional provider uriPermissionPatterns fingerprints keyed by `provider:name`. */
+    val expectedProviderUriPermissionPatternsSha256: Map<String, String>,
+    /** Optional provider pathPermissions fingerprints keyed by `provider:name`. */
+    val expectedProviderPathPermissionsSha256: Map<String, String>,
+    /** Optional provider authority-set fingerprints keyed by `provider:name`. */
+    val expectedProviderAuthoritySetSha256: Map<String, String>,
+    /** Optional provider combined semantics fingerprints keyed by `provider:name`. */
+    val expectedProviderSemanticsSha256: Map<String, String>,
+    /** Optional raw manifest intent-filter fingerprints keyed by `type:name`. */
+    val expectedIntentFilterSha256: Map<String, String>,
+    /** Optional raw manifest intent-filter action-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterActionSha256: Map<String, String>,
+    /** Optional raw manifest intent-filter category-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterCategorySha256: Map<String, String>,
+    /** Optional raw manifest intent-filter data-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterDataSha256: Map<String, String>,
+    /** Optional raw manifest intent-filter data scheme-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterDataSchemeSha256: Map<String, String>,
+    /** Optional raw manifest intent-filter data authority-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterDataAuthoritySha256: Map<String, String>,
+    /** Optional raw manifest intent-filter data path-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterDataPathSha256: Map<String, String>,
+    /** Optional raw manifest intent-filter data mimeType-set fingerprints keyed by `type:name`. */
+    val expectedIntentFilterDataMimeTypeSha256: Map<String, String>,
+    /** Optional raw manifest grant-uri-permission fingerprints keyed by `provider:name`. */
+    val expectedGrantUriPermissionSha256: Map<String, String>,
+    /** Optional raw manifest uses-feature fingerprint. */
+    val expectedUsesFeatureSha256: String?,
+    /** Optional raw manifest uses-feature name fingerprint. */
+    val expectedUsesFeatureNameSha256: String?,
+    /** Optional raw manifest uses-feature required flag fingerprint. */
+    val expectedUsesFeatureRequiredSha256: String?,
+    /** Optional raw manifest uses-feature glEsVersion fingerprint. */
+    val expectedUsesFeatureGlEsVersionSha256: String?,
+    /** Optional raw manifest uses-sdk fingerprint. */
+    val expectedUsesSdkSha256: String?,
+    /** Optional raw manifest uses-sdk minSdkVersion fingerprint. */
+    val expectedUsesSdkMinSha256: String?,
+    /** Optional raw manifest uses-sdk targetSdkVersion fingerprint. */
+    val expectedUsesSdkTargetSha256: String?,
+    /** Optional raw manifest uses-sdk maxSdkVersion fingerprint. */
+    val expectedUsesSdkMaxSha256: String?,
+    /** Optional raw manifest supports-screens fingerprint. */
+    val expectedSupportsScreensSha256: String?,
+    /** Optional raw manifest compatible-screens fingerprint. */
+    val expectedCompatibleScreensSha256: String?,
+    /** Optional raw manifest uses-library / uses-native-library fingerprint. */
+    val expectedUsesLibrarySha256: String?,
+    /** Optional raw manifest uses-library fingerprint. */
+    val expectedUsesLibraryOnlySha256: String?,
+    /** Optional raw manifest uses-native-library fingerprint. */
+    val expectedUsesNativeLibrarySha256: String?,
+    /** Optional raw manifest queries fingerprint. */
+    val expectedQueriesSha256: String?,
+    /** Optional raw manifest queries package fingerprint. */
+    val expectedQueriesPackageSha256: String?,
+    /** Optional raw manifest queries package-name fingerprint. */
+    val expectedQueriesPackageNameSha256: String?,
+    /** Optional raw manifest queries provider fingerprint. */
+    val expectedQueriesProviderSha256: String?,
+    /** Optional raw manifest queries provider-authorities fingerprint. */
+    val expectedQueriesProviderAuthoritySha256: String?,
+    /** Optional raw manifest queries intent fingerprint. */
+    val expectedQueriesIntentSha256: String?,
+    /** Optional raw manifest queries intent action fingerprint. */
+    val expectedQueriesIntentActionSha256: String?,
+    /** Optional raw manifest queries intent category fingerprint. */
+    val expectedQueriesIntentCategorySha256: String?,
+    /** Optional raw manifest queries intent data fingerprint. */
+    val expectedQueriesIntentDataSha256: String?,
+    /** Optional raw manifest queries intent data scheme fingerprint. */
+    val expectedQueriesIntentDataSchemeSha256: String?,
+    /** Optional raw manifest queries intent data authority fingerprint. */
+    val expectedQueriesIntentDataAuthoritySha256: String?,
+    /** Optional raw manifest queries intent data path fingerprint. */
+    val expectedQueriesIntentDataPathSha256: String?,
+    /** Optional raw manifest queries intent data mimeType fingerprint. */
+    val expectedQueriesIntentDataMimeTypeSha256: String?,
+    /** Optional raw manifest application combined semantics fingerprint. */
+    val expectedApplicationSemanticsSha256: String?,
+    /** Optional raw manifest application field values keyed by `application#field`. */
+    val expectedApplicationFieldValues: Map<String, String>,
+    /** Optional manifest meta-data baselines keyed by meta-data name. */
+    val expectedMetaData: Map<String, String>,
+) {
+
+    internal fun toNativeHandle(): Long {
+        var flags = 0L
+        if (injectionDetectionEnabled) flags = flags or FLAG_INJECTION
+        if (environmentDetectionEnabled) flags = flags or FLAG_ENVIRONMENT
+        if (verboseNativeLogging) flags = flags or FLAG_VERBOSE_LOG
+        return flags
+    }
+
+    class Builder {
+        private var injection = true
+        private var environment = true
+        private var reportingEndpoint: String? = null
+        private var apiKey: String? = null
+        private var tenantId: String? = null
+        private var appId: String = "default"
+        private var region: LeonaRegion = LeonaRegion.CN_BJ
+        private var transportEnabled = true
+        private var cloudConfigEnabled = true
+        private var cloudConfigEndpoint: String? = null
+        private var syncInit = false
+        private var verifyServerCert = false
+        private var disableCollectionWindowMs = -1L
+        private val disabledSignals = linkedSetOf<String>()
+        private var channel: String? = null
+        private var extraInfo: String? = null
+        private var firstPartyMode = false
+        private var verboseNativeLogging = false
+        private var preferStrongBoxBackedKey = true
+        private val certificatePins = linkedMapOf<String, LinkedHashSet<String>>()
+        private var attestationProvider: AttestationProvider? = null
+        private var expectedPackageName: String? = null
+        private val allowedInstallerPackages = linkedSetOf<String>()
+        private val allowedSigningCertSha256 = linkedSetOf<String>()
+        private var expectedApkSha256: String? = null
+        private val expectedNativeLibSha256 = linkedMapOf<String, String>()
+        private var expectedManifestEntrySha256: String? = null
+        private val expectedDexSha256 = linkedMapOf<String, String>()
+        private val expectedDexSectionSha256 = linkedMapOf<String, String>()
+        private val expectedDexMethodSha256 = linkedMapOf<String, String>()
+        private val expectedSplitApkSha256 = linkedMapOf<String, String>()
+        private var expectedSplitInventorySha256: String? = null
+        private var expectedDynamicFeatureSplitSha256: String? = null
+        private var expectedDynamicFeatureSplitNameSha256: String? = null
+        private var expectedConfigSplitAxisSha256: String? = null
+        private var expectedConfigSplitNameSha256: String? = null
+        private var expectedConfigSplitAbiSha256: String? = null
+        private var expectedConfigSplitLocaleSha256: String? = null
+        private var expectedConfigSplitDensitySha256: String? = null
+        private val expectedElfSectionSha256 = linkedMapOf<String, String>()
+        private val expectedElfExportSymbolSha256 = linkedMapOf<String, String>()
+        private val expectedElfExportGraphSha256 = linkedMapOf<String, String>()
+        private var expectedRequestedPermissionsSha256: String? = null
+        private var expectedRequestedPermissionSemanticsSha256: String? = null
+        private var expectedDeclaredPermissionSemanticsSha256: String? = null
+        private val expectedDeclaredPermissionFieldValues = linkedMapOf<String, String>()
+        private val expectedComponentSignatureSha256 = linkedMapOf<String, String>()
+        private val expectedComponentFieldValues = linkedMapOf<String, String>()
+        private val expectedProviderUriPermissionPatternsSha256 = linkedMapOf<String, String>()
+        private val expectedProviderPathPermissionsSha256 = linkedMapOf<String, String>()
+        private val expectedProviderAuthoritySetSha256 = linkedMapOf<String, String>()
+        private val expectedProviderSemanticsSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterActionSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterCategorySha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterDataSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterDataSchemeSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterDataAuthoritySha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterDataPathSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterDataMimeTypeSha256 = linkedMapOf<String, String>()
+        private val expectedGrantUriPermissionSha256 = linkedMapOf<String, String>()
+        private var expectedUsesFeatureSha256: String? = null
+        private var expectedUsesFeatureNameSha256: String? = null
+        private var expectedUsesFeatureRequiredSha256: String? = null
+        private var expectedUsesFeatureGlEsVersionSha256: String? = null
+        private var expectedUsesSdkSha256: String? = null
+        private var expectedUsesSdkMinSha256: String? = null
+        private var expectedUsesSdkTargetSha256: String? = null
+        private var expectedUsesSdkMaxSha256: String? = null
+        private var expectedSupportsScreensSha256: String? = null
+        private var expectedCompatibleScreensSha256: String? = null
+        private var expectedUsesLibrarySha256: String? = null
+        private var expectedUsesLibraryOnlySha256: String? = null
+        private var expectedUsesNativeLibrarySha256: String? = null
+        private var expectedQueriesSha256: String? = null
+        private var expectedQueriesPackageSha256: String? = null
+        private var expectedQueriesPackageNameSha256: String? = null
+        private var expectedQueriesProviderSha256: String? = null
+        private var expectedQueriesProviderAuthoritySha256: String? = null
+        private var expectedQueriesIntentSha256: String? = null
+        private var expectedQueriesIntentActionSha256: String? = null
+        private var expectedQueriesIntentCategorySha256: String? = null
+        private var expectedQueriesIntentDataSha256: String? = null
+        private var expectedQueriesIntentDataSchemeSha256: String? = null
+        private var expectedQueriesIntentDataAuthoritySha256: String? = null
+        private var expectedQueriesIntentDataPathSha256: String? = null
+        private var expectedQueriesIntentDataMimeTypeSha256: String? = null
+        private var expectedApplicationSemanticsSha256: String? = null
+        private val expectedApplicationFieldValues = linkedMapOf<String, String>()
+        private val expectedMetaData = linkedMapOf<String, String>()
+
+        fun enableInjectionDetection(enabled: Boolean) = apply { injection = enabled }
+        fun enableEnvironmentDetection(enabled: Boolean) = apply { environment = enabled }
+        fun reportingEndpoint(url: String?) = apply { reportingEndpoint = url }
+        fun apiKey(key: String?) = apply { apiKey = key }
+        fun tenantId(value: String?) = apply { tenantId = value?.trim()?.ifEmpty { null } }
+        fun appId(value: String?) = apply { appId = value?.trim()?.ifEmpty { "default" } ?: "default" }
+        fun region(value: LeonaRegion) = apply { region = value }
+        fun transportEnabled(enabled: Boolean) = apply { transportEnabled = enabled }
+        fun enableCloudConfig(enabled: Boolean) = apply { cloudConfigEnabled = enabled }
+        fun cloudConfigEndpoint(url: String?) = apply { cloudConfigEndpoint = url?.trim()?.ifEmpty { null } }
+        fun syncInit(enabled: Boolean) = apply { syncInit = enabled }
+        fun verifyServerCert(enabled: Boolean) = apply { verifyServerCert = enabled }
+        fun disableCollectionWindowMs(value: Long) = apply { disableCollectionWindowMs = value }
+        fun disabledSignal(name: String) = apply { normalizeToken(name)?.let(disabledSignals::add) }
+        fun disabledSignals(values: Iterable<String>) = apply { disabledSignals += values.mapNotNull(::normalizeToken) }
+        fun disabledSignals(vararg values: String) = apply { disabledSignals(values.asIterable()) }
+        fun channel(value: String?) = apply { channel = value?.trim()?.ifEmpty { null } }
+        fun extraInfo(value: String?) = apply { extraInfo = value?.trim()?.take(1024)?.ifEmpty { null } }
+        fun firstPartyMode(enabled: Boolean) = apply { firstPartyMode = enabled }
+        fun verboseNativeLogging(enabled: Boolean) = apply { verboseNativeLogging = enabled }
+        fun preferStrongBoxBackedKey(enabled: Boolean) = apply { preferStrongBoxBackedKey = enabled }
+        fun attestationProvider(provider: AttestationProvider?) = apply { attestationProvider = provider }
+        fun certificatePin(host: String, vararg pins: String) = apply {
+            val normalizedHost = normalizeToken(host) ?: return@apply
+            val bucket = certificatePins.getOrPut(normalizedHost) { linkedSetOf() }
+            pins.mapNotNull(::normalizePin).forEach(bucket::add)
+        }
+        fun certificatePins(host: String, pins: Iterable<String>) = apply {
+            certificatePin(host, *pins.toList().toTypedArray())
+        }
+        fun expectedPackageName(packageName: String?) = apply {
+            expectedPackageName = packageName?.trim()?.ifEmpty { null }
+        }
+        fun allowedInstallerPackages(vararg packageNames: String) = apply {
+            allowedInstallerPackages += packageNames.mapNotNull { normalizeToken(it) }
+        }
+        fun allowedInstallerPackages(packageNames: Iterable<String>) = apply {
+            allowedInstallerPackages += packageNames.mapNotNull { normalizeToken(it) }
+        }
+        fun allowedSigningCertSha256(vararg digests: String) = apply {
+            allowedSigningCertSha256 += digests.mapNotNull { normalizeDigest(it) }
+        }
+        fun allowedSigningCertSha256(digests: Iterable<String>) = apply {
+            allowedSigningCertSha256 += digests.mapNotNull { normalizeDigest(it) }
+        }
+        fun expectedApkSha256(digest: String?) = apply {
+            expectedApkSha256 = normalizeDigest(digest)
+        }
+        fun expectedNativeLibrarySha256(fileName: String, digest: String?) = apply {
+            val normalizedName = fileName.trim()
+            val normalizedDigest = normalizeDigest(digest)
+            if (normalizedName.isNotEmpty() && normalizedDigest != null) {
+                expectedNativeLibSha256[normalizedName] = normalizedDigest
+            }
+        }
+        fun expectedNativeLibrarySha256(values: Map<String, String>) = apply {
+            values.forEach { (fileName, digest) -> expectedNativeLibrarySha256(fileName, digest) }
+        }
+        fun expectedManifestEntrySha256(digest: String?) = apply {
+            expectedManifestEntrySha256 = normalizeDigest(digest)
+        }
+        fun expectedDexSha256(entryName: String, digest: String?) = apply {
+            putNormalized(expectedDexSha256, entryName, digest)
+        }
+        fun expectedDexSha256(values: Map<String, String>) = apply {
+            values.forEach { (entryName, digest) -> expectedDexSha256(entryName, digest) }
+        }
+        fun expectedDexSectionSha256(entryAndSection: String, digest: String?) = apply {
+            putNormalized(expectedDexSectionSha256, entryAndSection, digest)
+        }
+        fun expectedDexSectionSha256(values: Map<String, String>) = apply {
+            values.forEach { (entryAndSection, digest) -> expectedDexSectionSha256(entryAndSection, digest) }
+        }
+        fun expectedDexMethodSha256(entryAndMethod: String, digest: String?) = apply {
+            putNormalized(expectedDexMethodSha256, entryAndMethod, digest)
+        }
+        fun expectedDexMethodSha256(values: Map<String, String>) = apply {
+            values.forEach { (entryAndMethod, digest) -> expectedDexMethodSha256(entryAndMethod, digest) }
+        }
+        fun expectedSplitApkSha256(fileName: String, digest: String?) = apply {
+            putNormalized(expectedSplitApkSha256, fileName, digest)
+        }
+        fun expectedSplitApkSha256(values: Map<String, String>) = apply {
+            values.forEach { (fileName, digest) -> expectedSplitApkSha256(fileName, digest) }
+        }
+        fun expectedSplitInventorySha256(digest: String?) = apply {
+            expectedSplitInventorySha256 = normalizeDigest(digest)
+        }
+        fun expectedDynamicFeatureSplitSha256(digest: String?) = apply {
+            expectedDynamicFeatureSplitSha256 = normalizeDigest(digest)
+        }
+        fun expectedDynamicFeatureSplitNameSha256(digest: String?) = apply {
+            expectedDynamicFeatureSplitNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedConfigSplitAxisSha256(digest: String?) = apply {
+            expectedConfigSplitAxisSha256 = normalizeDigest(digest)
+        }
+        fun expectedConfigSplitNameSha256(digest: String?) = apply {
+            expectedConfigSplitNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedConfigSplitAbiSha256(digest: String?) = apply {
+            expectedConfigSplitAbiSha256 = normalizeDigest(digest)
+        }
+        fun expectedConfigSplitLocaleSha256(digest: String?) = apply {
+            expectedConfigSplitLocaleSha256 = normalizeDigest(digest)
+        }
+        fun expectedConfigSplitDensitySha256(digest: String?) = apply {
+            expectedConfigSplitDensitySha256 = normalizeDigest(digest)
+        }
+        fun expectedElfSectionSha256(libAndSection: String, digest: String?) = apply {
+            putNormalized(expectedElfSectionSha256, libAndSection, digest)
+        }
+        fun expectedElfSectionSha256(values: Map<String, String>) = apply {
+            values.forEach { (libAndSection, digest) -> expectedElfSectionSha256(libAndSection, digest) }
+        }
+        fun expectedElfExportSymbolSha256(libAndSymbol: String, digest: String?) = apply {
+            putNormalized(expectedElfExportSymbolSha256, libAndSymbol, digest)
+        }
+        fun expectedElfExportSymbolSha256(values: Map<String, String>) = apply {
+            values.forEach { (libAndSymbol, digest) -> expectedElfExportSymbolSha256(libAndSymbol, digest) }
+        }
+        fun expectedElfExportGraphSha256(libName: String, digest: String?) = apply {
+            putNormalized(expectedElfExportGraphSha256, libName, digest)
+        }
+        fun expectedElfExportGraphSha256(values: Map<String, String>) = apply {
+            values.forEach { (libName, digest) -> expectedElfExportGraphSha256(libName, digest) }
+        }
+        fun expectedRequestedPermissionsSha256(digest: String?) = apply {
+            expectedRequestedPermissionsSha256 = normalizeDigest(digest)
+        }
+        fun expectedRequestedPermissionSemanticsSha256(digest: String?) = apply {
+            expectedRequestedPermissionSemanticsSha256 = normalizeDigest(digest)
+        }
+        fun expectedDeclaredPermissionSemanticsSha256(digest: String?) = apply {
+            expectedDeclaredPermissionSemanticsSha256 = normalizeDigest(digest)
+        }
+        fun expectedDeclaredPermissionFieldValue(permissionFieldKey: String, value: String?) = apply {
+            putRawValue(expectedDeclaredPermissionFieldValues, permissionFieldKey, value)
+        }
+        fun expectedDeclaredPermissionFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (permissionFieldKey, value) ->
+                expectedDeclaredPermissionFieldValue(permissionFieldKey, value)
+            }
+        }
+        fun expectedComponentSignatureSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedComponentSignatureSha256, componentKey, digest)
+        }
+        fun expectedComponentSignatureSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedComponentSignatureSha256(componentKey, digest) }
+        }
+        fun expectedComponentFieldValue(componentFieldKey: String, value: String?) = apply {
+            putRawValue(expectedComponentFieldValues, componentFieldKey, value)
+        }
+        fun expectedComponentFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (componentFieldKey, value) -> expectedComponentFieldValue(componentFieldKey, value) }
+        }
+        fun expectedProviderUriPermissionPatternsSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedProviderUriPermissionPatternsSha256, providerKey, digest)
+        }
+        fun expectedProviderUriPermissionPatternsSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) ->
+                expectedProviderUriPermissionPatternsSha256(providerKey, digest)
+            }
+        }
+        fun expectedProviderPathPermissionsSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedProviderPathPermissionsSha256, providerKey, digest)
+        }
+        fun expectedProviderPathPermissionsSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) -> expectedProviderPathPermissionsSha256(providerKey, digest) }
+        }
+        fun expectedProviderAuthoritySetSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedProviderAuthoritySetSha256, providerKey, digest)
+        }
+        fun expectedProviderAuthoritySetSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) -> expectedProviderAuthoritySetSha256(providerKey, digest) }
+        }
+        fun expectedProviderSemanticsSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedProviderSemanticsSha256, providerKey, digest)
+        }
+        fun expectedProviderSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) -> expectedProviderSemanticsSha256(providerKey, digest) }
+        }
+        fun expectedIntentFilterSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterSha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterActionSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterActionSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterActionSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterActionSha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterCategorySha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterCategorySha256, componentKey, digest)
+        }
+        fun expectedIntentFilterCategorySha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterCategorySha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterDataSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterDataSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterDataSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterDataSha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterDataSchemeSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterDataSchemeSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterDataSchemeSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterDataSchemeSha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterDataAuthoritySha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterDataAuthoritySha256, componentKey, digest)
+        }
+        fun expectedIntentFilterDataAuthoritySha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterDataAuthoritySha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterDataPathSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterDataPathSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterDataPathSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterDataPathSha256(componentKey, digest) }
+        }
+        fun expectedIntentFilterDataMimeTypeSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterDataMimeTypeSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterDataMimeTypeSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterDataMimeTypeSha256(componentKey, digest) }
+        }
+        fun expectedGrantUriPermissionSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedGrantUriPermissionSha256, providerKey, digest)
+        }
+        fun expectedGrantUriPermissionSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) -> expectedGrantUriPermissionSha256(providerKey, digest) }
+        }
+        fun expectedUsesFeatureSha256(digest: String?) = apply {
+            expectedUsesFeatureSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesFeatureNameSha256(digest: String?) = apply {
+            expectedUsesFeatureNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesFeatureRequiredSha256(digest: String?) = apply {
+            expectedUsesFeatureRequiredSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesFeatureGlEsVersionSha256(digest: String?) = apply {
+            expectedUsesFeatureGlEsVersionSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesSdkSha256(digest: String?) = apply {
+            expectedUsesSdkSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesSdkMinSha256(digest: String?) = apply {
+            expectedUsesSdkMinSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesSdkTargetSha256(digest: String?) = apply {
+            expectedUsesSdkTargetSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesSdkMaxSha256(digest: String?) = apply {
+            expectedUsesSdkMaxSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensSha256(digest: String?) = apply {
+            expectedSupportsScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedCompatibleScreensSha256(digest: String?) = apply {
+            expectedCompatibleScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesLibrarySha256(digest: String?) = apply {
+            expectedUsesLibrarySha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesLibraryOnlySha256(digest: String?) = apply {
+            expectedUsesLibraryOnlySha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesNativeLibrarySha256(digest: String?) = apply {
+            expectedUsesNativeLibrarySha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesSha256(digest: String?) = apply {
+            expectedQueriesSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesPackageSha256(digest: String?) = apply {
+            expectedQueriesPackageSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesPackageNameSha256(digest: String?) = apply {
+            expectedQueriesPackageNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesProviderSha256(digest: String?) = apply {
+            expectedQueriesProviderSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesProviderAuthoritySha256(digest: String?) = apply {
+            expectedQueriesProviderAuthoritySha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentSha256(digest: String?) = apply {
+            expectedQueriesIntentSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentActionSha256(digest: String?) = apply {
+            expectedQueriesIntentActionSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentCategorySha256(digest: String?) = apply {
+            expectedQueriesIntentCategorySha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentDataSha256(digest: String?) = apply {
+            expectedQueriesIntentDataSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentDataSchemeSha256(digest: String?) = apply {
+            expectedQueriesIntentDataSchemeSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentDataAuthoritySha256(digest: String?) = apply {
+            expectedQueriesIntentDataAuthoritySha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentDataPathSha256(digest: String?) = apply {
+            expectedQueriesIntentDataPathSha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesIntentDataMimeTypeSha256(digest: String?) = apply {
+            expectedQueriesIntentDataMimeTypeSha256 = normalizeDigest(digest)
+        }
+        fun expectedApplicationSemanticsSha256(digest: String?) = apply {
+            expectedApplicationSemanticsSha256 = normalizeDigest(digest)
+        }
+        fun expectedApplicationFieldValue(applicationFieldKey: String, value: String?) = apply {
+            putRawValue(expectedApplicationFieldValues, applicationFieldKey, value)
+        }
+        fun expectedApplicationFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (applicationFieldKey, value) ->
+                expectedApplicationFieldValue(applicationFieldKey, value)
+            }
+        }
+        fun expectedMetaData(name: String, value: String?) = apply {
+            val normalizedName = name.trim()
+            val normalizedValue = value?.trim()?.ifEmpty { null }
+            if (normalizedName.isNotEmpty() && normalizedValue != null) {
+                expectedMetaData[normalizedName] = normalizedValue
+            }
+        }
+        fun expectedMetaData(values: Map<String, String>) = apply {
+            values.forEach { (name, value) -> expectedMetaData(name, value) }
+        }
+
+        fun build() = LeonaConfig(
+            injectionDetectionEnabled = injection,
+            environmentDetectionEnabled = environment,
+            reportingEndpoint = reportingEndpoint,
+            apiKey = apiKey,
+            tenantId = tenantId,
+            appId = appId,
+            region = region,
+            transportEnabled = transportEnabled,
+            cloudConfigEnabled = cloudConfigEnabled,
+            cloudConfigEndpoint = cloudConfigEndpoint,
+            syncInit = syncInit,
+            verifyServerCert = verifyServerCert,
+            disableCollectionWindowMs = disableCollectionWindowMs,
+            disabledSignals = disabledSignals.toSet(),
+            channel = channel,
+            extraInfo = extraInfo,
+            firstPartyMode = firstPartyMode,
+            verboseNativeLogging = verboseNativeLogging,
+            preferStrongBoxBackedKey = preferStrongBoxBackedKey,
+            certificatePins = certificatePins.mapValues { it.value.toSet() }.toMap(),
+            attestationProvider = attestationProvider,
+            expectedPackageName = expectedPackageName,
+            allowedInstallerPackages = allowedInstallerPackages.toSet(),
+            allowedSigningCertSha256 = allowedSigningCertSha256.toSet(),
+            expectedApkSha256 = expectedApkSha256,
+            expectedNativeLibSha256 = expectedNativeLibSha256.toMap(),
+            expectedManifestEntrySha256 = expectedManifestEntrySha256,
+            expectedDexSha256 = expectedDexSha256.toMap(),
+            expectedDexSectionSha256 = expectedDexSectionSha256.toMap(),
+            expectedDexMethodSha256 = expectedDexMethodSha256.toMap(),
+            expectedSplitApkSha256 = expectedSplitApkSha256.toMap(),
+            expectedSplitInventorySha256 = expectedSplitInventorySha256,
+            expectedDynamicFeatureSplitSha256 = expectedDynamicFeatureSplitSha256,
+            expectedDynamicFeatureSplitNameSha256 = expectedDynamicFeatureSplitNameSha256,
+            expectedConfigSplitAxisSha256 = expectedConfigSplitAxisSha256,
+            expectedConfigSplitNameSha256 = expectedConfigSplitNameSha256,
+            expectedConfigSplitAbiSha256 = expectedConfigSplitAbiSha256,
+            expectedConfigSplitLocaleSha256 = expectedConfigSplitLocaleSha256,
+            expectedConfigSplitDensitySha256 = expectedConfigSplitDensitySha256,
+            expectedElfSectionSha256 = expectedElfSectionSha256.toMap(),
+            expectedElfExportSymbolSha256 = expectedElfExportSymbolSha256.toMap(),
+            expectedElfExportGraphSha256 = expectedElfExportGraphSha256.toMap(),
+            expectedRequestedPermissionsSha256 = expectedRequestedPermissionsSha256,
+            expectedRequestedPermissionSemanticsSha256 = expectedRequestedPermissionSemanticsSha256,
+            expectedDeclaredPermissionSemanticsSha256 = expectedDeclaredPermissionSemanticsSha256,
+            expectedDeclaredPermissionFieldValues = expectedDeclaredPermissionFieldValues.toMap(),
+            expectedComponentSignatureSha256 = expectedComponentSignatureSha256.toMap(),
+            expectedComponentFieldValues = expectedComponentFieldValues.toMap(),
+            expectedProviderUriPermissionPatternsSha256 = expectedProviderUriPermissionPatternsSha256.toMap(),
+            expectedProviderPathPermissionsSha256 = expectedProviderPathPermissionsSha256.toMap(),
+            expectedProviderAuthoritySetSha256 = expectedProviderAuthoritySetSha256.toMap(),
+            expectedProviderSemanticsSha256 = expectedProviderSemanticsSha256.toMap(),
+            expectedIntentFilterSha256 = expectedIntentFilterSha256.toMap(),
+            expectedIntentFilterActionSha256 = expectedIntentFilterActionSha256.toMap(),
+            expectedIntentFilterCategorySha256 = expectedIntentFilterCategorySha256.toMap(),
+            expectedIntentFilterDataSha256 = expectedIntentFilterDataSha256.toMap(),
+            expectedIntentFilterDataSchemeSha256 = expectedIntentFilterDataSchemeSha256.toMap(),
+            expectedIntentFilterDataAuthoritySha256 = expectedIntentFilterDataAuthoritySha256.toMap(),
+            expectedIntentFilterDataPathSha256 = expectedIntentFilterDataPathSha256.toMap(),
+            expectedIntentFilterDataMimeTypeSha256 = expectedIntentFilterDataMimeTypeSha256.toMap(),
+            expectedGrantUriPermissionSha256 = expectedGrantUriPermissionSha256.toMap(),
+            expectedUsesFeatureSha256 = expectedUsesFeatureSha256,
+            expectedUsesFeatureNameSha256 = expectedUsesFeatureNameSha256,
+            expectedUsesFeatureRequiredSha256 = expectedUsesFeatureRequiredSha256,
+            expectedUsesFeatureGlEsVersionSha256 = expectedUsesFeatureGlEsVersionSha256,
+            expectedUsesSdkSha256 = expectedUsesSdkSha256,
+            expectedUsesSdkMinSha256 = expectedUsesSdkMinSha256,
+            expectedUsesSdkTargetSha256 = expectedUsesSdkTargetSha256,
+            expectedUsesSdkMaxSha256 = expectedUsesSdkMaxSha256,
+            expectedSupportsScreensSha256 = expectedSupportsScreensSha256,
+            expectedCompatibleScreensSha256 = expectedCompatibleScreensSha256,
+            expectedUsesLibrarySha256 = expectedUsesLibrarySha256,
+            expectedUsesLibraryOnlySha256 = expectedUsesLibraryOnlySha256,
+            expectedUsesNativeLibrarySha256 = expectedUsesNativeLibrarySha256,
+            expectedQueriesSha256 = expectedQueriesSha256,
+            expectedQueriesPackageSha256 = expectedQueriesPackageSha256,
+            expectedQueriesPackageNameSha256 = expectedQueriesPackageNameSha256,
+            expectedQueriesProviderSha256 = expectedQueriesProviderSha256,
+            expectedQueriesProviderAuthoritySha256 = expectedQueriesProviderAuthoritySha256,
+            expectedQueriesIntentSha256 = expectedQueriesIntentSha256,
+            expectedQueriesIntentActionSha256 = expectedQueriesIntentActionSha256,
+            expectedQueriesIntentCategorySha256 = expectedQueriesIntentCategorySha256,
+            expectedQueriesIntentDataSha256 = expectedQueriesIntentDataSha256,
+            expectedQueriesIntentDataSchemeSha256 = expectedQueriesIntentDataSchemeSha256,
+            expectedQueriesIntentDataAuthoritySha256 = expectedQueriesIntentDataAuthoritySha256,
+            expectedQueriesIntentDataPathSha256 = expectedQueriesIntentDataPathSha256,
+            expectedQueriesIntentDataMimeTypeSha256 = expectedQueriesIntentDataMimeTypeSha256,
+            expectedApplicationSemanticsSha256 = expectedApplicationSemanticsSha256,
+            expectedApplicationFieldValues = expectedApplicationFieldValues.toMap(),
+            expectedMetaData = expectedMetaData.toMap(),
+        )
+
+        private fun normalizeToken(value: String?): String? =
+            value?.trim()?.ifEmpty { null }
+
+        private fun normalizeDigest(value: String?): String? =
+            value?.trim()?.lowercase()?.ifEmpty { null }
+
+        private fun normalizePin(value: String?): String? {
+            val pin = value?.trim()?.ifEmpty { null } ?: return null
+            return if (pin.startsWith("sha256/")) pin else "sha256/$pin"
+        }
+
+        private fun putNormalized(target: MutableMap<String, String>, key: String, digest: String?) {
+            val normalizedKey = key.trim()
+            val normalizedDigest = normalizeDigest(digest)
+            if (normalizedKey.isNotEmpty() && normalizedDigest != null) {
+                target[normalizedKey] = normalizedDigest
+            }
+        }
+
+        private fun putRawValue(target: MutableMap<String, String>, key: String, value: String?) {
+            val normalizedKey = key.trim()
+            val normalizedValue = value?.trim()?.ifEmpty { null }
+            if (normalizedKey.isNotEmpty() && normalizedValue != null) {
+                target[normalizedKey] = normalizedValue
+            }
+        }
+    }
+
+    private companion object {
+        const val FLAG_INJECTION = 1L shl 0
+        const val FLAG_ENVIRONMENT = 1L shl 1
+        const val FLAG_VERBOSE_LOG = 1L shl 2
+    }
+}

@@ -1,0 +1,101 @@
+spring:
+  application:
+    name: gateway
+  threads:
+    virtual:
+      enabled: true
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 10s
+      default-filters:
+        - AddResponseHeader=X-Frame-Options, DENY
+        - AddResponseHeader=X-Content-Type-Options, nosniff
+        - AddResponseHeader=Strict-Transport-Security, "max-age=63072000; includeSubDomains"
+      routes:
+        - id: handshake
+          uri: http://ingestion-service:8081
+          predicates:
+            - Path=/v1/handshake
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: ingestion
+                fallbackUri: forward:/fallback/ingestion
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 500
+                key-resolver: "#{@appKeyResolver}"
+
+        - id: sense
+          uri: http://ingestion-service:8081
+          predicates:
+            - Path=/v1/sense
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: ingestion
+                fallbackUri: forward:/fallback/ingestion
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 200
+                redis-rate-limiter.burstCapacity: 1000
+                key-resolver: "#{@appKeyResolver}"
+
+        - id: verdict
+          uri: http://query-service:8082
+          predicates:
+            - Path=/v1/verdict
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: query
+                fallbackUri: forward:/fallback/query
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1000
+                redis-rate-limiter.burstCapacity: 5000
+                key-resolver: "#{@tenantResolver}"
+
+        - id: admin
+          uri: http://admin-service:8083
+          predicates:
+            - Path=/v1/admin/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: admin
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      timeout: 1s
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, gateway
+  metrics:
+    tags:
+      service: gateway
+      region: ${LEONA_REGION:local}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      ingestion:
+        slidingWindowSize: 100
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      query:
+        slidingWindowSize: 100
+        failureRateThreshold: 40
+        waitDurationInOpenState: 5s
