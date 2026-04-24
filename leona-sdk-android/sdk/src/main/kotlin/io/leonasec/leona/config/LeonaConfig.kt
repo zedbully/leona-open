@@ -149,14 +149,48 @@ class LeonaConfig private constructor(
     val expectedUsesSdkMaxSha256: String?,
     /** Optional raw manifest supports-screens fingerprint. */
     val expectedSupportsScreensSha256: String?,
+    /** Optional raw manifest supports-screens smallScreens fingerprint. */
+    val expectedSupportsScreensSmallScreensSha256: String?,
+    /** Optional raw manifest supports-screens normalScreens fingerprint. */
+    val expectedSupportsScreensNormalScreensSha256: String?,
+    /** Optional raw manifest supports-screens largeScreens fingerprint. */
+    val expectedSupportsScreensLargeScreensSha256: String?,
+    /** Optional raw manifest supports-screens xlargeScreens fingerprint. */
+    val expectedSupportsScreensXlargeScreensSha256: String?,
+    /** Optional raw manifest supports-screens resizeable fingerprint. */
+    val expectedSupportsScreensResizeableSha256: String?,
+    /** Optional raw manifest supports-screens anyDensity fingerprint. */
+    val expectedSupportsScreensAnyDensitySha256: String?,
+    /** Optional raw manifest supports-screens requiresSmallestWidthDp fingerprint. */
+    val expectedSupportsScreensRequiresSmallestWidthDpSha256: String?,
+    /** Optional raw manifest supports-screens compatibleWidthLimitDp fingerprint. */
+    val expectedSupportsScreensCompatibleWidthLimitDpSha256: String?,
+    /** Optional raw manifest supports-screens largestWidthLimitDp fingerprint. */
+    val expectedSupportsScreensLargestWidthLimitDpSha256: String?,
     /** Optional raw manifest compatible-screens fingerprint. */
     val expectedCompatibleScreensSha256: String?,
+    /** Optional raw manifest compatible-screens screenSize fingerprint. */
+    val expectedCompatibleScreensScreenSizeSha256: String?,
+    /** Optional raw manifest compatible-screens screenDensity fingerprint. */
+    val expectedCompatibleScreensScreenDensitySha256: String?,
     /** Optional raw manifest uses-library / uses-native-library fingerprint. */
     val expectedUsesLibrarySha256: String?,
+    /** Optional raw manifest uses-library / uses-native-library name fingerprint. */
+    val expectedUsesLibraryNameSha256: String?,
+    /** Optional raw manifest uses-library / uses-native-library required fingerprint. */
+    val expectedUsesLibraryRequiredSha256: String?,
     /** Optional raw manifest uses-library fingerprint. */
     val expectedUsesLibraryOnlySha256: String?,
+    /** Optional raw manifest uses-library name fingerprint. */
+    val expectedUsesLibraryOnlyNameSha256: String?,
+    /** Optional raw manifest uses-library required fingerprint. */
+    val expectedUsesLibraryOnlyRequiredSha256: String?,
     /** Optional raw manifest uses-native-library fingerprint. */
     val expectedUsesNativeLibrarySha256: String?,
+    /** Optional raw manifest uses-native-library name fingerprint. */
+    val expectedUsesNativeLibraryNameSha256: String?,
+    /** Optional raw manifest uses-native-library required fingerprint. */
+    val expectedUsesNativeLibraryRequiredSha256: String?,
     /** Optional raw manifest queries fingerprint. */
     val expectedQueriesSha256: String?,
     /** Optional raw manifest queries package fingerprint. */
@@ -270,10 +304,27 @@ class LeonaConfig private constructor(
         private var expectedUsesSdkTargetSha256: String? = null
         private var expectedUsesSdkMaxSha256: String? = null
         private var expectedSupportsScreensSha256: String? = null
+        private var expectedSupportsScreensSmallScreensSha256: String? = null
+        private var expectedSupportsScreensNormalScreensSha256: String? = null
+        private var expectedSupportsScreensLargeScreensSha256: String? = null
+        private var expectedSupportsScreensXlargeScreensSha256: String? = null
+        private var expectedSupportsScreensResizeableSha256: String? = null
+        private var expectedSupportsScreensAnyDensitySha256: String? = null
+        private var expectedSupportsScreensRequiresSmallestWidthDpSha256: String? = null
+        private var expectedSupportsScreensCompatibleWidthLimitDpSha256: String? = null
+        private var expectedSupportsScreensLargestWidthLimitDpSha256: String? = null
         private var expectedCompatibleScreensSha256: String? = null
+        private var expectedCompatibleScreensScreenSizeSha256: String? = null
+        private var expectedCompatibleScreensScreenDensitySha256: String? = null
         private var expectedUsesLibrarySha256: String? = null
+        private var expectedUsesLibraryNameSha256: String? = null
+        private var expectedUsesLibraryRequiredSha256: String? = null
         private var expectedUsesLibraryOnlySha256: String? = null
+        private var expectedUsesLibraryOnlyNameSha256: String? = null
+        private var expectedUsesLibraryOnlyRequiredSha256: String? = null
         private var expectedUsesNativeLibrarySha256: String? = null
+        private var expectedUsesNativeLibraryNameSha256: String? = null
+        private var expectedUsesNativeLibraryRequiredSha256: String? = null
         private var expectedQueriesSha256: String? = null
         private var expectedQueriesPackageSha256: String? = null
         private var expectedQueriesPackageNameSha256: String? = null
@@ -554,17 +605,68 @@ class LeonaConfig private constructor(
         fun expectedSupportsScreensSha256(digest: String?) = apply {
             expectedSupportsScreensSha256 = normalizeDigest(digest)
         }
+        fun expectedSupportsScreensSmallScreensSha256(digest: String?) = apply {
+            expectedSupportsScreensSmallScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensNormalScreensSha256(digest: String?) = apply {
+            expectedSupportsScreensNormalScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensLargeScreensSha256(digest: String?) = apply {
+            expectedSupportsScreensLargeScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensXlargeScreensSha256(digest: String?) = apply {
+            expectedSupportsScreensXlargeScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensResizeableSha256(digest: String?) = apply {
+            expectedSupportsScreensResizeableSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensAnyDensitySha256(digest: String?) = apply {
+            expectedSupportsScreensAnyDensitySha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensRequiresSmallestWidthDpSha256(digest: String?) = apply {
+            expectedSupportsScreensRequiresSmallestWidthDpSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensCompatibleWidthLimitDpSha256(digest: String?) = apply {
+            expectedSupportsScreensCompatibleWidthLimitDpSha256 = normalizeDigest(digest)
+        }
+        fun expectedSupportsScreensLargestWidthLimitDpSha256(digest: String?) = apply {
+            expectedSupportsScreensLargestWidthLimitDpSha256 = normalizeDigest(digest)
+        }
         fun expectedCompatibleScreensSha256(digest: String?) = apply {
             expectedCompatibleScreensSha256 = normalizeDigest(digest)
+        }
+        fun expectedCompatibleScreensScreenSizeSha256(digest: String?) = apply {
+            expectedCompatibleScreensScreenSizeSha256 = normalizeDigest(digest)
+        }
+        fun expectedCompatibleScreensScreenDensitySha256(digest: String?) = apply {
+            expectedCompatibleScreensScreenDensitySha256 = normalizeDigest(digest)
         }
         fun expectedUsesLibrarySha256(digest: String?) = apply {
             expectedUsesLibrarySha256 = normalizeDigest(digest)
         }
+        fun expectedUsesLibraryNameSha256(digest: String?) = apply {
+            expectedUsesLibraryNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesLibraryRequiredSha256(digest: String?) = apply {
+            expectedUsesLibraryRequiredSha256 = normalizeDigest(digest)
+        }
         fun expectedUsesLibraryOnlySha256(digest: String?) = apply {
             expectedUsesLibraryOnlySha256 = normalizeDigest(digest)
         }
+        fun expectedUsesLibraryOnlyNameSha256(digest: String?) = apply {
+            expectedUsesLibraryOnlyNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesLibraryOnlyRequiredSha256(digest: String?) = apply {
+            expectedUsesLibraryOnlyRequiredSha256 = normalizeDigest(digest)
+        }
         fun expectedUsesNativeLibrarySha256(digest: String?) = apply {
             expectedUsesNativeLibrarySha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesNativeLibraryNameSha256(digest: String?) = apply {
+            expectedUsesNativeLibraryNameSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesNativeLibraryRequiredSha256(digest: String?) = apply {
+            expectedUsesNativeLibraryRequiredSha256 = normalizeDigest(digest)
         }
         fun expectedQueriesSha256(digest: String?) = apply {
             expectedQueriesSha256 = normalizeDigest(digest)
@@ -698,10 +800,30 @@ class LeonaConfig private constructor(
             expectedUsesSdkTargetSha256 = expectedUsesSdkTargetSha256,
             expectedUsesSdkMaxSha256 = expectedUsesSdkMaxSha256,
             expectedSupportsScreensSha256 = expectedSupportsScreensSha256,
+            expectedSupportsScreensSmallScreensSha256 = expectedSupportsScreensSmallScreensSha256,
+            expectedSupportsScreensNormalScreensSha256 = expectedSupportsScreensNormalScreensSha256,
+            expectedSupportsScreensLargeScreensSha256 = expectedSupportsScreensLargeScreensSha256,
+            expectedSupportsScreensXlargeScreensSha256 = expectedSupportsScreensXlargeScreensSha256,
+            expectedSupportsScreensResizeableSha256 = expectedSupportsScreensResizeableSha256,
+            expectedSupportsScreensAnyDensitySha256 = expectedSupportsScreensAnyDensitySha256,
+            expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+                expectedSupportsScreensRequiresSmallestWidthDpSha256,
+            expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+                expectedSupportsScreensCompatibleWidthLimitDpSha256,
+            expectedSupportsScreensLargestWidthLimitDpSha256 =
+                expectedSupportsScreensLargestWidthLimitDpSha256,
             expectedCompatibleScreensSha256 = expectedCompatibleScreensSha256,
+            expectedCompatibleScreensScreenSizeSha256 = expectedCompatibleScreensScreenSizeSha256,
+            expectedCompatibleScreensScreenDensitySha256 = expectedCompatibleScreensScreenDensitySha256,
             expectedUsesLibrarySha256 = expectedUsesLibrarySha256,
+            expectedUsesLibraryNameSha256 = expectedUsesLibraryNameSha256,
+            expectedUsesLibraryRequiredSha256 = expectedUsesLibraryRequiredSha256,
             expectedUsesLibraryOnlySha256 = expectedUsesLibraryOnlySha256,
+            expectedUsesLibraryOnlyNameSha256 = expectedUsesLibraryOnlyNameSha256,
+            expectedUsesLibraryOnlyRequiredSha256 = expectedUsesLibraryOnlyRequiredSha256,
             expectedUsesNativeLibrarySha256 = expectedUsesNativeLibrarySha256,
+            expectedUsesNativeLibraryNameSha256 = expectedUsesNativeLibraryNameSha256,
+            expectedUsesNativeLibraryRequiredSha256 = expectedUsesNativeLibraryRequiredSha256,
             expectedQueriesSha256 = expectedQueriesSha256,
             expectedQueriesPackageSha256 = expectedQueriesPackageSha256,
             expectedQueriesPackageNameSha256 = expectedQueriesPackageNameSha256,

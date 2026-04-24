@@ -79,6 +79,33 @@ bool has_any_intersection(const std::unordered_set<std::string>& a,
     return false;
 }
 
+void check_optional_hash(
+    const Snapshot& snapshot,
+    const Snapshot& policy,
+    const char* expected_key,
+    const char* actual_key,
+    const char* missing_id,
+    const char* mismatch_id,
+    const char* missing_message,
+    const char* mismatch_message,
+    EventList& out) {
+    const std::string expected = get_or(policy, expected_key);
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, actual_key);
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty() ? missing_id : mismatch_id,
+        Severity::HIGH,
+        actual.empty() ? missing_message : mismatch_message,
+        ev.build(),
+    });
+}
+
 void check_debuggable(const Snapshot& snapshot, EventList& out) {
     if (get_or(snapshot, "debuggable") != "1") return;
 
@@ -1281,6 +1308,132 @@ void check_expected_supports_screens_hash(
     });
 }
 
+void check_expected_supports_screens_small_screens_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensSmallScreensSha256",
+        "supportsScreensSmallScreensSha256",
+        "tamper.supports_screens_small_screens_hash.missing",
+        "tamper.supports_screens_small_screens_hash.mismatch",
+        "Manifest supports-screens smallScreens fingerprint could not be collected",
+        "Manifest supports-screens smallScreens fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_normal_screens_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensNormalScreensSha256",
+        "supportsScreensNormalScreensSha256",
+        "tamper.supports_screens_normal_screens_hash.missing",
+        "tamper.supports_screens_normal_screens_hash.mismatch",
+        "Manifest supports-screens normalScreens fingerprint could not be collected",
+        "Manifest supports-screens normalScreens fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_large_screens_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensLargeScreensSha256",
+        "supportsScreensLargeScreensSha256",
+        "tamper.supports_screens_large_screens_hash.missing",
+        "tamper.supports_screens_large_screens_hash.mismatch",
+        "Manifest supports-screens largeScreens fingerprint could not be collected",
+        "Manifest supports-screens largeScreens fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_xlarge_screens_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensXlargeScreensSha256",
+        "supportsScreensXlargeScreensSha256",
+        "tamper.supports_screens_xlarge_screens_hash.missing",
+        "tamper.supports_screens_xlarge_screens_hash.mismatch",
+        "Manifest supports-screens xlargeScreens fingerprint could not be collected",
+        "Manifest supports-screens xlargeScreens fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_resizeable_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensResizeableSha256",
+        "supportsScreensResizeableSha256",
+        "tamper.supports_screens_resizeable_hash.missing",
+        "tamper.supports_screens_resizeable_hash.mismatch",
+        "Manifest supports-screens resizeable fingerprint could not be collected",
+        "Manifest supports-screens resizeable fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_any_density_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensAnyDensitySha256",
+        "supportsScreensAnyDensitySha256",
+        "tamper.supports_screens_any_density_hash.missing",
+        "tamper.supports_screens_any_density_hash.mismatch",
+        "Manifest supports-screens anyDensity fingerprint could not be collected",
+        "Manifest supports-screens anyDensity fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_requires_smallest_width_dp_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensRequiresSmallestWidthDpSha256",
+        "supportsScreensRequiresSmallestWidthDpSha256",
+        "tamper.supports_screens_requires_smallest_width_dp_hash.missing",
+        "tamper.supports_screens_requires_smallest_width_dp_hash.mismatch",
+        "Manifest supports-screens requiresSmallestWidthDp fingerprint could not be collected",
+        "Manifest supports-screens requiresSmallestWidthDp fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_compatible_width_limit_dp_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensCompatibleWidthLimitDpSha256",
+        "supportsScreensCompatibleWidthLimitDpSha256",
+        "tamper.supports_screens_compatible_width_limit_dp_hash.missing",
+        "tamper.supports_screens_compatible_width_limit_dp_hash.mismatch",
+        "Manifest supports-screens compatibleWidthLimitDp fingerprint could not be collected",
+        "Manifest supports-screens compatibleWidthLimitDp fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_supports_screens_largest_width_limit_dp_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedSupportsScreensLargestWidthLimitDpSha256",
+        "supportsScreensLargestWidthLimitDpSha256",
+        "tamper.supports_screens_largest_width_limit_dp_hash.missing",
+        "tamper.supports_screens_largest_width_limit_dp_hash.mismatch",
+        "Manifest supports-screens largestWidthLimitDp fingerprint could not be collected",
+        "Manifest supports-screens largestWidthLimitDp fingerprint does not match configured baseline",
+        out);
+}
+
 void check_expected_compatible_screens_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedCompatibleScreensSha256");
@@ -1302,6 +1455,34 @@ void check_expected_compatible_screens_hash(
             : "Manifest compatible-screens fingerprint does not match configured baseline",
         ev.build(),
     });
+}
+
+void check_expected_compatible_screens_screen_size_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedCompatibleScreensScreenSizeSha256",
+        "compatibleScreensScreenSizeSha256",
+        "tamper.compatible_screens_screen_size_hash.missing",
+        "tamper.compatible_screens_screen_size_hash.mismatch",
+        "Manifest compatible-screens screenSize fingerprint could not be collected",
+        "Manifest compatible-screens screenSize fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_compatible_screens_screen_density_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedCompatibleScreensScreenDensitySha256",
+        "compatibleScreensScreenDensitySha256",
+        "tamper.compatible_screens_screen_density_hash.missing",
+        "tamper.compatible_screens_screen_density_hash.mismatch",
+        "Manifest compatible-screens screenDensity fingerprint could not be collected",
+        "Manifest compatible-screens screenDensity fingerprint does not match configured baseline",
+        out);
 }
 
 void check_expected_uses_library_hash(
@@ -1327,6 +1508,34 @@ void check_expected_uses_library_hash(
     });
 }
 
+void check_expected_uses_library_name_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedUsesLibraryNameSha256",
+        "usesLibraryNameSha256",
+        "tamper.uses_library_name_hash.missing",
+        "tamper.uses_library_name_hash.mismatch",
+        "Manifest uses-library name fingerprint could not be collected",
+        "Manifest uses-library name fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_uses_library_required_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedUsesLibraryRequiredSha256",
+        "usesLibraryRequiredSha256",
+        "tamper.uses_library_required_hash.missing",
+        "tamper.uses_library_required_hash.mismatch",
+        "Manifest uses-library required fingerprint could not be collected",
+        "Manifest uses-library required fingerprint does not match configured baseline",
+        out);
+}
+
 void check_expected_uses_library_only_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedUsesLibraryOnlySha256");
@@ -1350,6 +1559,34 @@ void check_expected_uses_library_only_hash(
     });
 }
 
+void check_expected_uses_library_only_name_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedUsesLibraryOnlyNameSha256",
+        "usesLibraryOnlyNameSha256",
+        "tamper.uses_library_only_name_hash.missing",
+        "tamper.uses_library_only_name_hash.mismatch",
+        "Manifest uses-library-only name fingerprint could not be collected",
+        "Manifest uses-library-only name fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_uses_library_only_required_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedUsesLibraryOnlyRequiredSha256",
+        "usesLibraryOnlyRequiredSha256",
+        "tamper.uses_library_only_required_hash.missing",
+        "tamper.uses_library_only_required_hash.mismatch",
+        "Manifest uses-library-only required fingerprint could not be collected",
+        "Manifest uses-library-only required fingerprint does not match configured baseline",
+        out);
+}
+
 void check_expected_uses_native_library_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedUsesNativeLibrarySha256");
@@ -1371,6 +1608,34 @@ void check_expected_uses_native_library_hash(
             : "Manifest uses-native-library fingerprint does not match configured baseline",
         ev.build(),
     });
+}
+
+void check_expected_uses_native_library_name_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedUsesNativeLibraryNameSha256",
+        "usesNativeLibraryNameSha256",
+        "tamper.uses_native_library_name_hash.missing",
+        "tamper.uses_native_library_name_hash.mismatch",
+        "Manifest uses-native-library name fingerprint could not be collected",
+        "Manifest uses-native-library name fingerprint does not match configured baseline",
+        out);
+}
+
+void check_expected_uses_native_library_required_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    check_optional_hash(
+        snapshot,
+        policy,
+        "expectedUsesNativeLibraryRequiredSha256",
+        "usesNativeLibraryRequiredSha256",
+        "tamper.uses_native_library_required_hash.missing",
+        "tamper.uses_native_library_required_hash.mismatch",
+        "Manifest uses-native-library required fingerprint could not be collected",
+        "Manifest uses-native-library required fingerprint does not match configured baseline",
+        out);
 }
 
 void check_expected_queries_hash(
@@ -1935,17 +2200,68 @@ EventList scan_tamper() {
     if (catalog.expected_supports_screens_hash) {
         check_expected_supports_screens_hash(snapshot, policy, events);
     }
+    if (catalog.expected_supports_screens_small_screens_hash) {
+        check_expected_supports_screens_small_screens_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_normal_screens_hash) {
+        check_expected_supports_screens_normal_screens_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_large_screens_hash) {
+        check_expected_supports_screens_large_screens_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_xlarge_screens_hash) {
+        check_expected_supports_screens_xlarge_screens_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_resizeable_hash) {
+        check_expected_supports_screens_resizeable_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_any_density_hash) {
+        check_expected_supports_screens_any_density_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_requires_smallest_width_dp_hash) {
+        check_expected_supports_screens_requires_smallest_width_dp_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_compatible_width_limit_dp_hash) {
+        check_expected_supports_screens_compatible_width_limit_dp_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_supports_screens_largest_width_limit_dp_hash) {
+        check_expected_supports_screens_largest_width_limit_dp_hash(snapshot, policy, events);
+    }
     if (catalog.expected_compatible_screens_hash) {
         check_expected_compatible_screens_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_compatible_screens_screen_size_hash) {
+        check_expected_compatible_screens_screen_size_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_compatible_screens_screen_density_hash) {
+        check_expected_compatible_screens_screen_density_hash(snapshot, policy, events);
     }
     if (catalog.expected_uses_library_hash) {
         check_expected_uses_library_hash(snapshot, policy, events);
     }
+    if (catalog.expected_uses_library_name_hash) {
+        check_expected_uses_library_name_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_uses_library_required_hash) {
+        check_expected_uses_library_required_hash(snapshot, policy, events);
+    }
     if (catalog.expected_uses_library_only_hash) {
         check_expected_uses_library_only_hash(snapshot, policy, events);
     }
+    if (catalog.expected_uses_library_only_name_hash) {
+        check_expected_uses_library_only_name_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_uses_library_only_required_hash) {
+        check_expected_uses_library_only_required_hash(snapshot, policy, events);
+    }
     if (catalog.expected_uses_native_library_hash) {
         check_expected_uses_native_library_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_uses_native_library_name_hash) {
+        check_expected_uses_native_library_name_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_uses_native_library_required_hash) {
+        check_expected_uses_native_library_required_hash(snapshot, policy, events);
     }
     if (catalog.expected_queries_hash) {
         check_expected_queries_hash(snapshot, policy, events);

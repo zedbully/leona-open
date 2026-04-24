@@ -339,10 +339,27 @@ internal object AppIntegrity {
             policy.expectedUsesSdkTargetSha256 != null ||
             policy.expectedUsesSdkMaxSha256 != null ||
             policy.expectedSupportsScreensSha256 != null ||
+            policy.expectedSupportsScreensSmallScreensSha256 != null ||
+            policy.expectedSupportsScreensNormalScreensSha256 != null ||
+            policy.expectedSupportsScreensLargeScreensSha256 != null ||
+            policy.expectedSupportsScreensXlargeScreensSha256 != null ||
+            policy.expectedSupportsScreensResizeableSha256 != null ||
+            policy.expectedSupportsScreensAnyDensitySha256 != null ||
+            policy.expectedSupportsScreensRequiresSmallestWidthDpSha256 != null ||
+            policy.expectedSupportsScreensCompatibleWidthLimitDpSha256 != null ||
+            policy.expectedSupportsScreensLargestWidthLimitDpSha256 != null ||
             policy.expectedCompatibleScreensSha256 != null ||
+            policy.expectedCompatibleScreensScreenSizeSha256 != null ||
+            policy.expectedCompatibleScreensScreenDensitySha256 != null ||
             policy.expectedUsesLibrarySha256 != null ||
+            policy.expectedUsesLibraryNameSha256 != null ||
+            policy.expectedUsesLibraryRequiredSha256 != null ||
             policy.expectedUsesLibraryOnlySha256 != null ||
+            policy.expectedUsesLibraryOnlyNameSha256 != null ||
+            policy.expectedUsesLibraryOnlyRequiredSha256 != null ||
             policy.expectedUsesNativeLibrarySha256 != null ||
+            policy.expectedUsesNativeLibraryNameSha256 != null ||
+            policy.expectedUsesNativeLibraryRequiredSha256 != null ||
             policy.expectedQueriesSha256 != null ||
             policy.expectedQueriesPackageSha256 != null ||
             policy.expectedQueriesPackageNameSha256 != null ||
@@ -387,17 +404,82 @@ internal object AppIntegrity {
             policy.expectedSupportsScreensSha256?.let {
                 lines["supportsScreensSha256"] = manifestHashes.supportsScreensSha256.orEmpty()
             }
+            policy.expectedSupportsScreensSmallScreensSha256?.let {
+                lines["supportsScreensSmallScreensSha256"] =
+                    manifestHashes.supportsScreensSmallScreensSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensNormalScreensSha256?.let {
+                lines["supportsScreensNormalScreensSha256"] =
+                    manifestHashes.supportsScreensNormalScreensSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensLargeScreensSha256?.let {
+                lines["supportsScreensLargeScreensSha256"] =
+                    manifestHashes.supportsScreensLargeScreensSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensXlargeScreensSha256?.let {
+                lines["supportsScreensXlargeScreensSha256"] =
+                    manifestHashes.supportsScreensXlargeScreensSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensResizeableSha256?.let {
+                lines["supportsScreensResizeableSha256"] =
+                    manifestHashes.supportsScreensResizeableSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensAnyDensitySha256?.let {
+                lines["supportsScreensAnyDensitySha256"] =
+                    manifestHashes.supportsScreensAnyDensitySha256.orEmpty()
+            }
+            policy.expectedSupportsScreensRequiresSmallestWidthDpSha256?.let {
+                lines["supportsScreensRequiresSmallestWidthDpSha256"] =
+                    manifestHashes.supportsScreensRequiresSmallestWidthDpSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensCompatibleWidthLimitDpSha256?.let {
+                lines["supportsScreensCompatibleWidthLimitDpSha256"] =
+                    manifestHashes.supportsScreensCompatibleWidthLimitDpSha256.orEmpty()
+            }
+            policy.expectedSupportsScreensLargestWidthLimitDpSha256?.let {
+                lines["supportsScreensLargestWidthLimitDpSha256"] =
+                    manifestHashes.supportsScreensLargestWidthLimitDpSha256.orEmpty()
+            }
             policy.expectedCompatibleScreensSha256?.let {
                 lines["compatibleScreensSha256"] = manifestHashes.compatibleScreensSha256.orEmpty()
+            }
+            policy.expectedCompatibleScreensScreenSizeSha256?.let {
+                lines["compatibleScreensScreenSizeSha256"] =
+                    manifestHashes.compatibleScreensScreenSizeSha256.orEmpty()
+            }
+            policy.expectedCompatibleScreensScreenDensitySha256?.let {
+                lines["compatibleScreensScreenDensitySha256"] =
+                    manifestHashes.compatibleScreensScreenDensitySha256.orEmpty()
             }
             policy.expectedUsesLibrarySha256?.let {
                 lines["usesLibrarySha256"] = manifestHashes.usesLibrarySha256.orEmpty()
             }
+            policy.expectedUsesLibraryNameSha256?.let {
+                lines["usesLibraryNameSha256"] = manifestHashes.usesLibraryNameSha256.orEmpty()
+            }
+            policy.expectedUsesLibraryRequiredSha256?.let {
+                lines["usesLibraryRequiredSha256"] = manifestHashes.usesLibraryRequiredSha256.orEmpty()
+            }
             policy.expectedUsesLibraryOnlySha256?.let {
                 lines["usesLibraryOnlySha256"] = manifestHashes.usesLibraryOnlySha256.orEmpty()
             }
+            policy.expectedUsesLibraryOnlyNameSha256?.let {
+                lines["usesLibraryOnlyNameSha256"] = manifestHashes.usesLibraryOnlyNameSha256.orEmpty()
+            }
+            policy.expectedUsesLibraryOnlyRequiredSha256?.let {
+                lines["usesLibraryOnlyRequiredSha256"] =
+                    manifestHashes.usesLibraryOnlyRequiredSha256.orEmpty()
+            }
             policy.expectedUsesNativeLibrarySha256?.let {
                 lines["usesNativeLibrarySha256"] = manifestHashes.usesNativeLibrarySha256.orEmpty()
+            }
+            policy.expectedUsesNativeLibraryNameSha256?.let {
+                lines["usesNativeLibraryNameSha256"] =
+                    manifestHashes.usesNativeLibraryNameSha256.orEmpty()
+            }
+            policy.expectedUsesNativeLibraryRequiredSha256?.let {
+                lines["usesNativeLibraryRequiredSha256"] =
+                    manifestHashes.usesNativeLibraryRequiredSha256.orEmpty()
             }
             policy.expectedQueriesSha256?.let {
                 lines["queriesSha256"] = manifestHashes.queriesSha256.orEmpty()
@@ -567,10 +649,57 @@ internal object AppIntegrity {
         policy.expectedUsesSdkTargetSha256?.let { lines["expectedUsesSdkTargetSha256"] = it }
         policy.expectedUsesSdkMaxSha256?.let { lines["expectedUsesSdkMaxSha256"] = it }
         policy.expectedSupportsScreensSha256?.let { lines["expectedSupportsScreensSha256"] = it }
+        policy.expectedSupportsScreensSmallScreensSha256?.let {
+            lines["expectedSupportsScreensSmallScreensSha256"] = it
+        }
+        policy.expectedSupportsScreensNormalScreensSha256?.let {
+            lines["expectedSupportsScreensNormalScreensSha256"] = it
+        }
+        policy.expectedSupportsScreensLargeScreensSha256?.let {
+            lines["expectedSupportsScreensLargeScreensSha256"] = it
+        }
+        policy.expectedSupportsScreensXlargeScreensSha256?.let {
+            lines["expectedSupportsScreensXlargeScreensSha256"] = it
+        }
+        policy.expectedSupportsScreensResizeableSha256?.let {
+            lines["expectedSupportsScreensResizeableSha256"] = it
+        }
+        policy.expectedSupportsScreensAnyDensitySha256?.let {
+            lines["expectedSupportsScreensAnyDensitySha256"] = it
+        }
+        policy.expectedSupportsScreensRequiresSmallestWidthDpSha256?.let {
+            lines["expectedSupportsScreensRequiresSmallestWidthDpSha256"] = it
+        }
+        policy.expectedSupportsScreensCompatibleWidthLimitDpSha256?.let {
+            lines["expectedSupportsScreensCompatibleWidthLimitDpSha256"] = it
+        }
+        policy.expectedSupportsScreensLargestWidthLimitDpSha256?.let {
+            lines["expectedSupportsScreensLargestWidthLimitDpSha256"] = it
+        }
         policy.expectedCompatibleScreensSha256?.let { lines["expectedCompatibleScreensSha256"] = it }
+        policy.expectedCompatibleScreensScreenSizeSha256?.let {
+            lines["expectedCompatibleScreensScreenSizeSha256"] = it
+        }
+        policy.expectedCompatibleScreensScreenDensitySha256?.let {
+            lines["expectedCompatibleScreensScreenDensitySha256"] = it
+        }
         policy.expectedUsesLibrarySha256?.let { lines["expectedUsesLibrarySha256"] = it }
+        policy.expectedUsesLibraryNameSha256?.let { lines["expectedUsesLibraryNameSha256"] = it }
+        policy.expectedUsesLibraryRequiredSha256?.let { lines["expectedUsesLibraryRequiredSha256"] = it }
         policy.expectedUsesLibraryOnlySha256?.let { lines["expectedUsesLibraryOnlySha256"] = it }
+        policy.expectedUsesLibraryOnlyNameSha256?.let {
+            lines["expectedUsesLibraryOnlyNameSha256"] = it
+        }
+        policy.expectedUsesLibraryOnlyRequiredSha256?.let {
+            lines["expectedUsesLibraryOnlyRequiredSha256"] = it
+        }
         policy.expectedUsesNativeLibrarySha256?.let { lines["expectedUsesNativeLibrarySha256"] = it }
+        policy.expectedUsesNativeLibraryNameSha256?.let {
+            lines["expectedUsesNativeLibraryNameSha256"] = it
+        }
+        policy.expectedUsesNativeLibraryRequiredSha256?.let {
+            lines["expectedUsesNativeLibraryRequiredSha256"] = it
+        }
         policy.expectedQueriesSha256?.let { lines["expectedQueriesSha256"] = it }
         policy.expectedQueriesPackageSha256?.let { lines["expectedQueriesPackageSha256"] = it }
         policy.expectedQueriesPackageNameSha256?.let { lines["expectedQueriesPackageNameSha256"] = it }
@@ -699,10 +828,27 @@ internal object AppIntegrity {
         val usesSdkTarget = mutableListOf<String>()
         val usesSdkMax = mutableListOf<String>()
         val supportsScreens = mutableListOf<String>()
+        val supportsScreensSmallScreens = mutableListOf<String>()
+        val supportsScreensNormalScreens = mutableListOf<String>()
+        val supportsScreensLargeScreens = mutableListOf<String>()
+        val supportsScreensXlargeScreens = mutableListOf<String>()
+        val supportsScreensResizeable = mutableListOf<String>()
+        val supportsScreensAnyDensity = mutableListOf<String>()
+        val supportsScreensRequiresSmallestWidthDp = mutableListOf<String>()
+        val supportsScreensCompatibleWidthLimitDp = mutableListOf<String>()
+        val supportsScreensLargestWidthLimitDp = mutableListOf<String>()
         val compatibleScreens = mutableListOf<String>()
+        val compatibleScreensScreenSizes = mutableListOf<String>()
+        val compatibleScreensScreenDensities = mutableListOf<String>()
         val usesLibraries = mutableListOf<String>()
+        val usesLibraryNames = mutableListOf<String>()
+        val usesLibraryRequired = mutableListOf<String>()
         val usesLibraryOnly = mutableListOf<String>()
+        val usesLibraryOnlyNames = mutableListOf<String>()
+        val usesLibraryOnlyRequired = mutableListOf<String>()
         val usesNativeLibraries = mutableListOf<String>()
+        val usesNativeLibraryNames = mutableListOf<String>()
+        val usesNativeLibraryRequired = mutableListOf<String>()
         val queryPackages = mutableListOf<String>()
         val queryPackageNames = mutableListOf<String>()
         val queryProviders = mutableListOf<String>()
@@ -749,19 +895,51 @@ internal object AppIntegrity {
                         attrs["targetSdkVersion"]?.takeIf { it.isNotBlank() }?.let(usesSdkTarget::add)
                         attrs["maxSdkVersion"]?.takeIf { it.isNotBlank() }?.let(usesSdkMax::add)
                     }
-                    "supports-screens" -> supportsScreens += canonicalizeManifestNode(name, attrs)
+                    "supports-screens" -> {
+                        supportsScreens += canonicalizeManifestNode(name, attrs)
+                        attrs["smallScreens"]?.takeIf { it.isNotBlank() }?.let(supportsScreensSmallScreens::add)
+                        attrs["normalScreens"]?.takeIf { it.isNotBlank() }?.let(supportsScreensNormalScreens::add)
+                        attrs["largeScreens"]?.takeIf { it.isNotBlank() }?.let(supportsScreensLargeScreens::add)
+                        attrs["xlargeScreens"]?.takeIf { it.isNotBlank() }?.let(supportsScreensXlargeScreens::add)
+                        attrs["resizeable"]?.takeIf { it.isNotBlank() }?.let(supportsScreensResizeable::add)
+                        attrs["anyDensity"]?.takeIf { it.isNotBlank() }?.let(supportsScreensAnyDensity::add)
+                        attrs["requiresSmallestWidthDp"]?.takeIf { it.isNotBlank() }
+                            ?.let(supportsScreensRequiresSmallestWidthDp::add)
+                        attrs["compatibleWidthLimitDp"]?.takeIf { it.isNotBlank() }
+                            ?.let(supportsScreensCompatibleWidthLimitDp::add)
+                        attrs["largestWidthLimitDp"]?.takeIf { it.isNotBlank() }
+                            ?.let(supportsScreensLargestWidthLimitDp::add)
+                    }
                     "screen" -> if (inCompatibleScreens) {
                         compatibleScreens += canonicalizeManifestNode(name, attrs)
+                        attrs["screenSize"]?.takeIf { it.isNotBlank() }?.let(compatibleScreensScreenSizes::add)
+                        attrs["screenDensity"]?.takeIf { it.isNotBlank() }?.let(compatibleScreensScreenDensities::add)
                     }
                     "uses-library" -> {
                         val node = canonicalizeManifestNode(name, attrs)
                         usesLibraries += node
                         usesLibraryOnly += node
+                        attrs["name"]?.takeIf { it.isNotBlank() }?.let {
+                            usesLibraryNames += it
+                            usesLibraryOnlyNames += it
+                        }
+                        attrs["required"]?.takeIf { it.isNotBlank() }?.let {
+                            usesLibraryRequired += it
+                            usesLibraryOnlyRequired += it
+                        }
                     }
                     "uses-native-library" -> {
                         val node = canonicalizeManifestNode(name, attrs)
                         usesLibraries += node
                         usesNativeLibraries += node
+                        attrs["name"]?.takeIf { it.isNotBlank() }?.let {
+                            usesLibraryNames += it
+                            usesNativeLibraryNames += it
+                        }
+                        attrs["required"]?.takeIf { it.isNotBlank() }?.let {
+                            usesLibraryRequired += it
+                            usesNativeLibraryRequired += it
+                        }
                     }
                     "package" -> if (inQueries) {
                         queryPackages += canonicalizeManifestNode(name, attrs)
@@ -831,111 +1009,57 @@ internal object AppIntegrity {
             addAll(queryProviders.sorted().map { "provider::$it" })
             addAll(queryIntents.sorted().map { "intent::$it" })
         }
+        fun hashLines(values: List<String>): String? = values.sorted()
+            .joinToString(separator = "\n")
+            .takeIf { it.isNotBlank() }
+            ?.let { sha256Hex(it.toByteArray()) }
         return ManifestGlobalFingerprints(
-            usesFeatureSha256 = usesFeatures.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesFeatureNameSha256 = usesFeatureNames.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesFeatureRequiredSha256 = usesFeatureRequired.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesFeatureGlEsVersionSha256 = usesFeatureGlEsVersions.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesSdkSha256 = usesSdk.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesSdkMinVersionSha256 = usesSdkMin.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesSdkTargetVersionSha256 = usesSdkTarget.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesSdkMaxVersionSha256 = usesSdkMax.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            supportsScreensSha256 = supportsScreens.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            compatibleScreensSha256 = compatibleScreens.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesLibrarySha256 = usesLibraries.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesLibraryOnlySha256 = usesLibraryOnly.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            usesNativeLibrarySha256 = usesNativeLibraries.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesPackageSha256 = queryPackages.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesPackageNameSha256 = queryPackageNames.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesProviderSha256 = queryProviders.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesProviderAuthoritySha256 = queryProviderAuthorities.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentSha256 = queryIntents.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentActionSha256 = queryIntentActions.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentCategorySha256 = queryIntentCategories.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentDataSha256 = queryIntentData.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentDataSchemeSha256 = queryIntentDataSchemes.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentDataAuthoritySha256 = queryIntentDataAuthorities.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentDataPathSha256 = queryIntentDataPaths.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesIntentDataMimeTypeSha256 = queryIntentDataMimeTypes.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
-            queriesSha256 = queriesLines.sorted()
-                .joinToString(separator = "\n")
-                .takeIf { it.isNotBlank() }
-                ?.let { sha256Hex(it.toByteArray()) },
+            usesFeatureSha256 = hashLines(usesFeatures),
+            usesFeatureNameSha256 = hashLines(usesFeatureNames),
+            usesFeatureRequiredSha256 = hashLines(usesFeatureRequired),
+            usesFeatureGlEsVersionSha256 = hashLines(usesFeatureGlEsVersions),
+            usesSdkSha256 = hashLines(usesSdk),
+            usesSdkMinVersionSha256 = hashLines(usesSdkMin),
+            usesSdkTargetVersionSha256 = hashLines(usesSdkTarget),
+            usesSdkMaxVersionSha256 = hashLines(usesSdkMax),
+            supportsScreensSha256 = hashLines(supportsScreens),
+            supportsScreensSmallScreensSha256 = hashLines(supportsScreensSmallScreens),
+            supportsScreensNormalScreensSha256 = hashLines(supportsScreensNormalScreens),
+            supportsScreensLargeScreensSha256 = hashLines(supportsScreensLargeScreens),
+            supportsScreensXlargeScreensSha256 = hashLines(supportsScreensXlargeScreens),
+            supportsScreensResizeableSha256 = hashLines(supportsScreensResizeable),
+            supportsScreensAnyDensitySha256 = hashLines(supportsScreensAnyDensity),
+            supportsScreensRequiresSmallestWidthDpSha256 =
+                hashLines(supportsScreensRequiresSmallestWidthDp),
+            supportsScreensCompatibleWidthLimitDpSha256 =
+                hashLines(supportsScreensCompatibleWidthLimitDp),
+            supportsScreensLargestWidthLimitDpSha256 =
+                hashLines(supportsScreensLargestWidthLimitDp),
+            compatibleScreensSha256 = hashLines(compatibleScreens),
+            compatibleScreensScreenSizeSha256 = hashLines(compatibleScreensScreenSizes),
+            compatibleScreensScreenDensitySha256 = hashLines(compatibleScreensScreenDensities),
+            usesLibrarySha256 = hashLines(usesLibraries),
+            usesLibraryNameSha256 = hashLines(usesLibraryNames),
+            usesLibraryRequiredSha256 = hashLines(usesLibraryRequired),
+            usesLibraryOnlySha256 = hashLines(usesLibraryOnly),
+            usesLibraryOnlyNameSha256 = hashLines(usesLibraryOnlyNames),
+            usesLibraryOnlyRequiredSha256 = hashLines(usesLibraryOnlyRequired),
+            usesNativeLibrarySha256 = hashLines(usesNativeLibraries),
+            usesNativeLibraryNameSha256 = hashLines(usesNativeLibraryNames),
+            usesNativeLibraryRequiredSha256 = hashLines(usesNativeLibraryRequired),
+            queriesPackageSha256 = hashLines(queryPackages),
+            queriesPackageNameSha256 = hashLines(queryPackageNames),
+            queriesProviderSha256 = hashLines(queryProviders),
+            queriesProviderAuthoritySha256 = hashLines(queryProviderAuthorities),
+            queriesIntentSha256 = hashLines(queryIntents),
+            queriesIntentActionSha256 = hashLines(queryIntentActions),
+            queriesIntentCategorySha256 = hashLines(queryIntentCategories),
+            queriesIntentDataSha256 = hashLines(queryIntentData),
+            queriesIntentDataSchemeSha256 = hashLines(queryIntentDataSchemes),
+            queriesIntentDataAuthoritySha256 = hashLines(queryIntentDataAuthorities),
+            queriesIntentDataPathSha256 = hashLines(queryIntentDataPaths),
+            queriesIntentDataMimeTypeSha256 = hashLines(queryIntentDataMimeTypes),
+            queriesSha256 = hashLines(queriesLines),
             applicationSemanticsSha256 = applicationSemanticsFieldValues.entries
                 .sortedBy { it.key }
                 .joinToString(separator = "\n") { (key, value) -> "$key=$value" }
@@ -2362,10 +2486,27 @@ internal object AppIntegrity {
         val usesSdkTargetVersionSha256: String? = null,
         val usesSdkMaxVersionSha256: String? = null,
         val supportsScreensSha256: String? = null,
+        val supportsScreensSmallScreensSha256: String? = null,
+        val supportsScreensNormalScreensSha256: String? = null,
+        val supportsScreensLargeScreensSha256: String? = null,
+        val supportsScreensXlargeScreensSha256: String? = null,
+        val supportsScreensResizeableSha256: String? = null,
+        val supportsScreensAnyDensitySha256: String? = null,
+        val supportsScreensRequiresSmallestWidthDpSha256: String? = null,
+        val supportsScreensCompatibleWidthLimitDpSha256: String? = null,
+        val supportsScreensLargestWidthLimitDpSha256: String? = null,
         val compatibleScreensSha256: String? = null,
+        val compatibleScreensScreenSizeSha256: String? = null,
+        val compatibleScreensScreenDensitySha256: String? = null,
         val usesLibrarySha256: String? = null,
+        val usesLibraryNameSha256: String? = null,
+        val usesLibraryRequiredSha256: String? = null,
         val usesLibraryOnlySha256: String? = null,
+        val usesLibraryOnlyNameSha256: String? = null,
+        val usesLibraryOnlyRequiredSha256: String? = null,
         val usesNativeLibrarySha256: String? = null,
+        val usesNativeLibraryNameSha256: String? = null,
+        val usesNativeLibraryRequiredSha256: String? = null,
         val queriesPackageSha256: String? = null,
         val queriesPackageNameSha256: String? = null,
         val queriesProviderSha256: String? = null,

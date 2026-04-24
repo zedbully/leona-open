@@ -591,6 +591,8 @@ components:
             drift, raw uses-feature/uses-sdk/supports-screens/
             compatible-screens/uses-library/uses-native-library/queries drift, split queries
             uses-feature name/required/glEsVersion drift, uses-sdk min/target/max drift,
+            supports-screens small/normal/large/xlarge/resizeable/anyDensity/width-limit drift,
+            compatible-screens size/density drift,
             package/provider/intent drift, queries package-name/provider-authorities drift,
             queries intent action/category/data drift,
             queries intent data scheme/authority/path/mimeType drift, application semantics drift, application field drift, and

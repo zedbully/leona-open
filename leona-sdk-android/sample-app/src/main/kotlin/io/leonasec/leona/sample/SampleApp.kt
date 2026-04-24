@@ -14,6 +14,16 @@ class SampleApp : Application() {
         val endpoint = BuildConfig.LEONA_REPORTING_ENDPOINT.ifBlank { null }
         val cloudConfigEndpoint = BuildConfig.LEONA_CLOUD_CONFIG_ENDPOINT.ifBlank { null }
         val apiKey = BuildConfig.LEONA_API_KEY.ifBlank { null }
+        val playIntegrityCloudProjectNumber =
+            BuildConfig.LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER.trim().toLongOrNull()
+        if (BuildConfig.LEONA_SAMPLE_ATTESTATION_MODE.equals("bridge", ignoreCase = true)) {
+            SamplePlayIntegrity.installBridge(
+                ReflectivePlayIntegrityBridge.createIfAvailable(
+                    context = this,
+                    cloudProjectNumber = playIntegrityCloudProjectNumber,
+                ),
+            )
+        }
         Leona.init(
             this,
             LeonaConfig.Builder()
@@ -24,6 +34,7 @@ class SampleApp : Application() {
                 .cloudConfigEndpoint(cloudConfigEndpoint)
                 .enableCloudConfig(endpoint != null || cloudConfigEndpoint != null)
                 .channel("sample")
+                .attestationProvider(SamplePlayIntegrity.createProvider())
                 .verboseNativeLogging(true)        // verbose logcat for the demo
                 .enableInjectionDetection(true)
                 .enableEnvironmentDetection(true)

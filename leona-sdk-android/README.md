@@ -164,6 +164,10 @@ Leona.init(this, LeonaConfig.Builder()
     .expectedUsesSdkTargetSha256("expected_uses_sdk_target_fingerprint")
     .expectedUsesSdkMaxSha256("expected_uses_sdk_max_fingerprint")
     .expectedSupportsScreensSha256("expected_supports_screens_fingerprint")
+    .expectedSupportsScreensAnyDensitySha256("expected_supports_screens_any_density_fingerprint")
+    .expectedSupportsScreensResizeableSha256("expected_supports_screens_resizeable_fingerprint")
+    .expectedCompatibleScreensScreenSizeSha256("expected_compatible_screens_size_fingerprint")
+    .expectedCompatibleScreensScreenDensitySha256("expected_compatible_screens_density_fingerprint")
     .expectedCompatibleScreensSha256("expected_compatible_screens_fingerprint")
     .expectedUsesLibrarySha256("expected_uses_library_fingerprint")
     .expectedUsesLibraryOnlySha256("expected_uses_library_only_fingerprint")
@@ -413,11 +417,18 @@ For a repo-wide snapshot of what is implemented today, see
 For execution / demo / release docs, start from
 [`/Users/a/back/Game/cq/docs/README.md`](/Users/a/back/Game/cq/docs/README.md).
 
+For a one-command local alpha closure pass, run:
+
+```bash
+/Users/a/back/Game/cq/leona-sdk-android/scripts/run-alpha-closure.sh
+```
+
 ## CI / Emulator E2E
 
 This repo includes:
 
 - regular Android CI in `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+- a manual `workflow_dispatch` job for **alpha closure**
 - a manual `workflow_dispatch` job for **live emulator E2E**
 
 The live E2E job is intended for a hosted Leona staging environment and
@@ -427,6 +438,10 @@ expects:
 - GitHub repository variable: `LEONA_E2E_REPORTING_ENDPOINT`
 - GitHub repository variable: `LEONA_E2E_CLOUD_CONFIG_ENDPOINT`
 - GitHub repository variable: `LEONA_E2E_DEMO_BACKEND_BASE_URL`
+
+The alpha-closure workflow_dispatch path does not need remote Leona staging.
+It runs the local build gate plus local demo-backend / cloud-config smoke
+inside GitHub Actions and uploads the generated closure reports.
 
 It runs `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`
 inside an Android API 34 emulator and uploads screenshots / XML artifacts.

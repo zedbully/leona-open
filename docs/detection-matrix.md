@@ -248,7 +248,18 @@ Android SDK 检测核心主要在：
   - `expectedUsesSdkTargetSha256`
   - `expectedUsesSdkMaxSha256`
   - `expectedSupportsScreensSha256`
+  - `expectedSupportsScreensSmallScreensSha256`
+  - `expectedSupportsScreensNormalScreensSha256`
+  - `expectedSupportsScreensLargeScreensSha256`
+  - `expectedSupportsScreensXlargeScreensSha256`
+  - `expectedSupportsScreensResizeableSha256`
+  - `expectedSupportsScreensAnyDensitySha256`
+  - `expectedSupportsScreensRequiresSmallestWidthDpSha256`
+  - `expectedSupportsScreensCompatibleWidthLimitDpSha256`
+  - `expectedSupportsScreensLargestWidthLimitDpSha256`
   - `expectedCompatibleScreensSha256`
+  - `expectedCompatibleScreensScreenSizeSha256`
+  - `expectedCompatibleScreensScreenDensitySha256`
   - `expectedUsesLibrarySha256`
   - `expectedUsesLibraryOnlySha256`
   - `expectedUsesNativeLibrarySha256`
@@ -303,6 +314,8 @@ Android SDK 检测核心主要在：
   - raw manifest `uses-feature` / `uses-sdk` / `supports-screens` / `compatible-screens` / `uses-library` / `uses-native-library` / `queries` fingerprint
   - raw manifest `uses-feature` name / required / glEsVersion 子指纹
   - raw manifest `uses-sdk` minSdkVersion / targetSdkVersion / maxSdkVersion 子指纹
+  - raw manifest `supports-screens` small/normal/large/xlarge/resizeable/anyDensity/requiresSmallestWidthDp/compatibleWidthLimitDp/largestWidthLimitDp 子指纹
+  - raw manifest `compatible-screens` screenSize / screenDensity 子指纹
   - raw manifest `queries` package/provider/intent 子指纹
   - raw manifest `queries` package name / provider authorities 子指纹
   - raw manifest `queries intent` action/category/data 及 data scheme/authority/path/mimeType 子指纹

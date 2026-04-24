@@ -173,6 +173,12 @@ Use the bundled closure script for the current minimum ship gate:
 ./scripts/verify-closure.sh
 ```
 
+For a one-shot local alpha closure run, use:
+
+```bash
+/Users/a/back/Game/cq/leona-sdk-android/scripts/run-alpha-closure.sh
+```
+
 It standardizes the exact command we currently require before device/backend
 regression:
 

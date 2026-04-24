@@ -13,8 +13,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+)
+
+var cloudCanonicalStore = newCanonicalStore(
+	env("DEMO_CLOUD_STORE_PATH", filepath.Join(os.TempDir(), "leona-demo-cloud-store.json")),
 )
 
 type demoRequest struct {
@@ -285,20 +290,16 @@ func honeypotSuggested(level string) bool {
 
 func resolveCanonicalDeviceID(r *http.Request) string {
 	if explicit := strings.TrimSpace(env("DEMO_CLOUD_CANONICAL_DEVICE_ID", "")); explicit != "" {
-		return explicit
-	}
-	if existing := strings.TrimSpace(r.Header.Get("X-Leona-Canonical-Device-Id")); existing != "" {
-		return existing
+		return normalizeCanonical(explicit)
 	}
 	appID := strings.TrimSpace(r.Header.Get("X-Leona-App-Id"))
 	fingerprint := strings.TrimSpace(r.Header.Get("X-Leona-Fingerprint"))
 	deviceID := strings.TrimSpace(r.Header.Get("X-Leona-Device-Id"))
-	seed := firstNonBlank(fingerprint, deviceID, r.RemoteAddr)
-	if seed == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(appID + "|" + seed))
-	return "L" + hex.EncodeToString(sum[:])[:31]
+	installID := strings.TrimSpace(r.Header.Get("X-Leona-Install-Id"))
+	providedCanonical := strings.TrimSpace(r.Header.Get("X-Leona-Canonical-Device-Id"))
+	key := canonicalLookupKey(appID, fingerprint, deviceID, installID)
+	seed := canonicalFallbackSeed(appID, fingerprint, deviceID, installID, r.RemoteAddr)
+	return cloudCanonicalStore.resolveOrCreate(key, seed, providedCanonical)
 }
 
 func splitCSV(raw string) []string {

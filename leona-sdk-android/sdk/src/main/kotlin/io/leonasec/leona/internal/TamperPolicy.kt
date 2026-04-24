@@ -56,10 +56,27 @@ internal data class TamperPolicy(
     val expectedUsesSdkTargetSha256: String? = null,
     val expectedUsesSdkMaxSha256: String? = null,
     val expectedSupportsScreensSha256: String? = null,
+    val expectedSupportsScreensSmallScreensSha256: String? = null,
+    val expectedSupportsScreensNormalScreensSha256: String? = null,
+    val expectedSupportsScreensLargeScreensSha256: String? = null,
+    val expectedSupportsScreensXlargeScreensSha256: String? = null,
+    val expectedSupportsScreensResizeableSha256: String? = null,
+    val expectedSupportsScreensAnyDensitySha256: String? = null,
+    val expectedSupportsScreensRequiresSmallestWidthDpSha256: String? = null,
+    val expectedSupportsScreensCompatibleWidthLimitDpSha256: String? = null,
+    val expectedSupportsScreensLargestWidthLimitDpSha256: String? = null,
     val expectedCompatibleScreensSha256: String? = null,
+    val expectedCompatibleScreensScreenSizeSha256: String? = null,
+    val expectedCompatibleScreensScreenDensitySha256: String? = null,
     val expectedUsesLibrarySha256: String? = null,
+    val expectedUsesLibraryNameSha256: String? = null,
+    val expectedUsesLibraryRequiredSha256: String? = null,
     val expectedUsesLibraryOnlySha256: String? = null,
+    val expectedUsesLibraryOnlyNameSha256: String? = null,
+    val expectedUsesLibraryOnlyRequiredSha256: String? = null,
     val expectedUsesNativeLibrarySha256: String? = null,
+    val expectedUsesNativeLibraryNameSha256: String? = null,
+    val expectedUsesNativeLibraryRequiredSha256: String? = null,
     val expectedQueriesSha256: String? = null,
     val expectedQueriesPackageSha256: String? = null,
     val expectedQueriesPackageNameSha256: String? = null,
@@ -166,13 +183,50 @@ internal data class TamperPolicy(
                 server.expectedUsesSdkTargetSha256 ?: expectedUsesSdkTargetSha256,
             expectedUsesSdkMaxSha256 = server.expectedUsesSdkMaxSha256 ?: expectedUsesSdkMaxSha256,
             expectedSupportsScreensSha256 = server.expectedSupportsScreensSha256 ?: expectedSupportsScreensSha256,
+            expectedSupportsScreensSmallScreensSha256 =
+                server.expectedSupportsScreensSmallScreensSha256 ?: expectedSupportsScreensSmallScreensSha256,
+            expectedSupportsScreensNormalScreensSha256 =
+                server.expectedSupportsScreensNormalScreensSha256 ?: expectedSupportsScreensNormalScreensSha256,
+            expectedSupportsScreensLargeScreensSha256 =
+                server.expectedSupportsScreensLargeScreensSha256 ?: expectedSupportsScreensLargeScreensSha256,
+            expectedSupportsScreensXlargeScreensSha256 =
+                server.expectedSupportsScreensXlargeScreensSha256 ?: expectedSupportsScreensXlargeScreensSha256,
+            expectedSupportsScreensResizeableSha256 =
+                server.expectedSupportsScreensResizeableSha256 ?: expectedSupportsScreensResizeableSha256,
+            expectedSupportsScreensAnyDensitySha256 =
+                server.expectedSupportsScreensAnyDensitySha256 ?: expectedSupportsScreensAnyDensitySha256,
+            expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+                server.expectedSupportsScreensRequiresSmallestWidthDpSha256
+                    ?: expectedSupportsScreensRequiresSmallestWidthDpSha256,
+            expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+                server.expectedSupportsScreensCompatibleWidthLimitDpSha256
+                    ?: expectedSupportsScreensCompatibleWidthLimitDpSha256,
+            expectedSupportsScreensLargestWidthLimitDpSha256 =
+                server.expectedSupportsScreensLargestWidthLimitDpSha256
+                    ?: expectedSupportsScreensLargestWidthLimitDpSha256,
             expectedCompatibleScreensSha256 =
                 server.expectedCompatibleScreensSha256 ?: expectedCompatibleScreensSha256,
+            expectedCompatibleScreensScreenSizeSha256 =
+                server.expectedCompatibleScreensScreenSizeSha256 ?: expectedCompatibleScreensScreenSizeSha256,
+            expectedCompatibleScreensScreenDensitySha256 =
+                server.expectedCompatibleScreensScreenDensitySha256 ?: expectedCompatibleScreensScreenDensitySha256,
             expectedUsesLibrarySha256 = server.expectedUsesLibrarySha256 ?: expectedUsesLibrarySha256,
+            expectedUsesLibraryNameSha256 =
+                server.expectedUsesLibraryNameSha256 ?: expectedUsesLibraryNameSha256,
+            expectedUsesLibraryRequiredSha256 =
+                server.expectedUsesLibraryRequiredSha256 ?: expectedUsesLibraryRequiredSha256,
             expectedUsesLibraryOnlySha256 =
                 server.expectedUsesLibraryOnlySha256 ?: expectedUsesLibraryOnlySha256,
+            expectedUsesLibraryOnlyNameSha256 =
+                server.expectedUsesLibraryOnlyNameSha256 ?: expectedUsesLibraryOnlyNameSha256,
+            expectedUsesLibraryOnlyRequiredSha256 =
+                server.expectedUsesLibraryOnlyRequiredSha256 ?: expectedUsesLibraryOnlyRequiredSha256,
             expectedUsesNativeLibrarySha256 =
                 server.expectedUsesNativeLibrarySha256 ?: expectedUsesNativeLibrarySha256,
+            expectedUsesNativeLibraryNameSha256 =
+                server.expectedUsesNativeLibraryNameSha256 ?: expectedUsesNativeLibraryNameSha256,
+            expectedUsesNativeLibraryRequiredSha256 =
+                server.expectedUsesNativeLibraryRequiredSha256 ?: expectedUsesNativeLibraryRequiredSha256,
             expectedQueriesSha256 = server.expectedQueriesSha256 ?: expectedQueriesSha256,
             expectedQueriesPackageSha256 = server.expectedQueriesPackageSha256 ?: expectedQueriesPackageSha256,
             expectedQueriesPackageNameSha256 =
@@ -258,10 +312,30 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedUsesSdkTargetSha256 = expectedUsesSdkTargetSha256,
         expectedUsesSdkMaxSha256 = expectedUsesSdkMaxSha256,
         expectedSupportsScreensSha256 = expectedSupportsScreensSha256,
+        expectedSupportsScreensSmallScreensSha256 = expectedSupportsScreensSmallScreensSha256,
+        expectedSupportsScreensNormalScreensSha256 = expectedSupportsScreensNormalScreensSha256,
+        expectedSupportsScreensLargeScreensSha256 = expectedSupportsScreensLargeScreensSha256,
+        expectedSupportsScreensXlargeScreensSha256 = expectedSupportsScreensXlargeScreensSha256,
+        expectedSupportsScreensResizeableSha256 = expectedSupportsScreensResizeableSha256,
+        expectedSupportsScreensAnyDensitySha256 = expectedSupportsScreensAnyDensitySha256,
+        expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+            expectedSupportsScreensRequiresSmallestWidthDpSha256,
+        expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+            expectedSupportsScreensCompatibleWidthLimitDpSha256,
+        expectedSupportsScreensLargestWidthLimitDpSha256 =
+            expectedSupportsScreensLargestWidthLimitDpSha256,
         expectedCompatibleScreensSha256 = expectedCompatibleScreensSha256,
+        expectedCompatibleScreensScreenSizeSha256 = expectedCompatibleScreensScreenSizeSha256,
+        expectedCompatibleScreensScreenDensitySha256 = expectedCompatibleScreensScreenDensitySha256,
         expectedUsesLibrarySha256 = expectedUsesLibrarySha256,
+        expectedUsesLibraryNameSha256 = expectedUsesLibraryNameSha256,
+        expectedUsesLibraryRequiredSha256 = expectedUsesLibraryRequiredSha256,
         expectedUsesLibraryOnlySha256 = expectedUsesLibraryOnlySha256,
+        expectedUsesLibraryOnlyNameSha256 = expectedUsesLibraryOnlyNameSha256,
+        expectedUsesLibraryOnlyRequiredSha256 = expectedUsesLibraryOnlyRequiredSha256,
         expectedUsesNativeLibrarySha256 = expectedUsesNativeLibrarySha256,
+        expectedUsesNativeLibraryNameSha256 = expectedUsesNativeLibraryNameSha256,
+        expectedUsesNativeLibraryRequiredSha256 = expectedUsesNativeLibraryRequiredSha256,
         expectedQueriesSha256 = expectedQueriesSha256,
         expectedQueriesPackageSha256 = expectedQueriesPackageSha256,
         expectedQueriesPackageNameSha256 = expectedQueriesPackageNameSha256,

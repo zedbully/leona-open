@@ -2,6 +2,37 @@
 
 This is the practical ship checklist for the current alpha closure phase.
 
+## 0. One-shot local closure
+
+Run:
+
+```bash
+/Users/a/back/Game/cq/leona-sdk-android/scripts/run-alpha-closure.sh
+```
+
+Default behavior:
+
+- runs the static build gate
+- starts local demo-backend on `127.0.0.1:18090`
+- runs cloud-config smoke
+- writes:
+  - `/tmp/leona-alpha-closure-*/report.json`
+  - `/tmp/leona-alpha-closure-*/report.md`
+
+GitHub Actions also exposes the same path via
+`/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+using `workflow_dispatch -> run_alpha_closure=true`.
+
+Optional:
+
+```bash
+RUN_EMULATOR_E2E=1 LEONA_API_KEY=<appKey> \
+/Users/a/back/Game/cq/leona-sdk-android/scripts/run-alpha-closure.sh
+
+RUN_DEVICE_E2E=1 ADB_SERIAL=<device-serial> LEONA_API_KEY=<appKey> \
+/Users/a/back/Game/cq/leona-sdk-android/scripts/run-alpha-closure.sh
+```
+
 ## 1. Static build gate
 
 Run:

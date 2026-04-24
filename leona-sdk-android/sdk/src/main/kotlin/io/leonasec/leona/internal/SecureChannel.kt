@@ -192,14 +192,54 @@ internal class SecureChannel(
                     json.optString("expectedUsesSdkMaxSha256").lowercase().ifBlank { null },
                 expectedSupportsScreensSha256 =
                     json.optString("expectedSupportsScreensSha256").lowercase().ifBlank { null },
+                expectedSupportsScreensSmallScreensSha256 =
+                    json.optString("expectedSupportsScreensSmallScreensSha256").lowercase().ifBlank { null },
+                expectedSupportsScreensNormalScreensSha256 =
+                    json.optString("expectedSupportsScreensNormalScreensSha256").lowercase().ifBlank { null },
+                expectedSupportsScreensLargeScreensSha256 =
+                    json.optString("expectedSupportsScreensLargeScreensSha256").lowercase().ifBlank { null },
+                expectedSupportsScreensXlargeScreensSha256 =
+                    json.optString("expectedSupportsScreensXlargeScreensSha256").lowercase().ifBlank { null },
+                expectedSupportsScreensResizeableSha256 =
+                    json.optString("expectedSupportsScreensResizeableSha256").lowercase().ifBlank { null },
+                expectedSupportsScreensAnyDensitySha256 =
+                    json.optString("expectedSupportsScreensAnyDensitySha256").lowercase().ifBlank { null },
+                expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+                    json.optString("expectedSupportsScreensRequiresSmallestWidthDpSha256")
+                        .lowercase()
+                        .ifBlank { null },
+                expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+                    json.optString("expectedSupportsScreensCompatibleWidthLimitDpSha256")
+                        .lowercase()
+                        .ifBlank { null },
+                expectedSupportsScreensLargestWidthLimitDpSha256 =
+                    json.optString("expectedSupportsScreensLargestWidthLimitDpSha256")
+                        .lowercase()
+                        .ifBlank { null },
                 expectedCompatibleScreensSha256 =
                     json.optString("expectedCompatibleScreensSha256").lowercase().ifBlank { null },
+                expectedCompatibleScreensScreenSizeSha256 =
+                    json.optString("expectedCompatibleScreensScreenSizeSha256").lowercase().ifBlank { null },
+                expectedCompatibleScreensScreenDensitySha256 =
+                    json.optString("expectedCompatibleScreensScreenDensitySha256").lowercase().ifBlank { null },
                 expectedUsesLibrarySha256 =
                     json.optString("expectedUsesLibrarySha256").lowercase().ifBlank { null },
+                expectedUsesLibraryNameSha256 =
+                    json.optString("expectedUsesLibraryNameSha256").lowercase().ifBlank { null },
+                expectedUsesLibraryRequiredSha256 =
+                    json.optString("expectedUsesLibraryRequiredSha256").lowercase().ifBlank { null },
                 expectedUsesLibraryOnlySha256 =
                     json.optString("expectedUsesLibraryOnlySha256").lowercase().ifBlank { null },
+                expectedUsesLibraryOnlyNameSha256 =
+                    json.optString("expectedUsesLibraryOnlyNameSha256").lowercase().ifBlank { null },
+                expectedUsesLibraryOnlyRequiredSha256 =
+                    json.optString("expectedUsesLibraryOnlyRequiredSha256").lowercase().ifBlank { null },
                 expectedUsesNativeLibrarySha256 =
                     json.optString("expectedUsesNativeLibrarySha256").lowercase().ifBlank { null },
+                expectedUsesNativeLibraryNameSha256 =
+                    json.optString("expectedUsesNativeLibraryNameSha256").lowercase().ifBlank { null },
+                expectedUsesNativeLibraryRequiredSha256 =
+                    json.optString("expectedUsesNativeLibraryRequiredSha256").lowercase().ifBlank { null },
                 expectedQueriesSha256 =
                     json.optString("expectedQueriesSha256").lowercase().ifBlank { null },
                 expectedQueriesPackageSha256 =

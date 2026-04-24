@@ -92,7 +92,21 @@ class TamperPolicyTest {
             expectedUsesSdkTargetSha256 = "local-uses-sdk-target",
             expectedUsesSdkMaxSha256 = "local-uses-sdk-max",
             expectedSupportsScreensSha256 = "local-supports-screens",
+            expectedSupportsScreensSmallScreensSha256 = "local-supports-screens-small",
+            expectedSupportsScreensNormalScreensSha256 = "local-supports-screens-normal",
+            expectedSupportsScreensLargeScreensSha256 = "local-supports-screens-large",
+            expectedSupportsScreensXlargeScreensSha256 = "local-supports-screens-xlarge",
+            expectedSupportsScreensResizeableSha256 = "local-supports-screens-resizeable",
+            expectedSupportsScreensAnyDensitySha256 = "local-supports-screens-any-density",
+            expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+                "local-supports-screens-requires-smallest-width",
+            expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+                "local-supports-screens-compatible-width-limit",
+            expectedSupportsScreensLargestWidthLimitDpSha256 =
+                "local-supports-screens-largest-width-limit",
             expectedCompatibleScreensSha256 = "local-compatible-screens",
+            expectedCompatibleScreensScreenSizeSha256 = "local-compatible-screens-size",
+            expectedCompatibleScreensScreenDensitySha256 = "local-compatible-screens-density",
             expectedUsesLibrarySha256 = "local-uses-library",
             expectedUsesLibraryOnlySha256 = "local-uses-library-only",
             expectedUsesNativeLibrarySha256 = "local-uses-native-library",
@@ -195,7 +209,21 @@ class TamperPolicyTest {
             expectedUsesSdkTargetSha256 = "server-uses-sdk-target",
             expectedUsesSdkMaxSha256 = "server-uses-sdk-max",
             expectedSupportsScreensSha256 = "server-supports-screens",
+            expectedSupportsScreensSmallScreensSha256 = "server-supports-screens-small",
+            expectedSupportsScreensNormalScreensSha256 = "server-supports-screens-normal",
+            expectedSupportsScreensLargeScreensSha256 = "server-supports-screens-large",
+            expectedSupportsScreensXlargeScreensSha256 = "server-supports-screens-xlarge",
+            expectedSupportsScreensResizeableSha256 = "server-supports-screens-resizeable",
+            expectedSupportsScreensAnyDensitySha256 = "server-supports-screens-any-density",
+            expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+                "server-supports-screens-requires-smallest-width",
+            expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+                "server-supports-screens-compatible-width-limit",
+            expectedSupportsScreensLargestWidthLimitDpSha256 =
+                "server-supports-screens-largest-width-limit",
             expectedCompatibleScreensSha256 = "server-compatible-screens",
+            expectedCompatibleScreensScreenSizeSha256 = "server-compatible-screens-size",
+            expectedCompatibleScreensScreenDensitySha256 = "server-compatible-screens-density",
             expectedUsesLibrarySha256 = "server-uses-library",
             expectedUsesLibraryOnlySha256 = "server-uses-library-only",
             expectedUsesNativeLibrarySha256 = "server-uses-native-library",
@@ -404,7 +432,51 @@ class TamperPolicyTest {
         assertEquals("server-uses-sdk-target", merged.expectedUsesSdkTargetSha256)
         assertEquals("server-uses-sdk-max", merged.expectedUsesSdkMaxSha256)
         assertEquals("server-supports-screens", merged.expectedSupportsScreensSha256)
+        assertEquals(
+            "server-supports-screens-small",
+            merged.expectedSupportsScreensSmallScreensSha256,
+        )
+        assertEquals(
+            "server-supports-screens-normal",
+            merged.expectedSupportsScreensNormalScreensSha256,
+        )
+        assertEquals(
+            "server-supports-screens-large",
+            merged.expectedSupportsScreensLargeScreensSha256,
+        )
+        assertEquals(
+            "server-supports-screens-xlarge",
+            merged.expectedSupportsScreensXlargeScreensSha256,
+        )
+        assertEquals(
+            "server-supports-screens-resizeable",
+            merged.expectedSupportsScreensResizeableSha256,
+        )
+        assertEquals(
+            "server-supports-screens-any-density",
+            merged.expectedSupportsScreensAnyDensitySha256,
+        )
+        assertEquals(
+            "server-supports-screens-requires-smallest-width",
+            merged.expectedSupportsScreensRequiresSmallestWidthDpSha256,
+        )
+        assertEquals(
+            "server-supports-screens-compatible-width-limit",
+            merged.expectedSupportsScreensCompatibleWidthLimitDpSha256,
+        )
+        assertEquals(
+            "server-supports-screens-largest-width-limit",
+            merged.expectedSupportsScreensLargestWidthLimitDpSha256,
+        )
         assertEquals("server-compatible-screens", merged.expectedCompatibleScreensSha256)
+        assertEquals(
+            "server-compatible-screens-size",
+            merged.expectedCompatibleScreensScreenSizeSha256,
+        )
+        assertEquals(
+            "server-compatible-screens-density",
+            merged.expectedCompatibleScreensScreenDensitySha256,
+        )
         assertEquals("server-uses-library", merged.expectedUsesLibrarySha256)
         assertEquals("server-uses-library-only", merged.expectedUsesLibraryOnlySha256)
         assertEquals("server-uses-native-library", merged.expectedUsesNativeLibrarySha256)
@@ -453,7 +525,21 @@ class TamperPolicyTest {
             ),
             expectedUsesSdkSha256 = "uses-sdk",
             expectedSupportsScreensSha256 = "supports-screens",
+            expectedSupportsScreensSmallScreensSha256 = "supports-screens-small",
+            expectedSupportsScreensNormalScreensSha256 = "supports-screens-normal",
+            expectedSupportsScreensLargeScreensSha256 = "supports-screens-large",
+            expectedSupportsScreensXlargeScreensSha256 = "supports-screens-xlarge",
+            expectedSupportsScreensResizeableSha256 = "supports-screens-resizeable",
+            expectedSupportsScreensAnyDensitySha256 = "supports-screens-any-density",
+            expectedSupportsScreensRequiresSmallestWidthDpSha256 =
+                "supports-screens-requires-smallest-width",
+            expectedSupportsScreensCompatibleWidthLimitDpSha256 =
+                "supports-screens-compatible-width-limit",
+            expectedSupportsScreensLargestWidthLimitDpSha256 =
+                "supports-screens-largest-width-limit",
             expectedCompatibleScreensSha256 = "compatible-screens",
+            expectedCompatibleScreensScreenSizeSha256 = "compatible-screens-size",
+            expectedCompatibleScreensScreenDensitySha256 = "compatible-screens-density",
             expectedQueriesPackageNameSha256 = "queries-package-names",
             expectedQueriesProviderAuthoritySha256 = "queries-provider-authorities",
             expectedQueriesIntentActionSha256 = "queries-intent-actions",
@@ -482,7 +568,30 @@ class TamperPolicyTest {
         )
         assertTrue(snapshot.contains("expectedUsesSdkSha256=uses-sdk"))
         assertTrue(snapshot.contains("expectedSupportsScreensSha256=supports-screens"))
+        assertTrue(snapshot.contains("expectedSupportsScreensSmallScreensSha256=supports-screens-small"))
+        assertTrue(snapshot.contains("expectedSupportsScreensNormalScreensSha256=supports-screens-normal"))
+        assertTrue(snapshot.contains("expectedSupportsScreensLargeScreensSha256=supports-screens-large"))
+        assertTrue(snapshot.contains("expectedSupportsScreensXlargeScreensSha256=supports-screens-xlarge"))
+        assertTrue(snapshot.contains("expectedSupportsScreensResizeableSha256=supports-screens-resizeable"))
+        assertTrue(snapshot.contains("expectedSupportsScreensAnyDensitySha256=supports-screens-any-density"))
+        assertTrue(
+            snapshot.contains(
+                "expectedSupportsScreensRequiresSmallestWidthDpSha256=supports-screens-requires-smallest-width",
+            ),
+        )
+        assertTrue(
+            snapshot.contains(
+                "expectedSupportsScreensCompatibleWidthLimitDpSha256=supports-screens-compatible-width-limit",
+            ),
+        )
+        assertTrue(
+            snapshot.contains(
+                "expectedSupportsScreensLargestWidthLimitDpSha256=supports-screens-largest-width-limit",
+            ),
+        )
         assertTrue(snapshot.contains("expectedCompatibleScreensSha256=compatible-screens"))
+        assertTrue(snapshot.contains("expectedCompatibleScreensScreenSizeSha256=compatible-screens-size"))
+        assertTrue(snapshot.contains("expectedCompatibleScreensScreenDensitySha256=compatible-screens-density"))
         assertTrue(snapshot.contains("expectedQueriesPackageNameSha256=queries-package-names"))
         assertTrue(snapshot.contains("expectedQueriesProviderAuthoritySha256=queries-provider-authorities"))
         assertTrue(snapshot.contains("expectedQueriesIntentActionSha256=queries-intent-actions"))

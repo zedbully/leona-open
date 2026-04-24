@@ -92,9 +92,15 @@ curl http://localhost:8090/v1/mobile-config \
 
 默认规则：
 
-- 若请求已经带 `X-Leona-Canonical-Device-Id`，直接回传它
-- 否则用 `X-Leona-App-Id + X-Leona-Fingerprint` 稳定推导 `L...`
-- 若没有 fingerprint，则退化到 `X-Leona-Device-Id`
+- 若请求已经带 `X-Leona-Canonical-Device-Id`，优先回传并写入本地 canonical store
+- 否则优先按 `appId + fingerprint` 查本地 canonical store
+- 若 fingerprint 缺失，则退化为 `appId + deviceId`
+- 若 deviceId 也缺失，则再退化为 `appId + installId`
+- 若 store 中没有命中，则基于上述 seed 派生一个 `L...`，并持久化到本地 store
+
+默认 store 路径：
+
+- macOS / Linux: `${TMPDIR:-/tmp}/leona-demo-cloud-store.json`
 
 ---
 
@@ -106,3 +112,4 @@ curl http://localhost:8090/v1/mobile-config \
 - `DEMO_CLOUD_DISABLED_SIGNALS`：mobile-config 下发的 disabled signals，默认 `androidId`
 - `DEMO_CLOUD_DISABLE_COLLECTION_WINDOW_MS`：mobile-config 下发的 collection window，默认 `120000`
 - `DEMO_CLOUD_CANONICAL_DEVICE_ID`：若设置则固定返回该 canonical id；否则按 header 稳定推导
+- `DEMO_CLOUD_STORE_PATH`：canonical store 持久化文件路径；默认写入系统临时目录
