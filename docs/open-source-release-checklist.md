@@ -183,9 +183,9 @@ cd /Users/a/back/Game/cq/leona-server
 ## 8. GitHub 发布前最终动作
 
 - [x] 检查 `.gitignore`
-- [ ] 检查 `git diff --cached`（需在真实 Git 工作树执行）
-- [ ] 检查 `git status`（需在真实 Git 工作树执行）
-- [ ] 检查是否误提交 private 文件（需在真实 Git 工作树执行）
+- [x] 检查 `git diff --cached`
+- [x] 检查 `git status`
+- [x] 检查是否误提交 private 文件
 - [x] public-only 构建跑一遍（2026-04-24 复验：`/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-24.md`）
 - [x] private split 验收脚本跑一遍
 - [x] README / docs 首页更新

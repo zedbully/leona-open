@@ -5,32 +5,27 @@
 
 ---
 
-## 1. 先进入真实发布工作树
+## 1. 当前公开仓库
 
-下面命令要在**真正的 Git 仓库目录**里执行，而不是当前这个非 Git 快照目录。
+当前公开发布仓库已经是：
 
-如果你的发布工作树结构仍然是：
-
-- `leona-sdk-android`
-- `leona-server`
-- `demo-backend`
-- `leona`
-
-那么直接进入根目录后执行下面命令。
+- Git 根目录：`/Users/a/back/Game/cq`
+- GitHub：`git@github.com:zedbully/leona-open.git`
+- 默认分支：`main`
 
 ---
 
 ## 2. 先跑一键 Git 预检
 
 ```bash
-cd <your-release-workspace>
+cd /Users/a/back/Game/cq
 /Users/a/back/Game/cq/scripts/release-preflight.sh --strict leona-sdk-android leona-server
 ```
 
 如果你也想顺手带上构建检查：
 
 ```bash
-cd <your-release-workspace>
+cd /Users/a/back/Game/cq
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export GRADLE_USER_HOME=/Users/a/back/Game/cq/.gradle-home
 /Users/a/back/Game/cq/scripts/release-preflight.sh --strict --with-build leona-sdk-android leona-server
@@ -50,7 +45,7 @@ export GRADLE_USER_HOME=/Users/a/back/Game/cq/.gradle-home
 ### Android
 
 ```bash
-cd <your-release-workspace>/leona-sdk-android
+cd /Users/a/back/Game/cq/leona-sdk-android
 git status --short
 git diff --cached --name-only
 git ls-files | grep '^private/' || true
@@ -59,7 +54,7 @@ git ls-files | grep '^private/' || true
 ### Server
 
 ```bash
-cd <your-release-workspace>/leona-server
+cd /Users/a/back/Game/cq/leona-server
 git status --short
 git diff --cached --name-only
 git ls-files | grep '^private/' || true
@@ -72,7 +67,7 @@ git ls-files | grep '^private/' || true
 ### Android
 
 ```bash
-cd <your-release-workspace>/leona-sdk-android
+cd /Users/a/back/Game/cq/leona-sdk-android
 mv private /tmp/leona-android-private-backup
 ./gradlew :sdk:assembleDebug :sample-app:assembleDebug --no-daemon --no-configuration-cache
 mv /tmp/leona-android-private-backup private
@@ -81,7 +76,7 @@ mv /tmp/leona-android-private-backup private
 ### Server
 
 ```bash
-cd <your-release-workspace>/leona-server
+cd /Users/a/back/Game/cq/leona-server
 mv private /tmp/leona-server-private-backup
 ./scripts/gradlew-java21.sh :common:classes :ingestion-service:classes :worker-event-persister:classes --no-daemon --no-configuration-cache
 mv /tmp/leona-server-private-backup private
@@ -148,6 +143,20 @@ cd /Users/a/back/Game/cq
 # 3) private split 复验
 # 4) 再看 git status / diff --cached
 # 5) push 到 GitHub
+# 6) 打 tag
+# 7) 创建 GitHub prerelease
+```
+
+Alpha 发布命令：
+
+```bash
+cd /Users/a/back/Game/cq
+git tag -a v0.1.0-alpha.1 -m "Leona public alpha release v0.1.0-alpha.1"
+git push origin v0.1.0-alpha.1
+gh release create v0.1.0-alpha.1 \
+  --title "v0.1.0-alpha.1" \
+  --notes-file /Users/a/back/Game/cq/docs/alpha-release-notes.md \
+  --prerelease
 ```
 
 一句话：
