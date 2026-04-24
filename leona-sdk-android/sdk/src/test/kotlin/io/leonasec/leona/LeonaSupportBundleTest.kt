@@ -76,6 +76,10 @@ class LeonaSupportBundleTest {
             ),
             lastHandshakeAtMillis = 888L,
             lastHandshakeError = null,
+            lastHandshakeErrorClass = null,
+            lastHandshakeErrorCode = null,
+            lastHandshakeErrorProvider = null,
+            lastHandshakeRetryable = null,
         )
         val bundle = LeonaSupportBundle(
             generatedAtMillis = 123L,

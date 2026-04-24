@@ -230,6 +230,8 @@ Android SDK 检测核心主要在：
   - `expectedProviderPathPermissionsSha256`
   - `expectedProviderAuthoritySetSha256`
   - `expectedProviderSemanticsSha256`
+  - `expectedProviderAccessSemanticsSha256`
+  - `expectedProviderOperationalSemanticsSha256`
   - `expectedIntentFilterSha256`
   - `expectedIntentFilterActionSha256`
   - `expectedIntentFilterCategorySha256`
@@ -283,6 +285,8 @@ Android SDK 检测核心主要在：
   - `expectedQueriesIntentDataPathSha256`
   - `expectedQueriesIntentDataMimeTypeSha256`
   - `expectedApplicationSemanticsSha256`
+  - `expectedApplicationSecuritySemanticsSha256`
+  - `expectedApplicationRuntimeSemanticsSha256`
   - `expectedApplicationFieldValues`
   - `expectedMetaData`
 - **server 下发 baseline**：
@@ -313,6 +317,8 @@ Android SDK 检测核心主要在：
   - provider `pathPermissions` fingerprint
   - provider authority set fingerprint（处理多 authority / 分号顺序）
   - provider combined semantics fingerprint（authority/exported/permission/path-permission/grantUriPermissions）
+  - provider access semantics fingerprint（authority/readPermission/writePermission/grantUriPermissions/path-permission/uriPermissionPattern）
+  - provider operational semantics fingerprint（enabled/exported/processName/directBootAware/multiprocess/initOrder）
   - raw manifest intent-filter fingerprint
   - raw manifest intent-filter action/category/data fingerprint
   - raw manifest intent-filter data subfield fingerprint（scheme / authority / path / mimeType）
@@ -327,6 +333,8 @@ Android SDK 检测核心主要在：
   - raw manifest `queries` package name / provider authorities 子指纹
   - raw manifest `queries intent` action/category/data 及 data scheme/authority/path/mimeType 子指纹
   - raw manifest `application` 组合语义 fingerprint
+  - raw manifest `application` security semantics fingerprint（allowBackup/backupAgent/dataExtractionRules/networkSecurityConfig/usesCleartextTraffic 等）
+  - raw manifest `application` runtime semantics fingerprint（name/appComponentFactory/hasCode/hardwareAccelerated/largeHeap/localeConfig/testOnly）
   - raw manifest `application` 字段漂移（如 `usesCleartextTraffic` / `networkSecurityConfig` / `extractNativeLibs` / `allowBackup` / `debuggable` / `fullBackupContent` / `dataExtractionRules` / `requestLegacyExternalStorage`）
   - provider field drift（`grantUriPermissions` / `multiprocess` / `initOrder`）
   - 运行时 manifest meta-data 值

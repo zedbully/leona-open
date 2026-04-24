@@ -46,14 +46,27 @@ class PlayIntegrityAttestationProvider(
         challenge: String,
         installId: String,
     ): AttestationStatement? {
-        val token = tokenProvider.requestToken(
-            PlayIntegrityTokenRequest(
-                requestHash = challenge,
-                challenge = challenge,
-                installId = installId,
-                cloudProjectNumber = cloudProjectNumber,
-            ),
-        )?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val request = PlayIntegrityTokenRequest(
+            requestHash = challenge,
+            challenge = challenge,
+            installId = installId,
+            cloudProjectNumber = cloudProjectNumber,
+        )
+        val token = try {
+            tokenProvider.requestToken(request)
+        } catch (error: Throwable) {
+            throw if (error is AttestationException) {
+                error
+            } else {
+                AttestationException(
+                    provider = AttestationFormats.PLAY_INTEGRITY,
+                    code = AttestationFailureCodes.ATTESTATION_PROVIDER_FAILED,
+                    retryable = false,
+                    message = error.message ?: error.javaClass.name,
+                    cause = error,
+                )
+            }
+        }?.trim()?.takeIf { it.isNotEmpty() } ?: return null
 
         return AttestationStatements.playIntegrity(token)
     }

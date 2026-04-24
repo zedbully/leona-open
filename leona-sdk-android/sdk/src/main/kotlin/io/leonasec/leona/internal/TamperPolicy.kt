@@ -38,6 +38,8 @@ internal data class TamperPolicy(
     val expectedProviderPathPermissionsSha256: Map<String, String> = emptyMap(),
     val expectedProviderAuthoritySetSha256: Map<String, String> = emptyMap(),
     val expectedProviderSemanticsSha256: Map<String, String> = emptyMap(),
+    val expectedProviderAccessSemanticsSha256: Map<String, String> = emptyMap(),
+    val expectedProviderOperationalSemanticsSha256: Map<String, String> = emptyMap(),
     val expectedIntentFilterSha256: Map<String, String> = emptyMap(),
     val expectedIntentFilterActionSha256: Map<String, String> = emptyMap(),
     val expectedIntentFilterCategorySha256: Map<String, String> = emptyMap(),
@@ -91,6 +93,8 @@ internal data class TamperPolicy(
     val expectedQueriesIntentDataPathSha256: String? = null,
     val expectedQueriesIntentDataMimeTypeSha256: String? = null,
     val expectedApplicationSemanticsSha256: String? = null,
+    val expectedApplicationSecuritySemanticsSha256: String? = null,
+    val expectedApplicationRuntimeSemanticsSha256: String? = null,
     val expectedApplicationFieldValues: Map<String, String> = emptyMap(),
     val expectedMetaData: Map<String, String> = emptyMap(),
 ) {
@@ -153,6 +157,10 @@ internal data class TamperPolicy(
                 + server.expectedProviderAuthoritySetSha256,
             expectedProviderSemanticsSha256 = expectedProviderSemanticsSha256
                 + server.expectedProviderSemanticsSha256,
+            expectedProviderAccessSemanticsSha256 = expectedProviderAccessSemanticsSha256
+                + server.expectedProviderAccessSemanticsSha256,
+            expectedProviderOperationalSemanticsSha256 = expectedProviderOperationalSemanticsSha256
+                + server.expectedProviderOperationalSemanticsSha256,
             expectedIntentFilterSha256 = expectedIntentFilterSha256 + server.expectedIntentFilterSha256,
             expectedIntentFilterActionSha256 =
                 expectedIntentFilterActionSha256 + server.expectedIntentFilterActionSha256,
@@ -251,6 +259,10 @@ internal data class TamperPolicy(
                 server.expectedQueriesIntentDataMimeTypeSha256 ?: expectedQueriesIntentDataMimeTypeSha256,
             expectedApplicationSemanticsSha256 =
                 server.expectedApplicationSemanticsSha256 ?: expectedApplicationSemanticsSha256,
+            expectedApplicationSecuritySemanticsSha256 =
+                server.expectedApplicationSecuritySemanticsSha256 ?: expectedApplicationSecuritySemanticsSha256,
+            expectedApplicationRuntimeSemanticsSha256 =
+                server.expectedApplicationRuntimeSemanticsSha256 ?: expectedApplicationRuntimeSemanticsSha256,
             expectedApplicationFieldValues = expectedApplicationFieldValues + server.expectedApplicationFieldValues,
             expectedMetaData = expectedMetaData + server.expectedMetaData,
         )
@@ -294,6 +306,8 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedProviderPathPermissionsSha256 = expectedProviderPathPermissionsSha256,
         expectedProviderAuthoritySetSha256 = expectedProviderAuthoritySetSha256,
         expectedProviderSemanticsSha256 = expectedProviderSemanticsSha256,
+        expectedProviderAccessSemanticsSha256 = expectedProviderAccessSemanticsSha256,
+        expectedProviderOperationalSemanticsSha256 = expectedProviderOperationalSemanticsSha256,
         expectedIntentFilterSha256 = expectedIntentFilterSha256,
         expectedIntentFilterActionSha256 = expectedIntentFilterActionSha256,
         expectedIntentFilterCategorySha256 = expectedIntentFilterCategorySha256,
@@ -350,6 +364,8 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedQueriesIntentDataPathSha256 = expectedQueriesIntentDataPathSha256,
         expectedQueriesIntentDataMimeTypeSha256 = expectedQueriesIntentDataMimeTypeSha256,
         expectedApplicationSemanticsSha256 = expectedApplicationSemanticsSha256,
+        expectedApplicationSecuritySemanticsSha256 = expectedApplicationSecuritySemanticsSha256,
+        expectedApplicationRuntimeSemanticsSha256 = expectedApplicationRuntimeSemanticsSha256,
         expectedApplicationFieldValues = expectedApplicationFieldValues,
         expectedMetaData = expectedMetaData,
     )

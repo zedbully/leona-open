@@ -119,6 +119,14 @@ Leona.init(this, LeonaConfig.Builder()
         "provider:com.example.app.DataProvider",
         "expected_provider_semantics_fingerprint"
     )
+    .expectedProviderAccessSemanticsSha256(
+        "provider:com.example.app.DataProvider",
+        "expected_provider_access_semantics_fingerprint"
+    )
+    .expectedProviderOperationalSemanticsSha256(
+        "provider:com.example.app.DataProvider",
+        "expected_provider_operational_semantics_fingerprint"
+    )
     .expectedIntentFilterSha256(
         "activity:com.example.app.MainActivity",
         "expected_intent_filter_fingerprint"
@@ -192,6 +200,8 @@ Leona.init(this, LeonaConfig.Builder()
     .expectedQueriesIntentDataPathSha256("expected_queries_intent_data_path_fingerprint")
     .expectedQueriesIntentDataMimeTypeSha256("expected_queries_intent_mimetype_fingerprint")
     .expectedApplicationSemanticsSha256("expected_application_semantics_fingerprint")
+    .expectedApplicationSecuritySemanticsSha256("expected_application_security_semantics_fingerprint")
+    .expectedApplicationRuntimeSemanticsSha256("expected_application_runtime_semantics_fingerprint")
     .expectedApplicationFieldValue("application#usesCleartextTraffic", "false")
     .expectedApplicationFieldValue("application#allowBackup", "false")
     .expectedMetaData("channel", "play")

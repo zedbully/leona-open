@@ -14,10 +14,12 @@ Default behavior:
 
 - runs the static build gate
 - starts local demo-backend on `127.0.0.1:18090`
+- uses an isolated demo canonical store under the closure output directory
 - runs cloud-config smoke
 - writes:
   - `/tmp/leona-alpha-closure-*/report.json`
   - `/tmp/leona-alpha-closure-*/report.md`
+  - `/tmp/leona-alpha-closure-*/demo-cloud-store.json`
 
 GitHub Actions also exposes the same path via
 `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
@@ -53,6 +55,7 @@ Start demo backend:
 
 ```bash
 cd /Users/a/back/Game/cq/demo-backend
+DEMO_CLOUD_STORE_PATH=/tmp/leona-demo-cloud-store.json \
 LEONA_SECRET_KEY=dev-secret go run .
 ```
 
@@ -65,8 +68,11 @@ Then run:
 Required result:
 
 - `/v1/mobile-config` reachable
-- same fingerprint => same canonical device id
+- same `tenant + app + fingerprint` => same canonical device id
 - different fingerprint => different canonical device id
+- different tenant => different canonical device id
+- different app => different canonical device id
+- provided canonical id is echoed and backfilled to device/install fallback lookup
 - disabled signals + collection window visible in headers and body
 
 ## 3. Emulator E2E gate
@@ -113,7 +119,23 @@ Required result:
 - consistency report says `aligned=true`
 - uninstall + reinstall still converge to the same canonical device id
 
-## 5. Manual release stop conditions
+## 5. 收口策略
+
+Alpha 收口按三层执行：
+
+1. **代码冻结面**
+   - 只允许修复 false-positive、canonical 漂移、cloud-config 解析漂移
+   - 暂停新增信号和新增 native 检测项
+2. **环境验证面**
+   - 至少保留 1 台 retail 真机 + 1 台 root/Frida 验证机
+   - 每次候选包都跑 `run-alpha-closure.sh`
+   - 发版前补跑一次 `run-device-e2e.sh`
+3. **线上灰度面**
+   - 先给 sample tenant / internal app 放量
+   - 观察 canonical 稳定率、sense 成功率、误报率
+   - 仅在 support bundle / verdict / diagnostic 三面一致时扩大流量
+
+## 6. Manual release stop conditions
 
 Do not cut a release if any of these is true:
 
@@ -122,3 +144,4 @@ Do not cut a release if any of these is true:
 - support bundle lacks cloud-config evidence when cloud-config is enabled
 - verdict / transport / diagnostics disagree on canonical device id
 - parity tests detect config/policy/parser/integrity drift
+- tenant/app scoped cloud-config requests collapse onto the same canonical id unexpectedly

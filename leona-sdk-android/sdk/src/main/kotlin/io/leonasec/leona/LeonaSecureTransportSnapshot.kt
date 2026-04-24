@@ -17,6 +17,10 @@ data class LeonaSecureTransportSnapshot(
     val lastAttestation: LeonaAttestationSnapshot?,
     val lastHandshakeAtMillis: Long?,
     val lastHandshakeError: String?,
+    val lastHandshakeErrorClass: String? = null,
+    val lastHandshakeErrorCode: String? = null,
+    val lastHandshakeErrorProvider: String? = null,
+    val lastHandshakeRetryable: Boolean? = null,
 ) {
     fun toJsonObject(): JSONObject = JSONObject()
         .put("engineAvailable", engineAvailable)
@@ -29,6 +33,10 @@ data class LeonaSecureTransportSnapshot(
         .put("lastAttestation", lastAttestation?.toJsonObject())
         .put("lastHandshakeAtMillis", lastHandshakeAtMillis)
         .put("lastHandshakeError", lastHandshakeError)
+        .put("lastHandshakeErrorClass", lastHandshakeErrorClass)
+        .put("lastHandshakeErrorCode", lastHandshakeErrorCode)
+        .put("lastHandshakeErrorProvider", lastHandshakeErrorProvider)
+        .put("lastHandshakeRetryable", lastHandshakeRetryable)
 
     fun toJson(): String = toJsonObject().toString(2)
 }

@@ -317,6 +317,9 @@ class MainActivity : AppCompatActivity() {
             snapshot.lastAttestation?.format ?: "-",
             snapshot.lastAttestation?.tokenSha256 ?: "-",
             snapshot.lastHandshakeError ?: "-",
+            snapshot.lastHandshakeErrorCode ?: "-",
+            snapshot.lastHandshakeErrorProvider ?: "-",
+            snapshot.lastHandshakeRetryable?.toString() ?: "-",
         )
 
     private fun renderSupportBundle(bundle: LeonaSupportBundle): String =

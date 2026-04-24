@@ -585,7 +585,7 @@ components:
             split APK,
             split inventory, dynamic feature raw-name drift, config split raw-name drift, dynamic feature/config split drift, config ABI/locale/density drift, native export graph, permission semantics,
             declared permission field drift, component field drift, provider
-            uriPermissionPatterns/pathPermissions/combined semantics drift, raw intent-filter
+            uriPermissionPatterns/pathPermissions/combined/access/operational semantics drift, raw intent-filter
             action/category/data drift, raw data scheme/authority/path/mimeType
             drift, provider authority-set drift, raw grant-uri-permission
             drift, raw uses-feature/uses-sdk/supports-screens/
@@ -594,6 +594,7 @@ components:
             supports-screens small/normal/large/xlarge/resizeable/anyDensity/width-limit drift,
             compatible-screens size/density drift,
             uses-library / uses-native-library name/required drift,
+            application security/runtime semantics drift,
             package/provider/intent drift, queries package-name/provider-authorities drift,
             queries intent action/category/data drift,
             queries intent data scheme/authority/path/mimeType drift, application semantics drift, application field drift, and

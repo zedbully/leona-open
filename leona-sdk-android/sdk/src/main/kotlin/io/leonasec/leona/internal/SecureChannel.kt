@@ -72,6 +72,10 @@ internal class SecureChannel(
             lastAttestation = null,
             lastHandshakeAtMillis = null,
             lastHandshakeError = null,
+            lastHandshakeErrorClass = null,
+            lastHandshakeErrorCode = null,
+            lastHandshakeErrorProvider = null,
+            lastHandshakeRetryable = null,
         )
 
     private suspend fun resolveEffectiveTamperPolicy(): TamperPolicy {
@@ -161,6 +165,10 @@ internal class SecureChannel(
                     json.optStringMap("expectedProviderAuthoritySetSha256"),
                 expectedProviderSemanticsSha256 =
                     json.optStringMap("expectedProviderSemanticsSha256"),
+                expectedProviderAccessSemanticsSha256 =
+                    json.optStringMap("expectedProviderAccessSemanticsSha256"),
+                expectedProviderOperationalSemanticsSha256 =
+                    json.optStringMap("expectedProviderOperationalSemanticsSha256"),
                 expectedIntentFilterSha256 = json.optStringMap("expectedIntentFilterSha256"),
                 expectedIntentFilterActionSha256 = json.optStringMap("expectedIntentFilterActionSha256"),
                 expectedIntentFilterCategorySha256 = json.optStringMap("expectedIntentFilterCategorySha256"),
@@ -268,6 +276,10 @@ internal class SecureChannel(
                     json.optString("expectedQueriesIntentDataMimeTypeSha256").lowercase().ifBlank { null },
                 expectedApplicationSemanticsSha256 =
                     json.optString("expectedApplicationSemanticsSha256").lowercase().ifBlank { null },
+                expectedApplicationSecuritySemanticsSha256 =
+                    json.optString("expectedApplicationSecuritySemanticsSha256").lowercase().ifBlank { null },
+                expectedApplicationRuntimeSemanticsSha256 =
+                    json.optString("expectedApplicationRuntimeSemanticsSha256").lowercase().ifBlank { null },
                 expectedApplicationFieldValues =
                     json.optStringMap("expectedApplicationFieldValues", normalizeValues = false),
                 expectedMetaData = json.optStringMap("expectedMetaData", normalizeValues = false),

@@ -68,6 +68,8 @@ class LeonaConfigTest {
         assertTrue(cfg.expectedProviderPathPermissionsSha256.isEmpty())
         assertTrue(cfg.expectedProviderAuthoritySetSha256.isEmpty())
         assertTrue(cfg.expectedProviderSemanticsSha256.isEmpty())
+        assertTrue(cfg.expectedProviderAccessSemanticsSha256.isEmpty())
+        assertTrue(cfg.expectedProviderOperationalSemanticsSha256.isEmpty())
         assertTrue(cfg.expectedIntentFilterSha256.isEmpty())
         assertTrue(cfg.expectedIntentFilterActionSha256.isEmpty())
         assertTrue(cfg.expectedIntentFilterCategorySha256.isEmpty())
@@ -121,6 +123,8 @@ class LeonaConfigTest {
         assertNull(cfg.expectedQueriesIntentDataPathSha256)
         assertNull(cfg.expectedQueriesIntentDataMimeTypeSha256)
         assertNull(cfg.expectedApplicationSemanticsSha256)
+        assertNull(cfg.expectedApplicationSecuritySemanticsSha256)
+        assertNull(cfg.expectedApplicationRuntimeSemanticsSha256)
         assertTrue(cfg.expectedApplicationFieldValues.isEmpty())
         assertTrue(cfg.expectedMetaData.isEmpty())
     }
@@ -262,6 +266,8 @@ class LeonaConfigTest {
             .expectedProviderPathPermissionsSha256("provider:com.example.DataProvider", "ffaa")
             .expectedProviderAuthoritySetSha256("provider:com.example.DataProvider", "f0f0")
             .expectedProviderSemanticsSha256("provider:com.example.DataProvider", "f1f1")
+            .expectedProviderAccessSemanticsSha256("provider:com.example.DataProvider", "f2f2")
+            .expectedProviderOperationalSemanticsSha256("provider:com.example.DataProvider", "f3f3")
             .expectedIntentFilterSha256("activity:com.example.MainActivity", "abab")
             .expectedIntentFilterActionSha256("activity:com.example.MainActivity", "acac")
             .expectedIntentFilterCategorySha256("activity:com.example.MainActivity", "adad")
@@ -315,6 +321,8 @@ class LeonaConfigTest {
             .expectedQueriesIntentDataPathSha256("cfcf")
             .expectedQueriesIntentDataMimeTypeSha256("d0d0")
             .expectedApplicationSemanticsSha256("d1d1")
+            .expectedApplicationSecuritySemanticsSha256("d1d2")
+            .expectedApplicationRuntimeSemanticsSha256("d1d3")
             .expectedApplicationFieldValue("application#usesCleartextTraffic", "false")
             .expectedMetaData("channel", "play")
             .build()
@@ -379,6 +387,14 @@ class LeonaConfigTest {
         assertEquals(
             mapOf("provider:com.example.DataProvider" to "f1f1"),
             cfg.expectedProviderSemanticsSha256,
+        )
+        assertEquals(
+            mapOf("provider:com.example.DataProvider" to "f2f2"),
+            cfg.expectedProviderAccessSemanticsSha256,
+        )
+        assertEquals(
+            mapOf("provider:com.example.DataProvider" to "f3f3"),
+            cfg.expectedProviderOperationalSemanticsSha256,
         )
         assertEquals(
             mapOf("activity:com.example.MainActivity" to "abab"),
@@ -460,6 +476,8 @@ class LeonaConfigTest {
         assertEquals("cfcf", cfg.expectedQueriesIntentDataPathSha256)
         assertEquals("d0d0", cfg.expectedQueriesIntentDataMimeTypeSha256)
         assertEquals("d1d1", cfg.expectedApplicationSemanticsSha256)
+        assertEquals("d1d2", cfg.expectedApplicationSecuritySemanticsSha256)
+        assertEquals("d1d3", cfg.expectedApplicationRuntimeSemanticsSha256)
         assertEquals(
             mapOf("application#usesCleartextTraffic" to "false"),
             cfg.expectedApplicationFieldValues,

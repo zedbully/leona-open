@@ -113,6 +113,10 @@ class LeonaConfig private constructor(
     val expectedProviderAuthoritySetSha256: Map<String, String>,
     /** Optional provider combined semantics fingerprints keyed by `provider:name`. */
     val expectedProviderSemanticsSha256: Map<String, String>,
+    /** Optional provider access semantics fingerprints keyed by `provider:name`. */
+    val expectedProviderAccessSemanticsSha256: Map<String, String>,
+    /** Optional provider operational semantics fingerprints keyed by `provider:name`. */
+    val expectedProviderOperationalSemanticsSha256: Map<String, String>,
     /** Optional raw manifest intent-filter fingerprints keyed by `type:name`. */
     val expectedIntentFilterSha256: Map<String, String>,
     /** Optional raw manifest intent-filter action-set fingerprints keyed by `type:name`. */
@@ -219,6 +223,10 @@ class LeonaConfig private constructor(
     val expectedQueriesIntentDataMimeTypeSha256: String?,
     /** Optional raw manifest application combined semantics fingerprint. */
     val expectedApplicationSemanticsSha256: String?,
+    /** Optional raw manifest application security semantics fingerprint. */
+    val expectedApplicationSecuritySemanticsSha256: String?,
+    /** Optional raw manifest application runtime semantics fingerprint. */
+    val expectedApplicationRuntimeSemanticsSha256: String?,
     /** Optional raw manifest application field values keyed by `application#field`. */
     val expectedApplicationFieldValues: Map<String, String>,
     /** Optional manifest meta-data baselines keyed by meta-data name. */
@@ -286,6 +294,8 @@ class LeonaConfig private constructor(
         private val expectedProviderPathPermissionsSha256 = linkedMapOf<String, String>()
         private val expectedProviderAuthoritySetSha256 = linkedMapOf<String, String>()
         private val expectedProviderSemanticsSha256 = linkedMapOf<String, String>()
+        private val expectedProviderAccessSemanticsSha256 = linkedMapOf<String, String>()
+        private val expectedProviderOperationalSemanticsSha256 = linkedMapOf<String, String>()
         private val expectedIntentFilterSha256 = linkedMapOf<String, String>()
         private val expectedIntentFilterActionSha256 = linkedMapOf<String, String>()
         private val expectedIntentFilterCategorySha256 = linkedMapOf<String, String>()
@@ -339,6 +349,8 @@ class LeonaConfig private constructor(
         private var expectedQueriesIntentDataPathSha256: String? = null
         private var expectedQueriesIntentDataMimeTypeSha256: String? = null
         private var expectedApplicationSemanticsSha256: String? = null
+        private var expectedApplicationSecuritySemanticsSha256: String? = null
+        private var expectedApplicationRuntimeSemanticsSha256: String? = null
         private val expectedApplicationFieldValues = linkedMapOf<String, String>()
         private val expectedMetaData = linkedMapOf<String, String>()
 
@@ -523,6 +535,22 @@ class LeonaConfig private constructor(
         }
         fun expectedProviderSemanticsSha256(values: Map<String, String>) = apply {
             values.forEach { (providerKey, digest) -> expectedProviderSemanticsSha256(providerKey, digest) }
+        }
+        fun expectedProviderAccessSemanticsSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedProviderAccessSemanticsSha256, providerKey, digest)
+        }
+        fun expectedProviderAccessSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) ->
+                expectedProviderAccessSemanticsSha256(providerKey, digest)
+            }
+        }
+        fun expectedProviderOperationalSemanticsSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedProviderOperationalSemanticsSha256, providerKey, digest)
+        }
+        fun expectedProviderOperationalSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) ->
+                expectedProviderOperationalSemanticsSha256(providerKey, digest)
+            }
         }
         fun expectedIntentFilterSha256(componentKey: String, digest: String?) = apply {
             putNormalized(expectedIntentFilterSha256, componentKey, digest)
@@ -710,6 +738,12 @@ class LeonaConfig private constructor(
         fun expectedApplicationSemanticsSha256(digest: String?) = apply {
             expectedApplicationSemanticsSha256 = normalizeDigest(digest)
         }
+        fun expectedApplicationSecuritySemanticsSha256(digest: String?) = apply {
+            expectedApplicationSecuritySemanticsSha256 = normalizeDigest(digest)
+        }
+        fun expectedApplicationRuntimeSemanticsSha256(digest: String?) = apply {
+            expectedApplicationRuntimeSemanticsSha256 = normalizeDigest(digest)
+        }
         fun expectedApplicationFieldValue(applicationFieldKey: String, value: String?) = apply {
             putRawValue(expectedApplicationFieldValues, applicationFieldKey, value)
         }
@@ -782,6 +816,9 @@ class LeonaConfig private constructor(
             expectedProviderPathPermissionsSha256 = expectedProviderPathPermissionsSha256.toMap(),
             expectedProviderAuthoritySetSha256 = expectedProviderAuthoritySetSha256.toMap(),
             expectedProviderSemanticsSha256 = expectedProviderSemanticsSha256.toMap(),
+            expectedProviderAccessSemanticsSha256 = expectedProviderAccessSemanticsSha256.toMap(),
+            expectedProviderOperationalSemanticsSha256 =
+                expectedProviderOperationalSemanticsSha256.toMap(),
             expectedIntentFilterSha256 = expectedIntentFilterSha256.toMap(),
             expectedIntentFilterActionSha256 = expectedIntentFilterActionSha256.toMap(),
             expectedIntentFilterCategorySha256 = expectedIntentFilterCategorySha256.toMap(),
@@ -838,6 +875,8 @@ class LeonaConfig private constructor(
             expectedQueriesIntentDataPathSha256 = expectedQueriesIntentDataPathSha256,
             expectedQueriesIntentDataMimeTypeSha256 = expectedQueriesIntentDataMimeTypeSha256,
             expectedApplicationSemanticsSha256 = expectedApplicationSemanticsSha256,
+            expectedApplicationSecuritySemanticsSha256 = expectedApplicationSecuritySemanticsSha256,
+            expectedApplicationRuntimeSemanticsSha256 = expectedApplicationRuntimeSemanticsSha256,
             expectedApplicationFieldValues = expectedApplicationFieldValues.toMap(),
             expectedMetaData = expectedMetaData.toMap(),
         )

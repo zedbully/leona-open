@@ -36,6 +36,32 @@ internal object AppIntegrity {
         "networkSecurityConfig",
     )
 
+    private val applicationSecuritySemanticsManifestFields = listOf(
+        "allowBackup",
+        "backupAgent",
+        "dataExtractionRules",
+        "extractNativeLibs",
+        "fullBackupContent",
+        "fullBackupOnly",
+        "networkSecurityConfig",
+        "usesCleartextTraffic",
+        "usesNonSdkApi",
+    )
+
+    private val applicationRuntimeSemanticsManifestFields = listOf(
+        "debuggable",
+        "hasCode",
+        "hardwareAccelerated",
+        "killAfterRestore",
+        "largeHeap",
+        "localeConfig",
+        "name",
+        "requestLegacyExternalStorage",
+        "restoreAnyVersion",
+        "testOnly",
+        "vmSafeMode",
+    )
+
     private val applicationDriftManifestFields = listOf(
         "name",
         "appComponentFactory",
@@ -276,6 +302,20 @@ internal object AppIntegrity {
             }
         }
 
+        if (policy.expectedProviderAccessSemanticsSha256.isNotEmpty()) {
+            val providerHashes = collectProviderAccessSemanticsFingerprints(manifestInfo)
+            policy.expectedProviderAccessSemanticsSha256.keys.sorted().forEach { key ->
+                lines["providerAccessSemanticsSha256.$key"] = providerHashes[key].orEmpty()
+            }
+        }
+
+        if (policy.expectedProviderOperationalSemanticsSha256.isNotEmpty()) {
+            val providerHashes = collectProviderOperationalSemanticsFingerprints(manifestInfo)
+            policy.expectedProviderOperationalSemanticsSha256.keys.sorted().forEach { key ->
+                lines["providerOperationalSemanticsSha256.$key"] = providerHashes[key].orEmpty()
+            }
+        }
+
         if (policy.expectedIntentFilterSha256.isNotEmpty() ||
             policy.expectedIntentFilterActionSha256.isNotEmpty() ||
             policy.expectedIntentFilterCategorySha256.isNotEmpty() ||
@@ -374,6 +414,8 @@ internal object AppIntegrity {
             policy.expectedQueriesIntentDataPathSha256 != null ||
             policy.expectedQueriesIntentDataMimeTypeSha256 != null ||
             policy.expectedApplicationSemanticsSha256 != null ||
+            policy.expectedApplicationSecuritySemanticsSha256 != null ||
+            policy.expectedApplicationRuntimeSemanticsSha256 != null ||
             policy.expectedApplicationFieldValues.isNotEmpty()
         ) {
             val manifestHashes = collectManifestGlobalFingerprints(appInfo.sourceDir)
@@ -523,6 +565,14 @@ internal object AppIntegrity {
             policy.expectedApplicationSemanticsSha256?.let {
                 lines["applicationSemanticsSha256"] = manifestHashes.applicationSemanticsSha256.orEmpty()
             }
+            policy.expectedApplicationSecuritySemanticsSha256?.let {
+                lines["applicationSecuritySemanticsSha256"] =
+                    manifestHashes.applicationSecuritySemanticsSha256.orEmpty()
+            }
+            policy.expectedApplicationRuntimeSemanticsSha256?.let {
+                lines["applicationRuntimeSemanticsSha256"] =
+                    manifestHashes.applicationRuntimeSemanticsSha256.orEmpty()
+            }
             if (policy.expectedApplicationFieldValues.isNotEmpty()) {
                 policy.expectedApplicationFieldValues.keys.sorted().forEach { key ->
                     lines["applicationField.$key"] = manifestHashes.applicationFieldValues[key].orEmpty()
@@ -612,6 +662,12 @@ internal object AppIntegrity {
         }
         policy.expectedProviderSemanticsSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedProviderSemanticsSha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedProviderAccessSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedProviderAccessSemanticsSha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedProviderOperationalSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedProviderOperationalSemanticsSha256.${sanitize(name)}"] = digest
         }
         policy.expectedIntentFilterSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedIntentFilterSha256.${sanitize(name)}"] = digest
@@ -714,6 +770,12 @@ internal object AppIntegrity {
         policy.expectedQueriesIntentDataPathSha256?.let { lines["expectedQueriesIntentDataPathSha256"] = it }
         policy.expectedQueriesIntentDataMimeTypeSha256?.let { lines["expectedQueriesIntentDataMimeTypeSha256"] = it }
         policy.expectedApplicationSemanticsSha256?.let { lines["expectedApplicationSemanticsSha256"] = it }
+        policy.expectedApplicationSecuritySemanticsSha256?.let {
+            lines["expectedApplicationSecuritySemanticsSha256"] = it
+        }
+        policy.expectedApplicationRuntimeSemanticsSha256?.let {
+            lines["expectedApplicationRuntimeSemanticsSha256"] = it
+        }
         policy.expectedApplicationFieldValues.toSortedMap().forEach { (name, value) ->
             lines["expectedApplicationField.${sanitize(name)}"] = sanitize(value)
         }
@@ -863,6 +925,8 @@ internal object AppIntegrity {
         val queryIntentDataMimeTypes = mutableListOf<String>()
         val applicationFieldValues = linkedMapOf<String, String>()
         val applicationSemanticsFieldValues = linkedMapOf<String, String>()
+        val applicationSecuritySemanticsFieldValues = linkedMapOf<String, String>()
+        val applicationRuntimeSemanticsFieldValues = linkedMapOf<String, String>()
         var inQueries = false
         var inCompatibleScreens = false
         var currentQueryIntent: MutableList<String>? = null
@@ -879,6 +943,12 @@ internal object AppIntegrity {
                                 applicationFieldValues["application#$field"] = it
                                 if (field in applicationSemanticsManifestFields) {
                                     applicationSemanticsFieldValues["application#$field"] = it
+                                }
+                                if (field in applicationSecuritySemanticsManifestFields) {
+                                    applicationSecuritySemanticsFieldValues["application#$field"] = it
+                                }
+                                if (field in applicationRuntimeSemanticsManifestFields) {
+                                    applicationRuntimeSemanticsFieldValues["application#$field"] = it
                                 }
                             }
                         }
@@ -1061,6 +1131,16 @@ internal object AppIntegrity {
             queriesIntentDataMimeTypeSha256 = hashLines(queryIntentDataMimeTypes),
             queriesSha256 = hashLines(queriesLines),
             applicationSemanticsSha256 = applicationSemanticsFieldValues.entries
+                .sortedBy { it.key }
+                .joinToString(separator = "\n") { (key, value) -> "$key=$value" }
+                .takeIf { it.isNotBlank() }
+                ?.let { sha256Hex(it.toByteArray()) },
+            applicationSecuritySemanticsSha256 = applicationSecuritySemanticsFieldValues.entries
+                .sortedBy { it.key }
+                .joinToString(separator = "\n") { (key, value) -> "$key=$value" }
+                .takeIf { it.isNotBlank() }
+                ?.let { sha256Hex(it.toByteArray()) },
+            applicationRuntimeSemanticsSha256 = applicationRuntimeSemanticsFieldValues.entries
                 .sortedBy { it.key }
                 .joinToString(separator = "\n") { (key, value) -> "$key=$value" }
                 .takeIf { it.isNotBlank() }
@@ -2216,34 +2296,9 @@ internal object AppIntegrity {
         info?.providers
             ?.filterNotNull()
             ?.associate { provider ->
-                val authoritySet = provider.authority
-                    .orEmpty()
-                    .split(';')
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                    .sorted()
-                val uriPermissionPatterns = provider.uriPermissionPatterns
-                    ?.filterNotNull()
-                    ?.map {
-                        listOf(
-                            it.type.toString(),
-                            it.path.orEmpty(),
-                        ).joinToString("|")
-                    }
-                    ?.sorted()
-                    .orEmpty()
-                val pathPermissions = provider.pathPermissions
-                    ?.filterNotNull()
-                    ?.map {
-                        listOf(
-                            it.type.toString(),
-                            it.path.orEmpty(),
-                            it.readPermission.orEmpty(),
-                            it.writePermission.orEmpty(),
-                        ).joinToString("|")
-                    }
-                    ?.sorted()
-                    .orEmpty()
+                val authoritySet = providerAuthoritySet(provider)
+                val uriPermissionPatterns = providerUriPermissionPatterns(provider)
+                val pathPermissions = providerPathPermissions(provider)
                 val lines = buildList {
                     add("name=${provider.name.orEmpty()}")
                     add("enabled=${provider.enabled}")
@@ -2263,6 +2318,78 @@ internal object AppIntegrity {
                     lines.joinToString(separator = "\n").toByteArray(),
                 )
             }
+            .orEmpty()
+
+    private fun collectProviderAccessSemanticsFingerprints(info: PackageInfo?): Map<String, String> =
+        info?.providers
+            ?.filterNotNull()
+            ?.associate { provider ->
+                val lines = buildList {
+                    add("name=${provider.name.orEmpty()}")
+                    add("grantUriPermissions=${provider.grantUriPermissions}")
+                    add("readPermission=${provider.readPermission.orEmpty()}")
+                    add("writePermission=${provider.writePermission.orEmpty()}")
+                    addAll(providerAuthoritySet(provider).map { "authority=$it" })
+                    addAll(providerUriPermissionPatterns(provider).map { "uriPermissionPattern=$it" })
+                    addAll(providerPathPermissions(provider).map { "pathPermission=$it" })
+                }
+                "provider:${provider.name}" to sha256Hex(
+                    lines.joinToString(separator = "\n").toByteArray(),
+                )
+            }
+            .orEmpty()
+
+    private fun collectProviderOperationalSemanticsFingerprints(info: PackageInfo?): Map<String, String> =
+        info?.providers
+            ?.filterNotNull()
+            ?.associate { provider ->
+                val lines = listOf(
+                    "name=${provider.name.orEmpty()}",
+                    "enabled=${provider.enabled}",
+                    "exported=${provider.exported}",
+                    "processName=${provider.processName.orEmpty()}",
+                    "directBootAware=${provider.directBootAware}",
+                    "multiprocess=${provider.multiprocess}",
+                    "initOrder=${provider.initOrder}",
+                )
+                "provider:${provider.name}" to sha256Hex(
+                    lines.joinToString(separator = "\n").toByteArray(),
+                )
+            }
+            .orEmpty()
+
+    private fun providerAuthoritySet(provider: android.content.pm.ProviderInfo): List<String> =
+        provider.authority
+            .orEmpty()
+            .split(';')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .sorted()
+
+    private fun providerUriPermissionPatterns(provider: android.content.pm.ProviderInfo): List<String> =
+        provider.uriPermissionPatterns
+            ?.filterNotNull()
+            ?.map {
+                listOf(
+                    it.type.toString(),
+                    it.path.orEmpty(),
+                ).joinToString("|")
+            }
+            ?.sorted()
+            .orEmpty()
+
+    private fun providerPathPermissions(provider: android.content.pm.ProviderInfo): List<String> =
+        provider.pathPermissions
+            ?.filterNotNull()
+            ?.map {
+                listOf(
+                    it.type.toString(),
+                    it.path.orEmpty(),
+                    it.readPermission.orEmpty(),
+                    it.writePermission.orEmpty(),
+                ).joinToString("|")
+            }
+            ?.sorted()
             .orEmpty()
 
     private fun normalizeManifestClassName(packageName: String, rawName: String): String =
@@ -2521,6 +2648,8 @@ internal object AppIntegrity {
         val queriesIntentDataMimeTypeSha256: String? = null,
         val queriesSha256: String? = null,
         val applicationSemanticsSha256: String? = null,
+        val applicationSecuritySemanticsSha256: String? = null,
+        val applicationRuntimeSemanticsSha256: String? = null,
         val applicationFieldValues: Map<String, String> = emptyMap(),
     ) {
         companion object {

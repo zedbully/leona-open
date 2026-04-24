@@ -2,7 +2,10 @@
 set -euo pipefail
 
 : "${DEMO_BACKEND_BASE_URL:=http://localhost:8090}"
+: "${LEONA_TENANT:=sample-tenant}"
+: "${LEONA_OTHER_TENANT:=sample-tenant-b}"
 : "${LEONA_APP_ID:=sample-app}"
+: "${LEONA_OTHER_APP_ID:=sample-app-b}"
 : "${LEONA_DISABLED_SIGNAL_EXPECT:=androidId}"
 : "${LEONA_DISABLE_COLLECTION_WINDOW_EXPECT:=120000}"
 
@@ -11,26 +14,41 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 request_config() {
   local name="$1"
-  local fingerprint="$2"
-  local device_id="$3"
-  local install_id="$4"
+  local tenant="$2"
+  local app_id="$3"
+  local fingerprint="$4"
+  local device_id="$5"
+  local install_id="$6"
+  local provided_canonical="${7:-}"
+
+  local -a headers=(
+    -H "X-Leona-Tenant: $tenant"
+    -H "X-Leona-App-Id: $app_id"
+    -H "X-Leona-Device-Id: $device_id"
+    -H "X-Leona-Install-Id: $install_id"
+    -H "X-Leona-Fingerprint: $fingerprint"
+  )
+  if [[ -n "$provided_canonical" ]]; then
+    headers+=( -H "X-Leona-Canonical-Device-Id: $provided_canonical" )
+  fi
 
   curl -fsS \
     -D "$TMP_DIR/$name.headers" \
     -o "$TMP_DIR/$name.json" \
-    -H "X-Leona-App-Id: $LEONA_APP_ID" \
-    -H "X-Leona-Device-Id: $device_id" \
-    -H "X-Leona-Install-Id: $install_id" \
-    -H "X-Leona-Fingerprint: $fingerprint" \
+    "${headers[@]}" \
     "$DEMO_BACKEND_BASE_URL/v1/mobile-config"
 }
 
 echo "[Leona cloud-config] backend: $DEMO_BACKEND_BASE_URL"
 curl -fsS "$DEMO_BACKEND_BASE_URL/health" > "$TMP_DIR/health.json"
 
-request_config a "fingerprint-alpha" "Tdevice-alpha-1" "install-alpha-1"
-request_config b "fingerprint-alpha" "Tdevice-alpha-2" "install-alpha-2"
-request_config c "fingerprint-bravo" "Tdevice-bravo-1" "install-bravo-1"
+request_config a "$LEONA_TENANT" "$LEONA_APP_ID" "fingerprint-alpha" "Tdevice-alpha-1" "install-alpha-1"
+request_config b "$LEONA_TENANT" "$LEONA_APP_ID" "fingerprint-alpha" "Tdevice-alpha-2" "install-alpha-2"
+request_config c "$LEONA_TENANT" "$LEONA_APP_ID" "fingerprint-bravo" "Tdevice-bravo-1" "install-bravo-1"
+request_config d "$LEONA_OTHER_TENANT" "$LEONA_APP_ID" "fingerprint-alpha" "Tdevice-alpha-1" "install-alpha-1"
+request_config e "$LEONA_TENANT" "$LEONA_OTHER_APP_ID" "fingerprint-alpha" "Tdevice-alpha-1" "install-alpha-1"
+request_config f "$LEONA_TENANT" "$LEONA_APP_ID" "fingerprint-provided" "Tdevice-provided-1" "install-provided-1" "Lserver-issued"
+request_config g "$LEONA_TENANT" "$LEONA_APP_ID" "" "Tdevice-provided-1" "install-provided-2"
 
 python3 - "$TMP_DIR" "$LEONA_DISABLED_SIGNAL_EXPECT" "$LEONA_DISABLE_COLLECTION_WINDOW_EXPECT" <<'PY'
 import json
@@ -65,15 +83,27 @@ def canonical(obj):
 a = load_json("a")
 b = load_json("b")
 c = load_json("c")
+d = load_json("d")
+e = load_json("e")
+f = load_json("f")
+g = load_json("g")
 
 canon_a = canonical(a)
 canon_b = canonical(b)
 canon_c = canonical(c)
+canon_d = canonical(d)
+canon_e = canonical(e)
+canon_f = canonical(f)
+canon_g = canonical(g)
 
-assert canon_a == canon_b, f"same fingerprint should keep canonical stable: {canon_a} != {canon_b}"
-assert canon_a != canon_c, f"different fingerprints should diverge: {canon_a} == {canon_c}"
+assert canon_a == canon_b, f"same tenant/app/fingerprint should keep canonical stable: {canon_a} != {canon_b}"
+assert canon_a != canon_c, f"different fingerprint should diverge: {canon_a} == {canon_c}"
+assert canon_a != canon_d, f"different tenant should isolate canonical: {canon_a} == {canon_d}"
+assert canon_a != canon_e, f"different app should isolate canonical: {canon_a} == {canon_e}"
+assert canon_f == "Lserver-issued", f"provided canonical should echo back: {canon_f}"
+assert canon_g == canon_f, f"device fallback should backfill provided canonical: {canon_g} != {canon_f}"
 
-for obj in (a, b, c):
+for obj in (a, b, c, d, e, f, g):
     for expected_signal in expected_signals:
         assert expected_signal in obj.get("disabledSignals", []), f"disabledSignals missing {expected_signal}"
     assert obj.get("disableCollectionWindowMs") == expected_window, (
@@ -92,8 +122,11 @@ for expected_signal in expected_signals:
     assert expected_signal in [v.strip() for v in header_signals.split(",")]
 assert header_window == str(expected_window), f"header window mismatch: {header_window} != {expected_window}"
 
-print("[Leona cloud-config] stable canonical for same fingerprint :", canon_a)
-print("[Leona cloud-config] divergent canonical for new fingerprint:", canon_c)
-print("[Leona cloud-config] disabled signals present              :", ",".join(expected_signals) or "-")
-print("[Leona cloud-config] collection window ms                 :", expected_window)
+print("[Leona cloud-config] stable canonical same tenant/app/fingerprint:", canon_a)
+print("[Leona cloud-config] divergent canonical new fingerprint          :", canon_c)
+print("[Leona cloud-config] divergent canonical other tenant            :", canon_d)
+print("[Leona cloud-config] divergent canonical other app               :", canon_e)
+print("[Leona cloud-config] provided canonical echoed/backfilled        :", canon_f)
+print("[Leona cloud-config] disabled signals present                   :", ",".join(expected_signals) or "-")
+print("[Leona cloud-config] collection window ms                      :", expected_window)
 PY

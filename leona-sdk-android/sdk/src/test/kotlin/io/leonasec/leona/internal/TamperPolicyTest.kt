@@ -56,6 +56,12 @@ class TamperPolicyTest {
             expectedProviderSemanticsSha256 = mapOf(
                 "provider:com.local.DataProvider" to "local-provider-semantics",
             ),
+            expectedProviderAccessSemanticsSha256 = mapOf(
+                "provider:com.local.DataProvider" to "local-provider-access-semantics",
+            ),
+            expectedProviderOperationalSemanticsSha256 = mapOf(
+                "provider:com.local.DataProvider" to "local-provider-operational-semantics",
+            ),
             expectedIntentFilterSha256 = mapOf(
                 "activity:com.local.MainActivity" to "local-intent-filters",
             ),
@@ -130,6 +136,8 @@ class TamperPolicyTest {
             expectedQueriesIntentDataPathSha256 = "local-queries-intent-data-path",
             expectedQueriesIntentDataMimeTypeSha256 = "local-queries-intent-data-mime",
             expectedApplicationSemanticsSha256 = "local-application-semantics",
+            expectedApplicationSecuritySemanticsSha256 = "local-application-security-semantics",
+            expectedApplicationRuntimeSemanticsSha256 = "local-application-runtime-semantics",
             expectedApplicationFieldValues = mapOf(
                 "application#usesCleartextTraffic" to "false",
             ),
@@ -178,6 +186,12 @@ class TamperPolicyTest {
             ),
             expectedProviderSemanticsSha256 = mapOf(
                 "provider:com.server.SyncProvider" to "server-provider-semantics",
+            ),
+            expectedProviderAccessSemanticsSha256 = mapOf(
+                "provider:com.server.SyncProvider" to "server-provider-access-semantics",
+            ),
+            expectedProviderOperationalSemanticsSha256 = mapOf(
+                "provider:com.server.SyncProvider" to "server-provider-operational-semantics",
             ),
             expectedIntentFilterSha256 = mapOf(
                 "service:com.server.SyncService" to "server-intent-filters",
@@ -253,6 +267,8 @@ class TamperPolicyTest {
             expectedQueriesIntentDataPathSha256 = "server-queries-intent-data-path",
             expectedQueriesIntentDataMimeTypeSha256 = "server-queries-intent-data-mime",
             expectedApplicationSemanticsSha256 = "server-application-semantics",
+            expectedApplicationSecuritySemanticsSha256 = "server-application-security-semantics",
+            expectedApplicationRuntimeSemanticsSha256 = "server-application-runtime-semantics",
             expectedApplicationFieldValues = mapOf(
                 "application#networkSecurityConfig" to "@xml/network_security_config",
             ),
@@ -371,6 +387,20 @@ class TamperPolicyTest {
                 "provider:com.server.SyncProvider" to "server-provider-semantics",
             ),
             merged.expectedProviderSemanticsSha256,
+        )
+        assertEquals(
+            mapOf(
+                "provider:com.local.DataProvider" to "local-provider-access-semantics",
+                "provider:com.server.SyncProvider" to "server-provider-access-semantics",
+            ),
+            merged.expectedProviderAccessSemanticsSha256,
+        )
+        assertEquals(
+            mapOf(
+                "provider:com.local.DataProvider" to "local-provider-operational-semantics",
+                "provider:com.server.SyncProvider" to "server-provider-operational-semantics",
+            ),
+            merged.expectedProviderOperationalSemanticsSha256,
         )
         assertEquals(
             mapOf(
@@ -516,6 +546,14 @@ class TamperPolicyTest {
         assertEquals("server-queries-intent-data-mime", merged.expectedQueriesIntentDataMimeTypeSha256)
         assertEquals("server-application-semantics", merged.expectedApplicationSemanticsSha256)
         assertEquals(
+            "server-application-security-semantics",
+            merged.expectedApplicationSecuritySemanticsSha256,
+        )
+        assertEquals(
+            "server-application-runtime-semantics",
+            merged.expectedApplicationRuntimeSemanticsSha256,
+        )
+        assertEquals(
             mapOf(
                 "application#usesCleartextTraffic" to "false",
                 "application#networkSecurityConfig" to "@xml/network_security_config",
@@ -543,6 +581,12 @@ class TamperPolicyTest {
             expectedConfigSplitDensitySha256 = "config-densities",
             expectedProviderSemanticsSha256 = mapOf(
                 "provider:com.leonasec.DataProvider" to "provider-semantics",
+            ),
+            expectedProviderAccessSemanticsSha256 = mapOf(
+                "provider:com.leonasec.DataProvider" to "provider-access-semantics",
+            ),
+            expectedProviderOperationalSemanticsSha256 = mapOf(
+                "provider:com.leonasec.DataProvider" to "provider-operational-semantics",
             ),
             expectedUsesSdkSha256 = "uses-sdk",
             expectedSupportsScreensSha256 = "supports-screens",
@@ -577,6 +621,8 @@ class TamperPolicyTest {
             expectedQueriesIntentDataPathSha256 = "queries-intent-data-path",
             expectedQueriesIntentDataMimeTypeSha256 = "queries-intent-data-mime",
             expectedApplicationSemanticsSha256 = "application-semantics",
+            expectedApplicationSecuritySemanticsSha256 = "application-security-semantics",
+            expectedApplicationRuntimeSemanticsSha256 = "application-runtime-semantics",
         )
 
         val snapshot = AppIntegrity.capturePolicy(policy)
@@ -591,6 +637,16 @@ class TamperPolicyTest {
         assertTrue(
             snapshot.contains(
                 "expectedProviderSemanticsSha256.provider:com.leonasec.DataProvider=provider-semantics",
+            ),
+        )
+        assertTrue(
+            snapshot.contains(
+                "expectedProviderAccessSemanticsSha256.provider:com.leonasec.DataProvider=provider-access-semantics",
+            ),
+        )
+        assertTrue(
+            snapshot.contains(
+                "expectedProviderOperationalSemanticsSha256.provider:com.leonasec.DataProvider=provider-operational-semantics",
             ),
         )
         assertTrue(snapshot.contains("expectedUsesSdkSha256=uses-sdk"))
@@ -635,5 +691,7 @@ class TamperPolicyTest {
         assertTrue(snapshot.contains("expectedQueriesIntentDataPathSha256=queries-intent-data-path"))
         assertTrue(snapshot.contains("expectedQueriesIntentDataMimeTypeSha256=queries-intent-data-mime"))
         assertTrue(snapshot.contains("expectedApplicationSemanticsSha256=application-semantics"))
+        assertTrue(snapshot.contains("expectedApplicationSecuritySemanticsSha256=application-security-semantics"))
+        assertTrue(snapshot.contains("expectedApplicationRuntimeSemanticsSha256=application-runtime-semantics"))
     }
 }

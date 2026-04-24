@@ -5,7 +5,12 @@
 package io.leonasec.leona.sample
 
 import android.content.Context
+import io.leonasec.leona.config.AttestationException
+import io.leonasec.leona.config.AttestationFailureCodes
+import io.leonasec.leona.config.AttestationFormats
 import io.leonasec.leona.config.PlayIntegrityTokenRequest
+import java.lang.reflect.InvocationTargetException
+import java.util.concurrent.ExecutionException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -36,18 +41,22 @@ class ReflectivePlayIntegrityBridge private constructor(
     private var tokenProvider: Any? = null
 
     override suspend fun requestToken(request: PlayIntegrityTokenRequest): String? = withContext(Dispatchers.IO) {
-        val provider = tokenProvider ?: synchronized(this@ReflectivePlayIntegrityBridge) {
-            tokenProvider ?: prepareTokenProvider().also { tokenProvider = it }
-        }
+        try {
+            val provider = tokenProvider ?: synchronized(this@ReflectivePlayIntegrityBridge) {
+                tokenProvider ?: prepareTokenProvider().also { tokenProvider = it }
+            }
 
-        runCatching {
-            requestToken(provider, request)
-        }.recoverCatching {
-            synchronized(this@ReflectivePlayIntegrityBridge) { tokenProvider = null }
-            val refreshed = prepareTokenProvider()
-            synchronized(this@ReflectivePlayIntegrityBridge) { tokenProvider = refreshed }
-            requestToken(refreshed, request)
-        }.getOrThrow()
+            runCatching {
+                requestToken(provider, request)
+            }.recoverCatching {
+                synchronized(this@ReflectivePlayIntegrityBridge) { tokenProvider = null }
+                val refreshed = prepareTokenProvider()
+                synchronized(this@ReflectivePlayIntegrityBridge) { tokenProvider = refreshed }
+                requestToken(refreshed, request)
+            }.getOrThrow()
+        } catch (error: Throwable) {
+            throw normalizePlayIntegrityFailure(error)
+        }
     }
 
     private fun prepareTokenProvider(): Any {
@@ -67,7 +76,60 @@ class ReflectivePlayIntegrityBridge private constructor(
         return api.extractToken(token)
     }
 
+    private fun normalizePlayIntegrityFailure(error: Throwable): Throwable {
+        if (error is AttestationException) return error
+        val root = unwrapWrapper(error)
+        if (root.javaClass.name != STANDARD_INTEGRITY_EXCEPTION_CLASS) return root
+        val errorCode = runCatching {
+            root.javaClass.getMethod("getErrorCode").invoke(root) as? Int
+        }.getOrNull()
+        return AttestationException(
+            provider = AttestationFormats.PLAY_INTEGRITY,
+            code = mapPlayIntegrityErrorCode(errorCode),
+            retryable = isRetryablePlayIntegrityError(errorCode),
+            message = root.message ?: root.javaClass.name,
+            cause = root,
+        )
+    }
+
+    private fun unwrapWrapper(error: Throwable): Throwable = when (error) {
+        is InvocationTargetException -> error.targetException ?: error.cause ?: error
+        is ExecutionException -> error.cause ?: error
+        else -> error
+    }.let { unwrapped ->
+        if (unwrapped === error) error else unwrapWrapper(unwrapped)
+    }
+
+    private fun mapPlayIntegrityErrorCode(errorCode: Int?): String = when (errorCode) {
+        0 -> AttestationFailureCodes.PLAY_INTEGRITY_NO_ERROR
+        -1 -> AttestationFailureCodes.PLAY_INTEGRITY_API_NOT_AVAILABLE
+        -2 -> AttestationFailureCodes.PLAY_INTEGRITY_PLAY_STORE_NOT_FOUND
+        -3 -> AttestationFailureCodes.PLAY_INTEGRITY_NETWORK_ERROR
+        -5 -> AttestationFailureCodes.PLAY_INTEGRITY_APP_NOT_INSTALLED
+        -6 -> AttestationFailureCodes.PLAY_INTEGRITY_PLAY_SERVICES_NOT_FOUND
+        -7 -> AttestationFailureCodes.PLAY_INTEGRITY_APP_UID_MISMATCH
+        -8 -> AttestationFailureCodes.PLAY_INTEGRITY_TOO_MANY_REQUESTS
+        -9 -> AttestationFailureCodes.PLAY_INTEGRITY_CANNOT_BIND_TO_SERVICE
+        -12 -> AttestationFailureCodes.PLAY_INTEGRITY_GOOGLE_SERVER_UNAVAILABLE
+        -14 -> AttestationFailureCodes.PLAY_INTEGRITY_PLAY_STORE_VERSION_OUTDATED
+        -15 -> AttestationFailureCodes.PLAY_INTEGRITY_PLAY_SERVICES_VERSION_OUTDATED
+        -16 -> AttestationFailureCodes.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER_IS_INVALID
+        -17 -> AttestationFailureCodes.PLAY_INTEGRITY_REQUEST_HASH_TOO_LONG
+        -18 -> AttestationFailureCodes.PLAY_INTEGRITY_CLIENT_TRANSIENT_ERROR
+        -19 -> AttestationFailureCodes.PLAY_INTEGRITY_INTEGRITY_TOKEN_PROVIDER_INVALID
+        -100 -> AttestationFailureCodes.PLAY_INTEGRITY_INTERNAL_ERROR
+        else -> AttestationFailureCodes.PLAY_INTEGRITY_UNKNOWN
+    }
+
+    private fun isRetryablePlayIntegrityError(errorCode: Int?): Boolean = when (errorCode) {
+        -8, -9, -12, -18, -19, -100 -> true
+        else -> false
+    }
+
     companion object {
+        private const val STANDARD_INTEGRITY_EXCEPTION_CLASS =
+            "com.google.android.play.core.integrity.StandardIntegrityException"
+
         fun createIfAvailable(
             context: Context,
             cloudProjectNumber: Long?,
@@ -132,10 +194,14 @@ class ReflectivePlayIntegrityBridge private constructor(
         fun extractToken(token: Any): String =
             tokenClass.getMethod("token").invoke(token) as String
 
-        fun awaitTask(task: Any): Any = tasksClass
-            .getMethod("await", taskClass)
-            .invoke(null, task)
-            ?: error("Tasks.await returned null")
+        fun awaitTask(task: Any): Any = try {
+            tasksClass
+                .getMethod("await", taskClass)
+                .invoke(null, task)
+                ?: error("Tasks.await returned null")
+        } catch (error: InvocationTargetException) {
+            throw (error.targetException ?: error.cause ?: error)
+        }
 
         companion object {
             fun load(): ReflectionApi {

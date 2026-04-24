@@ -70,7 +70,7 @@
     <string name="generate_honeypot">Generate fake user</string>
     <string name="honeypot_result_fmt">id=%1$s\nemail=%2$s\nname=%3$s</string>
     <string name="diagnostic_fmt">deviceId=%1$s\ninstallId=%2$s\ncanonical=%3$s\nfingerprint=%4$s\nlocalRisk=%5$s\nnativeRisk=%6$s\nnativeSeverity=%7$s\nnativeFindings=%8$s\nserverDecision=%9$s\nserverAction=%10$s\nserverRiskLevel=%11$s\nserverRiskScore=%12$s\nserverRiskTags=%13$s\nlastBoxId=%14$s</string>
-    <string name="transport_fmt">engineAvailable=%1$s\nbindingPresent=%2$s\nbindingHardwareBacked=%3$s\nbindingPubKeySha256=%4$s\nsessionIdHint=%5$s\nsessionExpiresAt=%6$s\nsessionCanonical=%7$s\nattestationFormat=%8$s\nattestationTokenSha256=%9$s\nlastHandshakeError=%10$s</string>
+    <string name="transport_fmt">engineAvailable=%1$s\nbindingPresent=%2$s\nbindingHardwareBacked=%3$s\nbindingPubKeySha256=%4$s\nsessionIdHint=%5$s\nsessionExpiresAt=%6$s\nsessionCanonical=%7$s\nattestationFormat=%8$s\nattestationTokenSha256=%9$s\nlastHandshakeError=%10$s\nlastHandshakeCode=%11$s\nlastHandshakeProvider=%12$s\nlastHandshakeRetryable=%13$s</string>
     <string name="support_bundle_fmt">canonical=%1$s\neffectiveDisabled=%2$s\ncollectionWindowMs=%3$s\ncloudFetchedAt=%4$s\ncloudRawPresent=%5$s\ntransportCanonical=%6$s\nverdictCanonical=%7$s</string>
     <string name="consistency_fmt">device=%1$s\ntransport=%2$s\nverdict=%3$s\nbundle=%4$s\naligned=%5$s</string>
 </resources>
