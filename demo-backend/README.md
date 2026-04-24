@@ -60,6 +60,7 @@ curl -X POST http://localhost:8090/demo/verdict \
 
 ```bash
 curl http://localhost:8090/v1/mobile-config \
+  -H 'X-Leona-Tenant: sample-tenant' \
   -H 'X-Leona-App-Id: sample-app' \
   -H 'X-Leona-Device-Id: Tdevice-1' \
   -H 'X-Leona-Install-Id: install-1' \
@@ -90,17 +91,50 @@ curl http://localhost:8090/v1/mobile-config \
 }
 ```
 
+---
+
+## Canonical device store 规则
+
 默认规则：
 
-- 若请求已经带 `X-Leona-Canonical-Device-Id`，优先回传并写入本地 canonical store
-- 否则优先按 `appId + fingerprint` 查本地 canonical store
-- 若 fingerprint 缺失，则退化为 `appId + deviceId`
-- 若 deviceId 也缺失，则再退化为 `appId + installId`
-- 若 store 中没有命中，则基于上述 seed 派生一个 `L...`，并持久化到本地 store
+- 若设置 `DEMO_CLOUD_CANONICAL_DEVICE_ID`，直接固定返回该 canonical id
+- 若请求已带 `X-Leona-Canonical-Device-Id`，优先接受，并回填到本地 store 的全部命中维度
+- 否则按优先级查本地 store：
+  1. `tenant + appId + fingerprint`
+  2. `tenant + appId + deviceId`
+  3. `tenant + appId + installId`
+- 一旦任一维度命中，会把 canonical 回填到其它可用维度，保证后续降级请求仍稳定
+- 若 store 没命中，则基于上述字段派生一个 `L...`，并持久化到本地 store
+- tenant 与 app 彼此隔离，不共享 canonical 映射
 
 默认 store 路径：
 
 - macOS / Linux: `${TMPDIR:-/tmp}/leona-demo-cloud-store.json`
+
+当前 store 文件是结构化 JSON：
+
+```json
+{
+  "version": 1,
+  "records": [
+    {
+      "tenantId": "sample-tenant",
+      "appId": "sample-app",
+      "lookupKind": "fp",
+      "lookupValue": "fingerprint-1",
+      "canonicalDeviceId": "L7d7f0f2a4d0db4c0a2d8e6d2c9e0f0a",
+      "source": "derived",
+      "createdAt": "2026-04-24T12:00:00Z",
+      "updatedAt": "2026-04-24T12:00:00Z"
+    }
+  ]
+}
+```
+
+兼容性：
+
+- 老的扁平 `map[string]string` store 会在读取时自动迁移到内存结构
+- 下一次写回时会落成新的 `version + records` 格式
 
 ---
 
@@ -111,5 +145,5 @@ curl http://localhost:8090/v1/mobile-config \
 - `LEONA_SECRET_KEY`：租户 secret key，**必填**
 - `DEMO_CLOUD_DISABLED_SIGNALS`：mobile-config 下发的 disabled signals，默认 `androidId`
 - `DEMO_CLOUD_DISABLE_COLLECTION_WINDOW_MS`：mobile-config 下发的 collection window，默认 `120000`
-- `DEMO_CLOUD_CANONICAL_DEVICE_ID`：若设置则固定返回该 canonical id；否则按 header 稳定推导
+- `DEMO_CLOUD_CANONICAL_DEVICE_ID`：若设置则固定返回该 canonical id；否则按请求头稳定解析
 - `DEMO_CLOUD_STORE_PATH`：canonical store 持久化文件路径；默认写入系统临时目录

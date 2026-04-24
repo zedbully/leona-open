@@ -5,6 +5,7 @@
 package io.leonasec.leona.sample
 
 import android.content.Context
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.mockito.Mockito.mock
@@ -12,7 +13,7 @@ import org.mockito.Mockito.mock
 class ReflectivePlayIntegrityBridgeTest {
 
     @Test
-    fun `createIfAvailable returns null when play integrity sdk is absent`() {
+    fun `createIfAvailable matches sdk availability`() {
         val context = mock(Context::class.java)
 
         val bridge = ReflectivePlayIntegrityBridge.createIfAvailable(
@@ -20,6 +21,14 @@ class ReflectivePlayIntegrityBridgeTest {
             cloudProjectNumber = 123456789L,
         )
 
-        assertNull(bridge)
+        if (isPlayIntegritySdkPresent()) {
+            assertNotNull(bridge)
+        } else {
+            assertNull(bridge)
+        }
     }
+
+    private fun isPlayIntegritySdkPresent(): Boolean = runCatching {
+        Class.forName("com.google.android.play.core.integrity.IntegrityManagerFactory")
+    }.isSuccess
 }
