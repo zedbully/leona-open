@@ -108,8 +108,14 @@ class TamperPolicyTest {
             expectedCompatibleScreensScreenSizeSha256 = "local-compatible-screens-size",
             expectedCompatibleScreensScreenDensitySha256 = "local-compatible-screens-density",
             expectedUsesLibrarySha256 = "local-uses-library",
+            expectedUsesLibraryNameSha256 = "local-uses-library-name",
+            expectedUsesLibraryRequiredSha256 = "local-uses-library-required",
             expectedUsesLibraryOnlySha256 = "local-uses-library-only",
+            expectedUsesLibraryOnlyNameSha256 = "local-uses-library-only-name",
+            expectedUsesLibraryOnlyRequiredSha256 = "local-uses-library-only-required",
             expectedUsesNativeLibrarySha256 = "local-uses-native-library",
+            expectedUsesNativeLibraryNameSha256 = "local-uses-native-library-name",
+            expectedUsesNativeLibraryRequiredSha256 = "local-uses-native-library-required",
             expectedQueriesSha256 = "local-queries",
             expectedQueriesPackageSha256 = "local-queries-package",
             expectedQueriesPackageNameSha256 = "local-queries-package-name",
@@ -225,8 +231,14 @@ class TamperPolicyTest {
             expectedCompatibleScreensScreenSizeSha256 = "server-compatible-screens-size",
             expectedCompatibleScreensScreenDensitySha256 = "server-compatible-screens-density",
             expectedUsesLibrarySha256 = "server-uses-library",
+            expectedUsesLibraryNameSha256 = "server-uses-library-name",
+            expectedUsesLibraryRequiredSha256 = "server-uses-library-required",
             expectedUsesLibraryOnlySha256 = "server-uses-library-only",
+            expectedUsesLibraryOnlyNameSha256 = "server-uses-library-only-name",
+            expectedUsesLibraryOnlyRequiredSha256 = "server-uses-library-only-required",
             expectedUsesNativeLibrarySha256 = "server-uses-native-library",
+            expectedUsesNativeLibraryNameSha256 = "server-uses-native-library-name",
+            expectedUsesNativeLibraryRequiredSha256 = "server-uses-native-library-required",
             expectedQueriesSha256 = "server-queries",
             expectedQueriesPackageSha256 = "server-queries-package",
             expectedQueriesPackageNameSha256 = "server-queries-package-name",
@@ -478,8 +490,17 @@ class TamperPolicyTest {
             merged.expectedCompatibleScreensScreenDensitySha256,
         )
         assertEquals("server-uses-library", merged.expectedUsesLibrarySha256)
+        assertEquals("server-uses-library-name", merged.expectedUsesLibraryNameSha256)
+        assertEquals("server-uses-library-required", merged.expectedUsesLibraryRequiredSha256)
         assertEquals("server-uses-library-only", merged.expectedUsesLibraryOnlySha256)
+        assertEquals("server-uses-library-only-name", merged.expectedUsesLibraryOnlyNameSha256)
+        assertEquals("server-uses-library-only-required", merged.expectedUsesLibraryOnlyRequiredSha256)
         assertEquals("server-uses-native-library", merged.expectedUsesNativeLibrarySha256)
+        assertEquals("server-uses-native-library-name", merged.expectedUsesNativeLibraryNameSha256)
+        assertEquals(
+            "server-uses-native-library-required",
+            merged.expectedUsesNativeLibraryRequiredSha256,
+        )
         assertEquals("server-queries", merged.expectedQueriesSha256)
         assertEquals("server-queries-package", merged.expectedQueriesPackageSha256)
         assertEquals("server-queries-package-name", merged.expectedQueriesPackageNameSha256)
@@ -542,6 +563,12 @@ class TamperPolicyTest {
             expectedCompatibleScreensScreenDensitySha256 = "compatible-screens-density",
             expectedQueriesPackageNameSha256 = "queries-package-names",
             expectedQueriesProviderAuthoritySha256 = "queries-provider-authorities",
+            expectedUsesLibraryNameSha256 = "uses-library-names",
+            expectedUsesLibraryRequiredSha256 = "uses-library-required",
+            expectedUsesLibraryOnlyNameSha256 = "uses-library-only-names",
+            expectedUsesLibraryOnlyRequiredSha256 = "uses-library-only-required",
+            expectedUsesNativeLibraryNameSha256 = "uses-native-library-names",
+            expectedUsesNativeLibraryRequiredSha256 = "uses-native-library-required",
             expectedQueriesIntentActionSha256 = "queries-intent-actions",
             expectedQueriesIntentCategorySha256 = "queries-intent-categories",
             expectedQueriesIntentDataSha256 = "queries-intent-data",
@@ -592,6 +619,12 @@ class TamperPolicyTest {
         assertTrue(snapshot.contains("expectedCompatibleScreensSha256=compatible-screens"))
         assertTrue(snapshot.contains("expectedCompatibleScreensScreenSizeSha256=compatible-screens-size"))
         assertTrue(snapshot.contains("expectedCompatibleScreensScreenDensitySha256=compatible-screens-density"))
+        assertTrue(snapshot.contains("expectedUsesLibraryNameSha256=uses-library-names"))
+        assertTrue(snapshot.contains("expectedUsesLibraryRequiredSha256=uses-library-required"))
+        assertTrue(snapshot.contains("expectedUsesLibraryOnlyNameSha256=uses-library-only-names"))
+        assertTrue(snapshot.contains("expectedUsesLibraryOnlyRequiredSha256=uses-library-only-required"))
+        assertTrue(snapshot.contains("expectedUsesNativeLibraryNameSha256=uses-native-library-names"))
+        assertTrue(snapshot.contains("expectedUsesNativeLibraryRequiredSha256=uses-native-library-required"))
         assertTrue(snapshot.contains("expectedQueriesPackageNameSha256=queries-package-names"))
         assertTrue(snapshot.contains("expectedQueriesProviderAuthoritySha256=queries-provider-authorities"))
         assertTrue(snapshot.contains("expectedQueriesIntentActionSha256=queries-intent-actions"))

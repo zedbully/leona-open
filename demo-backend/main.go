@@ -139,6 +139,7 @@ func mobileConfig(w http.ResponseWriter, r *http.Request) {
 		},
 		Debug: map[string]any{
 			"received": map[string]string{
+				"tenant":            strings.TrimSpace(r.Header.Get("X-Leona-Tenant")),
 				"appId":             strings.TrimSpace(r.Header.Get("X-Leona-App-Id")),
 				"deviceId":          strings.TrimSpace(r.Header.Get("X-Leona-Device-Id")),
 				"installId":         strings.TrimSpace(r.Header.Get("X-Leona-Install-Id")),
@@ -292,14 +293,16 @@ func resolveCanonicalDeviceID(r *http.Request) string {
 	if explicit := strings.TrimSpace(env("DEMO_CLOUD_CANONICAL_DEVICE_ID", "")); explicit != "" {
 		return normalizeCanonical(explicit)
 	}
-	appID := strings.TrimSpace(r.Header.Get("X-Leona-App-Id"))
-	fingerprint := strings.TrimSpace(r.Header.Get("X-Leona-Fingerprint"))
-	deviceID := strings.TrimSpace(r.Header.Get("X-Leona-Device-Id"))
-	installID := strings.TrimSpace(r.Header.Get("X-Leona-Install-Id"))
-	providedCanonical := strings.TrimSpace(r.Header.Get("X-Leona-Canonical-Device-Id"))
-	key := canonicalLookupKey(appID, fingerprint, deviceID, installID)
-	seed := canonicalFallbackSeed(appID, fingerprint, deviceID, installID, r.RemoteAddr)
-	return cloudCanonicalStore.resolveOrCreate(key, seed, providedCanonical)
+	input := canonicalResolveInput{
+		TenantID:          strings.TrimSpace(r.Header.Get("X-Leona-Tenant")),
+		AppID:             strings.TrimSpace(r.Header.Get("X-Leona-App-Id")),
+		Fingerprint:       strings.TrimSpace(r.Header.Get("X-Leona-Fingerprint")),
+		DeviceID:          strings.TrimSpace(r.Header.Get("X-Leona-Device-Id")),
+		InstallID:         strings.TrimSpace(r.Header.Get("X-Leona-Install-Id")),
+		ProvidedCanonical: strings.TrimSpace(r.Header.Get("X-Leona-Canonical-Device-Id")),
+	}
+	input.FallbackSeed = canonicalFallbackSeed(input.TenantID, input.AppID, input.Fingerprint, input.DeviceID, input.InstallID, r.RemoteAddr)
+	return cloudCanonicalStore.resolveOrCreate(input)
 }
 
 func splitCSV(raw string) []string {

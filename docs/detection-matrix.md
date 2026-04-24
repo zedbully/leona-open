@@ -261,8 +261,14 @@ Android SDK 检测核心主要在：
   - `expectedCompatibleScreensScreenSizeSha256`
   - `expectedCompatibleScreensScreenDensitySha256`
   - `expectedUsesLibrarySha256`
+  - `expectedUsesLibraryNameSha256`
+  - `expectedUsesLibraryRequiredSha256`
   - `expectedUsesLibraryOnlySha256`
+  - `expectedUsesLibraryOnlyNameSha256`
+  - `expectedUsesLibraryOnlyRequiredSha256`
   - `expectedUsesNativeLibrarySha256`
+  - `expectedUsesNativeLibraryNameSha256`
+  - `expectedUsesNativeLibraryRequiredSha256`
   - `expectedQueriesSha256`
   - `expectedQueriesPackageSha256`
   - `expectedQueriesPackageNameSha256`
@@ -316,6 +322,7 @@ Android SDK 检测核心主要在：
   - raw manifest `uses-sdk` minSdkVersion / targetSdkVersion / maxSdkVersion 子指纹
   - raw manifest `supports-screens` small/normal/large/xlarge/resizeable/anyDensity/requiresSmallestWidthDp/compatibleWidthLimitDp/largestWidthLimitDp 子指纹
   - raw manifest `compatible-screens` screenSize / screenDensity 子指纹
+  - raw manifest `uses-library` / `uses-native-library` name / required 子指纹
   - raw manifest `queries` package/provider/intent 子指纹
   - raw manifest `queries` package name / provider authorities 子指纹
   - raw manifest `queries intent` action/category/data 及 data scheme/authority/path/mimeType 子指纹

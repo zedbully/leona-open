@@ -593,6 +593,7 @@ components:
             uses-feature name/required/glEsVersion drift, uses-sdk min/target/max drift,
             supports-screens small/normal/large/xlarge/resizeable/anyDensity/width-limit drift,
             compatible-screens size/density drift,
+            uses-library / uses-native-library name/required drift,
             package/provider/intent drift, queries package-name/provider-authorities drift,
             queries intent action/category/data drift,
             queries intent data scheme/authority/path/mimeType drift, application semantics drift, application field drift, and
