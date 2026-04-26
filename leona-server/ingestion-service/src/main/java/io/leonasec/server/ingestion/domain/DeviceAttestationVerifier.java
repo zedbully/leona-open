@@ -15,8 +15,27 @@ import io.leonasec.server.common.api.HandshakeRequest;
 public interface DeviceAttestationVerifier {
     Result verify(HandshakeRequest request);
 
-    record Result(boolean accepted, String status) {
-        public static Result accepted(String status) { return new Result(true, status); }
-        public static Result rejected(String status) { return new Result(false, status); }
+    record Result(
+        boolean accepted,
+        String status,
+        String provider,
+        String code,
+        Boolean retryable
+    ) {
+        public static Result accepted(String status) {
+            return new Result(true, status, null, null, null);
+        }
+
+        public static Result accepted(String status, String provider, String code, Boolean retryable) {
+            return new Result(true, status, provider, code, retryable);
+        }
+
+        public static Result rejected(String status) {
+            return new Result(false, status, null, null, null);
+        }
+
+        public static Result rejected(String status, String provider, String code, Boolean retryable) {
+            return new Result(false, status, provider, code, retryable);
+        }
     }
 }

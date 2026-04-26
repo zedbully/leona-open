@@ -33,6 +33,7 @@ public class PermissiveDeviceAttestationVerifier implements DeviceAttestationVer
     private final String minimumDeviceVerdict;
     private final Duration maxAge;
     private final ObjectMapper mapper;
+    private final OemAttestationVerifiers.OemAttestationVerifier oemAttestationVerifier;
 
     public PermissiveDeviceAttestationVerifier(
         @Value("${leona.handshake.attestation.required:true}") boolean requireAttestation,
@@ -46,32 +47,34 @@ public class PermissiveDeviceAttestationVerifier implements DeviceAttestationVer
         this.minimumDeviceVerdict = normalize(minimumDeviceVerdict);
         this.maxAge = Duration.ofSeconds(Math.max(30L, maxAgeSeconds));
         this.mapper = mapper.copy().findAndRegisterModules();
+        this.oemAttestationVerifier = OemAttestationVerifiers.active();
     }
 
     @Override
     public Result verify(HandshakeRequest request) {
         HandshakeRequest.DeviceBinding binding = request.deviceBinding();
         if (binding == null) {
-            return Result.rejected("binding_missing");
+            return Result.rejected("binding_missing", null, "BINDING_MISSING", false);
         }
         if (binding.attestationToken() == null || binding.attestationToken().isBlank()
             || binding.attestationFormat() == null || binding.attestationFormat().isBlank()) {
             return requireAttestation
-                ? Result.rejected("attestation_missing")
-                : Result.accepted("binding-without-attestation");
+                ? Result.rejected("attestation_missing", null, "ATTESTATION_MISSING", false)
+                : Result.accepted("binding-without-attestation", null, null, null);
         }
 
         String format = normalizeFormat(binding.attestationFormat());
         return switch (format) {
             case "play_integrity" -> verifyPlayIntegrity(request, binding);
-            default -> Result.rejected("attestation_format_unsupported");
+            case "oem_attestation" -> oemAttestationVerifier.verify(request);
+            default -> Result.rejected("attestation_format_unsupported", format, "ATTESTATION_FORMAT_UNSUPPORTED", false);
         };
     }
 
     private Result verifyPlayIntegrity(HandshakeRequest request, HandshakeRequest.DeviceBinding binding) {
         JsonNode claims = parseClaims(binding.attestationToken());
         if (claims == null || claims.isMissingNode()) {
-            return Result.rejected("attestation_parse_failed");
+            return Result.rejected("attestation_parse_failed", "play_integrity", "PLAY_INTEGRITY_PARSE_FAILED", false);
         }
 
         String expectedChallenge = handshakeChallenge(request);
@@ -83,7 +86,7 @@ public class PermissiveDeviceAttestationVerifier implements DeviceAttestationVer
             "requestHash"
         );
         if (actualChallenge == null || !expectedChallenge.equals(actualChallenge)) {
-            return Result.rejected("attestation_challenge_mismatch");
+            return Result.rejected("attestation_challenge_mismatch", "play_integrity", "PLAY_INTEGRITY_CHALLENGE_MISMATCH", false);
         }
 
         Long timestampMillis = firstLong(
@@ -92,15 +95,15 @@ public class PermissiveDeviceAttestationVerifier implements DeviceAttestationVer
             "timestampMillis"
         );
         if (timestampMillis == null || timestampMillis <= 0L) {
-            return Result.rejected("attestation_timestamp_missing");
+            return Result.rejected("attestation_timestamp_missing", "play_integrity", "PLAY_INTEGRITY_TIMESTAMP_MISSING", false);
         }
         Instant issuedAt = Instant.ofEpochMilli(timestampMillis);
         Instant now = Instant.now();
         if (issuedAt.isAfter(now.plusSeconds(60))) {
-            return Result.rejected("attestation_clock_skew");
+            return Result.rejected("attestation_clock_skew", "play_integrity", "PLAY_INTEGRITY_CLOCK_SKEW", true);
         }
         if (issuedAt.isBefore(now.minus(maxAge))) {
-            return Result.rejected("attestation_stale");
+            return Result.rejected("attestation_stale", "play_integrity", "PLAY_INTEGRITY_STALE", true);
         }
 
         String appVerdict = firstText(
@@ -109,7 +112,7 @@ public class PermissiveDeviceAttestationVerifier implements DeviceAttestationVer
             "appRecognitionVerdict"
         );
         if (!"PLAY_RECOGNIZED".equals(normalize(appVerdict))) {
-            return Result.rejected("attestation_app_unrecognized");
+            return Result.rejected("attestation_app_unrecognized", "play_integrity", "PLAY_INTEGRITY_APP_UNRECOGNIZED", false);
         }
 
         Set<String> deviceVerdicts = firstArrayValues(
@@ -118,10 +121,10 @@ public class PermissiveDeviceAttestationVerifier implements DeviceAttestationVer
             "deviceRecognitionVerdict"
         );
         if (!meetsMinimumDeviceVerdict(deviceVerdicts)) {
-            return Result.rejected("attestation_device_untrusted");
+            return Result.rejected("attestation_device_untrusted", "play_integrity", "PLAY_INTEGRITY_DEVICE_UNTRUSTED", false);
         }
 
-        return Result.accepted("play_integrity/" + normalizeDeviceVerdictStatus(deviceVerdicts));
+        return Result.accepted("play_integrity/" + normalizeDeviceVerdictStatus(deviceVerdicts), "play_integrity", "PLAY_INTEGRITY_VERIFIED", false);
     }
 
     private JsonNode parseClaims(String token) {
