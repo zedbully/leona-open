@@ -161,6 +161,7 @@ LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
 LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
 LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
+LEONA_SAMPLE_ATTESTATION_MODE=oem_debug_fake \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
 ```
 
@@ -192,6 +193,7 @@ LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083 \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
 LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
+LEONA_SAMPLE_ATTESTATION_MODE=oem_debug_fake \
 LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
 ```

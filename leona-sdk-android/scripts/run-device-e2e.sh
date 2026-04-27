@@ -9,6 +9,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${LEONA_DEMO_BACKEND_BASE_URL:=http://127.0.0.1:8090}"
 : "${LEONA_ADMIN_BASE_URL:=http://127.0.0.1:8083}"
 : "${LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY:=0}"
+: "${LEONA_SAMPLE_ATTESTATION_MODE:=oem_debug_fake}"
 : "${SENSE_TIMEOUT_SEC:=30}"
 : "${VERDICT_TIMEOUT_SEC:=20}"
 : "${APP_ID:=io.leonasec.leona.sample}"
@@ -197,7 +198,9 @@ capture_json_section() {
 
   tap_view_with_scroll "$base-toggle" "$toggle_id" 1
   local value
-  value="$(read_view_with_scroll "$base-text" "$text_id" 1)"
+  if ! value="$(read_view_with_scroll "$base-text" "$text_id" 1)"; then
+    exit 1
+  fi
   if [[ -z "$value" || "$value" != \{* ]]; then
     echo "$base json is empty or malformed" >&2
     printf '%s\n' "$value" >&2
@@ -354,6 +357,7 @@ install_sample() {
   LEONA_DEMO_BACKEND_BASE_URL="$LEONA_DEMO_BACKEND_BASE_URL" \
   LEONA_ADMIN_BASE_URL="$LEONA_ADMIN_BASE_URL" \
   LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY="$LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY" \
+  LEONA_SAMPLE_ATTESTATION_MODE="$LEONA_SAMPLE_ATTESTATION_MODE" \
   LEONA_TASK=installDebug \
   "$ROOT_DIR/scripts/run-live-sample.sh" >&2
 }
@@ -378,7 +382,9 @@ run_cycle() {
   launch_sample
 
   local pre_device_line
-  pre_device_line="$(read_view_with_scroll "$prefix-home-device" "$APP_ID:id/deviceId" 1)"
+  if ! pre_device_line="$(read_view_with_scroll "$prefix-home-device" "$APP_ID:id/deviceId" 1)"; then
+    exit 1
+  fi
   if [[ "$pre_device_line" != DeviceId:\ T* && "$pre_device_line" != DeviceId:\ L* ]]; then
     echo "Expected temporary or restored canonical device id before sense(), got: $pre_device_line" >&2
     exit 1
@@ -386,12 +392,20 @@ run_cycle() {
 
   tap_view_with_scroll "$prefix-sense-button" "$APP_ID:id/buttonSense" 1
   local box_line
-  box_line="$(poll_for_boxid "$prefix")"
+  if ! box_line="$(poll_for_boxid "$prefix")"; then
+    exit 1
+  fi
 
   local post_device_line support_bundle_text consistency_text
-  post_device_line="$(read_view_with_scroll "$prefix-post-device" "$APP_ID:id/deviceId" 1)"
-  support_bundle_text="$(read_view_with_scroll "$prefix-post-support-summary" "$APP_ID:id/supportBundleSummary" 1)"
-  consistency_text="$(read_view_with_scroll "$prefix-post-consistency-summary" "$APP_ID:id/consistencySummary" 1)"
+  if ! post_device_line="$(read_view_with_scroll "$prefix-post-device" "$APP_ID:id/deviceId" 1)"; then
+    exit 1
+  fi
+  if ! support_bundle_text="$(read_view_with_scroll "$prefix-post-support-summary" "$APP_ID:id/supportBundleSummary" 1)"; then
+    exit 1
+  fi
+  if ! consistency_text="$(read_view_with_scroll "$prefix-post-consistency-summary" "$APP_ID:id/consistencySummary" 1)"; then
+    exit 1
+  fi
 
   if [[ "$post_device_line" != DeviceId:\ L* ]]; then
     echo "Expected canonical device id after sense(), got: $post_device_line" >&2
@@ -403,13 +417,23 @@ run_cycle() {
 
   tap_view_with_scroll "$prefix-verdict-button" "$APP_ID:id/buttonVerdict" 1
   local verdict_text
-  verdict_text="$(poll_for_verdict "$prefix")"
+  if ! verdict_text="$(poll_for_verdict "$prefix")"; then
+    exit 1
+  fi
 
   local final_device_line final_support_bundle_text final_consistency_text final_diagnostic_text
-  final_device_line="$(read_view_with_scroll "$prefix-final-device" "$APP_ID:id/deviceId" 1)"
-  final_support_bundle_text="$(read_view_with_scroll "$prefix-final-support-summary" "$APP_ID:id/supportBundleSummary" 1)"
-  final_consistency_text="$(read_view_with_scroll "$prefix-final-consistency-summary" "$APP_ID:id/consistencySummary" 1)"
-  final_diagnostic_text="$(read_view_with_scroll "$prefix-final-diagnostic-summary" "$APP_ID:id/diagnosticSummary" 1)"
+  if ! final_device_line="$(read_view_with_scroll "$prefix-final-device" "$APP_ID:id/deviceId" 1)"; then
+    exit 1
+  fi
+  if ! final_support_bundle_text="$(read_view_with_scroll "$prefix-final-support-summary" "$APP_ID:id/supportBundleSummary" 1)"; then
+    exit 1
+  fi
+  if ! final_consistency_text="$(read_view_with_scroll "$prefix-final-consistency-summary" "$APP_ID:id/consistencySummary" 1)"; then
+    exit 1
+  fi
+  if ! final_diagnostic_text="$(read_view_with_scroll "$prefix-final-diagnostic-summary" "$APP_ID:id/diagnosticSummary" 1)"; then
+    exit 1
+  fi
   local canonical_id="${final_device_line#DeviceId: }"
 
   require_contains "$final_support_bundle_text" "canonical=$canonical_id" "$prefix supportBundleSummary"
@@ -427,11 +451,21 @@ run_cycle() {
   fi
 
   local diagnostic_json_path consistency_json_path transport_json_path support_bundle_json_path verdict_json_path
-  diagnostic_json_path="$(capture_json_section "$prefix-diagnostic" "$APP_ID:id/buttonToggleDiagnosticJson" "$APP_ID:id/diagnosticJson")"
-  consistency_json_path="$(capture_json_section "$prefix-consistency" "$APP_ID:id/buttonToggleConsistencyJson" "$APP_ID:id/consistencyJson")"
-  transport_json_path="$(capture_json_section "$prefix-transport" "$APP_ID:id/buttonToggleTransportJson" "$APP_ID:id/transportJson")"
-  support_bundle_json_path="$(capture_json_section "$prefix-support-bundle" "$APP_ID:id/buttonToggleSupportBundle" "$APP_ID:id/supportBundleJson")"
-  verdict_json_path="$(capture_json_section "$prefix-verdict" "$APP_ID:id/buttonToggleVerdictJson" "$APP_ID:id/verdictJson")"
+  if ! diagnostic_json_path="$(capture_json_section "$prefix-diagnostic" "$APP_ID:id/buttonToggleDiagnosticJson" "$APP_ID:id/diagnosticJson")"; then
+    exit 1
+  fi
+  if ! consistency_json_path="$(capture_json_section "$prefix-consistency" "$APP_ID:id/buttonToggleConsistencyJson" "$APP_ID:id/consistencyJson")"; then
+    exit 1
+  fi
+  if ! transport_json_path="$(capture_json_section "$prefix-transport" "$APP_ID:id/buttonToggleTransportJson" "$APP_ID:id/transportJson")"; then
+    exit 1
+  fi
+  if ! support_bundle_json_path="$(capture_json_section "$prefix-support-bundle" "$APP_ID:id/buttonToggleSupportBundle" "$APP_ID:id/supportBundleJson")"; then
+    exit 1
+  fi
+  if ! verdict_json_path="$(capture_json_section "$prefix-verdict" "$APP_ID:id/buttonToggleVerdictJson" "$APP_ID:id/verdictJson")"; then
+    exit 1
+  fi
 
   local formal_secret
   formal_secret="$(build_config_value LEONA_DEMO_VERDICT_SECRET_KEY)"
@@ -443,10 +477,14 @@ run_cycle() {
   launch_sample
   tap_view_with_scroll "$prefix-formal-sense-button" "$APP_ID:id/buttonSense" 1
   local formal_box_line formal_box_id formal_verdict_json_path formal_verdict_summary
-  formal_box_line="$(poll_for_boxid "$prefix-formal")"
+  if ! formal_box_line="$(poll_for_boxid "$prefix-formal")"; then
+    exit 1
+  fi
   formal_box_id="${formal_box_line#BoxId: }"
   formal_verdict_json_path="$OUTPUT_DIR/$prefix-formal-verdict.json"
-  formal_verdict_summary="$(query_formal_verdict "$formal_box_id" "$formal_secret" "$formal_verdict_json_path")"
+  if ! formal_verdict_summary="$(query_formal_verdict "$formal_box_id" "$formal_secret" "$formal_verdict_json_path")"; then
+    exit 1
+  fi
 
   PREFIX="$prefix" \
   PRE_DEVICE_LINE="$pre_device_line" \
