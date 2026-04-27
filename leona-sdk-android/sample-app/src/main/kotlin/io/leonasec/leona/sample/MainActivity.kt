@@ -132,12 +132,33 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
+                    val currentDeviceId = runCatching { Leona.getDeviceId() }.getOrNull().orEmpty().trim()
+                    val canonicalDeviceId = runCatching { Leona.getDiagnosticSnapshot().canonicalDeviceId }
+                        .getOrNull()
+                        .orEmpty()
+                        .trim()
                     val body = JSONObject()
                         .put("boxId", boxId.toString())
                         .toString()
                         .toRequestBody("application/json".toMediaType())
                     val request = Request.Builder()
                         .url(baseUrl.trimEnd('/') + "/demo/verdict")
+                        .apply {
+                            val localVerdictSecret = BuildConfig.LEONA_DEMO_VERDICT_SECRET_KEY.trim()
+                            if (localVerdictSecret.isNotEmpty()) {
+                                header("X-Leona-Demo-Secret-Key", localVerdictSecret)
+                            }
+                            header("X-Leona-Demo-App-Id", "sample-app")
+                            BuildConfig.LEONA_TENANT_ID.trim()
+                                .ifEmpty { "sample" }
+                                .let { header("X-Leona-Demo-Tenant", it) }
+                            if (currentDeviceId.isNotEmpty()) {
+                                header("X-Leona-Demo-Device-Id", currentDeviceId)
+                            }
+                            if (canonicalDeviceId.isNotEmpty()) {
+                                header("X-Leona-Demo-Canonical-Device-Id", canonicalDeviceId)
+                            }
+                        }
                         .post(body)
                         .build()
                     http.newCall(request).execute().use { response ->

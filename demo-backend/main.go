@@ -56,19 +56,24 @@ type verdictRequest struct {
 }
 
 type verdictResponse struct {
-	BoxID string `json:"boxId"`
-	Risk  struct {
+	BoxID             string `json:"boxId"`
+	DeviceFingerprint string `json:"deviceFingerprint"`
+	Risk              struct {
 		Level string `json:"level"`
 		Score int    `json:"score"`
 	} `json:"risk"`
 }
 
 type demoResponse struct {
-	BoxID             string `json:"boxId"`
-	Decision          string `json:"decision"`
-	RiskLevel         string `json:"riskLevel"`
-	RiskScore         int    `json:"riskScore"`
-	HoneypotSuggested bool   `json:"honeypotSuggested"`
+	BoxID             string       `json:"boxId"`
+	CanonicalDeviceID string       `json:"canonicalDeviceId,omitempty"`
+	Device            identityEcho `json:"device,omitempty"`
+	Identity          identityEcho `json:"identity,omitempty"`
+	DeviceIdentity    identityEcho `json:"deviceIdentity,omitempty"`
+	Decision          string       `json:"decision"`
+	RiskLevel         string       `json:"riskLevel"`
+	RiskScore         int          `json:"riskScore"`
+	HoneypotSuggested bool         `json:"honeypotSuggested"`
 }
 
 func main() {
@@ -168,7 +173,7 @@ func demoVerdict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verdict, err := queryLeona(req.BoxID)
+	verdict, err := queryLeona(req.BoxID, resolveLeonaSecret(r))
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
@@ -181,12 +186,35 @@ func demoVerdict(w http.ResponseWriter, r *http.Request) {
 		RiskScore:         verdict.Risk.Score,
 		HoneypotSuggested: honeypotSuggested(verdict.Risk.Level),
 	}
+	if canonicalDeviceID := resolveVerdictCanonicalDeviceID(r, verdict); canonicalDeviceID != "" {
+		response.CanonicalDeviceID = canonicalDeviceID
+		response.Device = identityEcho{
+			CanonicalDeviceID: canonicalDeviceID,
+			DeviceID:          canonicalDeviceID,
+			ID:                canonicalDeviceID,
+		}
+		response.Identity = identityEcho{
+			CanonicalDeviceID: canonicalDeviceID,
+			DeviceID:          canonicalDeviceID,
+		}
+		response.DeviceIdentity = identityEcho{
+			CanonicalDeviceID: canonicalDeviceID,
+			DeviceID:          canonicalDeviceID,
+			ResolvedDeviceID:  canonicalDeviceID,
+		}
+	}
 	writeJSON(w, http.StatusOK, response)
 }
 
-func queryLeona(boxID string) (*verdictResponse, error) {
+func resolveLeonaSecret(r *http.Request) string {
+	if value := strings.TrimSpace(r.Header.Get("X-Leona-Demo-Secret-Key")); value != "" {
+		return value
+	}
+	return strings.TrimSpace(os.Getenv("LEONA_SECRET_KEY"))
+}
+
+func queryLeona(boxID string, secret string) (*verdictResponse, error) {
 	baseURL := strings.TrimRight(env("LEONA_BASE_URL", "http://localhost:8080"), "/")
-	secret := os.Getenv("LEONA_SECRET_KEY")
 	if secret == "" {
 		return nil, fmt.Errorf("LEONA_SECRET_KEY is not set")
 	}
@@ -302,6 +330,21 @@ func resolveCanonicalDeviceID(r *http.Request) string {
 		ProvidedCanonical: strings.TrimSpace(r.Header.Get("X-Leona-Canonical-Device-Id")),
 	}
 	input.FallbackSeed = canonicalFallbackSeed(input.TenantID, input.AppID, input.Fingerprint, input.DeviceID, input.InstallID, r.RemoteAddr)
+	return cloudCanonicalStore.resolveOrCreate(input)
+}
+
+func resolveVerdictCanonicalDeviceID(r *http.Request, verdict *verdictResponse) string {
+	if verdict == nil {
+		return ""
+	}
+	input := canonicalResolveInput{
+		TenantID:          strings.TrimSpace(r.Header.Get("X-Leona-Demo-Tenant")),
+		AppID:             strings.TrimSpace(r.Header.Get("X-Leona-Demo-App-Id")),
+		Fingerprint:       strings.TrimSpace(verdict.DeviceFingerprint),
+		DeviceID:          strings.TrimSpace(r.Header.Get("X-Leona-Demo-Device-Id")),
+		ProvidedCanonical: strings.TrimSpace(r.Header.Get("X-Leona-Demo-Canonical-Device-Id")),
+	}
+	input.FallbackSeed = canonicalFallbackSeed(input.TenantID, input.AppID, input.Fingerprint, input.DeviceID, "", "")
 	return cloudCanonicalStore.resolveOrCreate(input)
 }
 
