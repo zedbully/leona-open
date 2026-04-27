@@ -58,12 +58,15 @@
 - 模拟器人工闭环
 - sample app → sense → verdict 真实留档
 - 可回归执行的自动化 E2E
-- 2026-04-23 已真实执行：
-  - `BoxId=01KPV5E417A7467GRBRMQXYF30`
+- 2026-04-27 已真实执行：
+  - UI/demo `BoxId=01KQ792YC06BAEHG4WQZH308WX`
+  - formal `/v1/verdict` `BoxId=01KQ794PAP1N9SXQVQ501B1075`
+  - `canonical=L8a5d40fa9aa6a9ebd14101ef9b62c5b`
   - `decision=deny`
   - `risk=CRITICAL`
   - `score=100`
-  - 产物目录：`/tmp/leona-e2e-20260423-015719`
+  - formal verdict response signature 已校验通过，`deviceFingerprint` 存在
+  - 产物目录：`/tmp/leona-e2e-20260427-185131`
 
 ### Blocker C：真机留档（增强项）
 

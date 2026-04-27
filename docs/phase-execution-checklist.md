@@ -104,9 +104,10 @@
 - [x] `docker compose` 本地 5 服务栈已真实启动并通过健康检查
 - [x] Android ↔ Server E2E 自动化
   - 脚本：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`
-  - 最近执行：2026-04-23
-  - 结果：`BoxId=01KPV5E417A7467GRBRMQXYF30`，`decision=deny`，`risk=CRITICAL`，`score=100`
-  - 自动化产物：`/tmp/leona-e2e-20260423-015719`
+  - 最近执行：2026-04-27
+  - 结果：UI/demo `BoxId=01KQ792YC06BAEHG4WQZH308WX`，formal `/v1/verdict` `BoxId=01KQ794PAP1N9SXQVQ501B1075`，`canonical=L8a5d40fa9aa6a9ebd14101ef9b62c5b`，`decision=deny`，`risk=CRITICAL`，`score=100`
+  - 已校验：formal verdict response signature、`canonicalDeviceId`、`deviceFingerprint`、跨 surface canonical 对齐
+  - 自动化产物：`/tmp/leona-e2e-20260427-185131`
 
 ---
 

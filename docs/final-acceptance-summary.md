@@ -73,13 +73,16 @@
 - Android 模拟器真实 E2E 手工验收通过
 - Android ↔ Server E2E 自动化已跑通：
   - 脚本：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`
-  - 本地执行时间：2026-04-23
-  - 本次自动化产出 BoxId：`01KPV5E417A7467GRBRMQXYF30`
+  - 本地执行时间：2026-04-27
+  - 本次自动化产出 UI/demo BoxId：`01KQ792YC06BAEHG4WQZH308WX`
+  - 本次 formal `/v1/verdict` BoxId：`01KQ794PAP1N9SXQVQ501B1075`
+  - 本次 canonical：`L8a5d40fa9aa6a9ebd14101ef9b62c5b`
   - 本次自动化 verdict：
     - `decision=deny`
     - `risk=CRITICAL`
     - `score=100`
-  - 自动化产物目录：`/tmp/leona-e2e-20260423-015719`
+  - formal verdict response signature、`canonicalDeviceId`、`deviceFingerprint` 与跨 surface canonical 对齐均已自动校验
+  - 自动化产物目录：`/tmp/leona-e2e-20260427-185131`
 - handshake attestation 摘要自动化已跑通：
   - 脚本：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-attestation-e2e.sh`
   - 本地执行时间：2026-04-25
