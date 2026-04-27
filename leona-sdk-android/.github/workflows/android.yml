@@ -183,6 +183,12 @@ jobs:
           emu = data.get("emulatorE2E") or {}
           print(f"- emulatorE2E requested: `{emu.get('requested')}`")
           print(f"- emulatorE2E passed: `{emu.get('passed')}`")
+          formal = emu.get("formalVerdict") or {}
+          if formal:
+              print(f"- emulatorE2E formalBoxId: `{formal.get('formalBoxId')}`")
+              print(f"- emulatorE2E formalCanonical: `{formal.get('formalCanonical') or formal.get('canonical')}`")
+              print(f"- emulatorE2E formalRisk: `{formal.get('formalRiskLevel')}/{formal.get('formalRiskScore')}`")
+              print(f"- emulatorE2E formalSignatureVerified: `{formal.get('formalSignatureVerified')}`")
           dev = data.get("deviceE2E") or {}
           print(f"- deviceE2E requested: `{dev.get('requested')}`")
           print(f"- deviceE2E passed: `{dev.get('passed')}`")

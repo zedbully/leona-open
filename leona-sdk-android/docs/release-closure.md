@@ -158,6 +158,7 @@ ADB_SERIAL=<device-serial> \
 LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1 \
 LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083 \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
+LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
 LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
@@ -176,6 +177,8 @@ Required result:
 - after `sense()`, device id is `L...`
 - consistency report says `aligned=true`
 - diagnostic / transport / support-bundle / verdict raw JSON all converge to the same canonical device id
+- direct formal `/v1/verdict` response signature verifies successfully
+- direct formal `/v1/verdict` returns the same canonical device id and a non-empty `deviceFingerprint`
 - support bundle raw JSON contains cloud-config evidence (`cloudConfigFetchedAtMillis`, `cloudConfigRaw`, `effectiveDisabledSignals`)
 - uninstall + reinstall still converge to the same canonical device id
 
@@ -187,6 +190,7 @@ ADB_SERIAL=<device-serial> \
 LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1 \
 LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083 \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
+LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
 LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh

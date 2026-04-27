@@ -1937,7 +1937,7 @@ internal object AppIntegrity {
 
         val mapCount = buffer.getInt(mapOff)
         var cursor = mapOff + 4
-        val result = linkedMapOf<String, String>()
+        val mapItems = mutableListOf<DexMapItem>()
         repeat(mapCount) {
             if (cursor + 12 > dexBytes.size) return@repeat
             val type = buffer.getShort(cursor).toInt() and 0xFFFF
@@ -1946,14 +1946,24 @@ internal object AppIntegrity {
             cursor += 12
 
             val sectionName = dexSectionName(type)
-            if (sectionName !in requestedSections) return@repeat
+            mapItems += DexMapItem(type = type, name = sectionName, size = size, offset = offset)
+        }
 
-            val length = dexSectionLength(type, size)
-            if (offset < 0 || length <= 0 || offset + length > dexBytes.size) {
-                result[sectionName] = ""
-                return@repeat
+        val sortedOffsets = mapItems
+            .map { it.offset }
+            .filter { it in 0 until fileSize }
+            .distinct()
+            .sorted()
+        val result = linkedMapOf<String, String>()
+        mapItems.filter { it.name in requestedSections }.forEach { item ->
+            val fixedLength = dexSectionLength(item.type, item.size)
+            val nextOffset = sortedOffsets.firstOrNull { it > item.offset } ?: fileSize
+            val length = if (fixedLength > 0) fixedLength else nextOffset - item.offset
+            if (item.offset < 0 || length <= 0 || item.offset + length > fileSize || item.offset + length > dexBytes.size) {
+                result[item.name] = ""
+                return@forEach
             }
-            result[sectionName] = sha256Hex(dexBytes.copyOfRange(offset, offset + length))
+            result[item.name] = sha256Hex(dexBytes.copyOfRange(item.offset, item.offset + length))
         }
         return result
     }
@@ -2181,6 +2191,13 @@ internal object AppIntegrity {
     private data class Leb128Value(
         val value: Int,
         val nextOffset: Int,
+    )
+
+    private data class DexMapItem(
+        val type: Int,
+        val name: String,
+        val size: Int,
+        val offset: Int,
     )
 
     private fun readUleb128(bytes: ByteArray, start: Int): Leb128Value? {

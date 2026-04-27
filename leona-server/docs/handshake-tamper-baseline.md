@@ -47,6 +47,22 @@ Reference example:
 
 - `/Users/a/back/Game/cq/leona-server/docs/examples/handshake-tamper-baseline.example.json`
 
+APK-side fields can be generated from a built Android artifact:
+
+```bash
+/Users/a/back/Game/cq/leona-sdk-android/scripts/generate-tamper-baseline.py \
+  /path/to/app-release.apk \
+  --package-name com.example.app \
+  --resource-entry res/raw/leona.bin \
+  --dex-section classes.dex#code_item \
+  > /etc/leona/handshake-tamper-baseline.json
+```
+
+`--dex-section ENTRY#SECTION` pins fine-grained DEX regions that the Android
+SDK also verifies at runtime, for example `classes.dex#code_item` or
+`classes.dex#class_defs`. Use `--all-dex-sections` only for strict release
+pipelines where every section drift should be treated as a baseline update.
+
 Load it into the service, for example:
 
 ```bash

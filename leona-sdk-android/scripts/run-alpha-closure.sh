@@ -95,12 +95,35 @@ write_report() {
     "$RUN_ATTESTATION_E2E" "$RUN_EMULATOR_E2E" "$RUN_DEVICE_E2E" <<'PY'
 import json
 import pathlib
+import re
 import sys
 
 report_json = pathlib.Path(sys.argv[1])
 report_md = pathlib.Path(sys.argv[2])
 build_gate, cloud_smoke, attestation_gate, emulator_gate, device_gate = [v == "1" for v in sys.argv[3:8]]
 run_attestation, run_emulator, run_device = [v == "1" for v in sys.argv[8:11]]
+
+def parse_key_values(text, prefix):
+    values = {}
+    start = text.find(prefix)
+    if start < 0:
+        return values
+    for line in text[start:].splitlines()[1:]:
+        if line.startswith("[Leona "):
+            break
+        if "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return values
+
+emulator_log = report_json.parent / "emulator-e2e.log"
+formal_verdict = {}
+if emulator_log.exists():
+    text = emulator_log.read_text(encoding="utf-8", errors="replace")
+    formal_verdict = parse_key_values(text, "[Leona E2E] Formal verdict:")
+    canonical_match = re.search(r"^canonical=(L\S+)$", text, flags=re.MULTILINE)
+    if canonical_match:
+        formal_verdict.setdefault("canonical", canonical_match.group(1))
 
 payload = {
     "buildGate": build_gate,
@@ -112,6 +135,7 @@ payload = {
     "emulatorE2E": {
         "requested": run_emulator,
         "passed": emulator_gate if run_emulator else None,
+        "formalVerdict": formal_verdict or None,
     },
     "deviceE2E": {
         "requested": run_device,
@@ -129,9 +153,18 @@ lines = [
     f"- attestationE2E passed: `{attestation_gate if run_attestation else 'skipped'}`",
     f"- emulatorE2E requested: `{run_emulator}`",
     f"- emulatorE2E passed: `{emulator_gate if run_emulator else 'skipped'}`",
+]
+if formal_verdict:
+    lines.extend([
+        f"- emulatorE2E formalBoxId: `{formal_verdict.get('formalBoxId', '-')}`",
+        f"- emulatorE2E formalCanonical: `{formal_verdict.get('formalCanonical', formal_verdict.get('canonical', '-'))}`",
+        f"- emulatorE2E formalRisk: `{formal_verdict.get('formalRiskLevel', '-')}/{formal_verdict.get('formalRiskScore', '-')}`",
+        f"- emulatorE2E formalSignatureVerified: `{formal_verdict.get('formalSignatureVerified', '-')}`",
+    ])
+lines.extend([
     f"- deviceE2E requested: `{run_device}`",
     f"- deviceE2E passed: `{device_gate if run_device else 'skipped'}`",
-]
+])
 report_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
 }
@@ -181,7 +214,9 @@ main() {
     fi
     run_and_capture emulator-e2e env \
       LEONA_API_KEY="${LEONA_API_KEY:-}" \
+      LEONA_SERVER_SECRET_KEY="${LEONA_SERVER_SECRET_KEY:-}" \
       LEONA_REPORTING_ENDPOINT="${LEONA_REPORTING_ENDPOINT:-http://10.0.2.2:8080}" \
+      LEONA_FORMAL_VERDICT_BASE_URL="${LEONA_FORMAL_VERDICT_BASE_URL:-http://127.0.0.1:8080}" \
       LEONA_CLOUD_CONFIG_ENDPOINT="${LEONA_CLOUD_CONFIG_ENDPOINT:-http://10.0.2.2:8090/v1/mobile-config}" \
       LEONA_DEMO_BACKEND_BASE_URL="${LEONA_DEMO_BACKEND_BASE_URL:-http://10.0.2.2:8090}" \
       LEONA_ADMIN_BASE_URL="${LEONA_ADMIN_BASE_URL}" \
@@ -199,7 +234,9 @@ main() {
     run_and_capture device-e2e env \
       ADB_SERIAL="${ADB_SERIAL:-}" \
       LEONA_API_KEY="${LEONA_API_KEY:-}" \
+      LEONA_SERVER_SECRET_KEY="${LEONA_SERVER_SECRET_KEY:-}" \
       LEONA_REPORTING_ENDPOINT="${LEONA_REPORTING_ENDPOINT:-http://127.0.0.1:8080}" \
+      LEONA_FORMAL_VERDICT_BASE_URL="${LEONA_FORMAL_VERDICT_BASE_URL:-http://127.0.0.1:8080}" \
       LEONA_CLOUD_CONFIG_ENDPOINT="${LEONA_CLOUD_CONFIG_ENDPOINT:-http://127.0.0.1:8090/v1/mobile-config}" \
       LEONA_DEMO_BACKEND_BASE_URL="${LEONA_DEMO_BACKEND_BASE_URL:-http://127.0.0.1:8090}" \
       LEONA_ADMIN_BASE_URL="${LEONA_ADMIN_BASE_URL}" \

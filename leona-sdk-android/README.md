@@ -245,6 +245,24 @@ If your Leona server returns a `tamperBaseline` object from `/v1/handshake`,
 the SDK will merge that remote baseline with the local Builder values before
 each sensing session.
 
+You can generate the APK-side baseline fields from a built APK:
+
+```bash
+./scripts/generate-tamper-baseline.py \
+  sample-app/build/outputs/apk/debug/sample-app-debug.apk \
+  --package-name io.leonasec.leona.sample \
+  --resource-entry res/raw/leona.bin \
+  --dex-section classes.dex#code_item \
+  > tamper-baseline.json
+```
+
+Use `--all-resource-entries` only when you intentionally want every
+`res/...` and `assets/...` file pinned; for most channel builds the resource
+inventory hash plus a few high-value entries is easier to operate. Use
+`--dex-section ENTRY#SECTION` for high-value DEX regions such as
+`classes.dex#code_item` or `classes.dex#class_defs`; `--all-dex-sections`
+is available for stricter release baselines.
+
 ```kotlin
 // At a sensitive moment (login, payment, high-value API call):
 val boxId: BoxId = Leona.sense()
@@ -510,13 +528,16 @@ For a locally connected physical Android device, use:
 ADB_SERIAL=<device-serial> \
 LEONA_API_KEY=<appKey> \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
+LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
 LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
 ```
 
 That flow checks `T... -> L...` convergence, support-bundle cloud-config
-evidence, cross-surface canonical consistency, and reinstall stability.
+evidence, cross-surface canonical consistency, direct formal `/v1/verdict`
+response-signature verification, formal `deviceFingerprint`, and reinstall
+stability.
 The script automatically configures `adb reverse` for ports `8080` and
 `8090`, and writes `report.json` / `report.md` under `/tmp/leona-device-e2e-*`.
 

@@ -213,6 +213,7 @@ For a connected real device / USB device closure pass, use:
 ADB_SERIAL=<device-serial> \
 LEONA_API_KEY=<appKey> \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
+LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
 LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
@@ -224,6 +225,8 @@ That script validates:
 - `sense()` + cloud-config converge device id to canonical `L...`
 - support bundle reflects cloud-config application
 - diagnostic / transport / verdict / support-bundle canonical values align
+- direct formal `/v1/verdict` response signature verifies successfully
+- direct formal `/v1/verdict` returns the same canonical device id and a non-empty `deviceFingerprint`
 - uninstall + reinstall still converge to the same canonical id
 
 The script automatically installs `adb reverse tcp:8080 tcp:8080` and

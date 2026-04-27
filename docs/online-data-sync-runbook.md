@@ -1,6 +1,6 @@
 # Leona 本地数据 / 线上数据同步执行包
 
-> 更新时间：2026-04-27
+> 更新时间：2026-04-28
 > 目的：把线上环境的数据拉到本地 Leona docker-compose 栈，默认只做 dry-run。
 
 ---
@@ -21,6 +21,7 @@
 
 - `/Users/a/back/Game/cq/scripts/sync-online-data-to-local.sh`
 - `/Users/a/back/Game/cq/scripts/sync-online-data-preflight.sh`
+- `/Users/a/back/Game/cq/scripts/open-online-sync-tunnel.sh`
 
 参数模板：
 
@@ -86,6 +87,31 @@ REMOTE_REDIS_PORT=6379
 REMOTE_REDIS_PASSWORD=<password-if-any>
 ```
 
+### 4.3 如果数据库不能直连
+
+可以改走 SSH 隧道：
+
+```bash
+SSH_SYNC_HOST=<ssh-host-or-alias>
+SSH_SYNC_USER=<optional-user>
+SSH_SYNC_PORT=<optional-port>
+LOCAL_TUNNEL_PG_PORT=15432
+LOCAL_TUNNEL_REDIS_PORT=16379
+REMOTE_TUNNEL_PG_HOST=127.0.0.1
+REMOTE_TUNNEL_PG_PORT=5432
+REMOTE_TUNNEL_REDIS_HOST=127.0.0.1
+REMOTE_TUNNEL_REDIS_PORT=6379
+```
+
+然后把同步用的远端地址改成：
+
+```bash
+REMOTE_PGHOST=127.0.0.1
+REMOTE_PGPORT=15432
+REMOTE_REDIS_HOST=127.0.0.1
+REMOTE_REDIS_PORT=16379
+```
+
 ---
 
 ## 5. 用法
@@ -99,7 +125,33 @@ cp /Users/a/back/Game/cq/.env.local-sync.example \
 
 然后把线上连接参数填进去。
 
-### 5.1 先做 preflight
+### 5.0.1 如果需要，先开 SSH 隧道
+
+```bash
+/Users/a/back/Game/cq/scripts/open-online-sync-tunnel.sh
+```
+
+这个脚本会：
+
+- 按 `.env.local-sync` 里的 SSH 参数起隧道
+- 把远端 Postgres/Redis 映射到本机端口
+- 保持前台会话，供后续同步脚本使用
+
+### 5.1 先看当前状态
+
+```bash
+SYNC_MODE=status \
+/Users/a/back/Game/cq/scripts/run-online-sync.sh
+```
+
+它会输出：
+
+- 当前使用的 `.env.local-sync`
+- 哪些远端字段已填
+- 哪些远端字段仍为空
+- 当前 `SYNC_COMPONENTS` 下必填的是哪几项
+
+### 5.2 先做 preflight
 
 ```bash
 SYNC_MODE=preflight \
@@ -112,7 +164,7 @@ SYNC_MODE=preflight \
 - 本地表行数 / Redis keyspace
 - 如果你已填远端参数，也会检查远端端口是否可达
 
-### 5.2 只看计划，不执行
+### 5.3 只看计划，不执行
 
 最短入口：
 
@@ -159,7 +211,7 @@ REMOTE_REDIS_PASSWORD=<password> \
 /Users/a/back/Game/cq/scripts/sync-online-data-to-local.sh
 ```
 
-### 5.3 真正执行
+### 5.4 真正执行
 
 最短入口：
 
@@ -229,14 +281,16 @@ REMOTE_REDIS_PASSWORD=<password> \
 - 目前没有在当前环境中发现已配置好的线上连接参数
 - 当前仓库里也没有现成的线上同步脚本
 - 所以本次补的是**执行包**，不是直接连线上落库
+- 当前本机只发现了 SSH host 别名，但没有发现可直接确认属于 Leona 数据面的线上库地址
 
 ---
 
 ## 9. 推荐执行顺序
 
 1. 复制 `.env.local-sync.example` 到 `.env.local-sync`
-2. 先跑一次 `SYNC_MODE=preflight`
-3. 再跑一次 `SYNC_MODE=dry-run`
-4. 检查 host / db / user 是否都指向正确环境
-5. 确认本地容器都在跑
-6. 最后执行 `SYNC_MODE=apply`
+2. 先跑一次 `SYNC_MODE=status`
+3. 再跑一次 `SYNC_MODE=preflight`
+4. 再跑一次 `SYNC_MODE=dry-run`
+5. 检查 host / db / user 是否都指向正确环境
+6. 确认本地容器都在跑
+7. 最后执行 `SYNC_MODE=apply`
