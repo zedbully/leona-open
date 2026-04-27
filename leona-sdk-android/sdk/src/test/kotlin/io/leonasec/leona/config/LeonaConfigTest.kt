@@ -41,9 +41,15 @@ class LeonaConfigTest {
         assertNull(cfg.expectedPackageName)
         assertTrue(cfg.allowedInstallerPackages.isEmpty())
         assertTrue(cfg.allowedSigningCertSha256.isEmpty())
+        assertNull(cfg.expectedSigningCertificateLineageSha256)
+        assertNull(cfg.expectedApkSigningBlockSha256)
+        assertTrue(cfg.expectedApkSigningBlockIdSha256.isEmpty())
         assertNull(cfg.expectedApkSha256)
         assertTrue(cfg.expectedNativeLibSha256.isEmpty())
         assertNull(cfg.expectedManifestEntrySha256)
+        assertNull(cfg.expectedResourcesArscSha256)
+        assertNull(cfg.expectedResourceInventorySha256)
+        assertTrue(cfg.expectedResourceEntrySha256.isEmpty())
         assertTrue(cfg.expectedDexSha256.isEmpty())
         assertTrue(cfg.expectedDexSectionSha256.isEmpty())
         assertTrue(cfg.expectedDexMethodSha256.isEmpty())
@@ -63,6 +69,8 @@ class LeonaConfigTest {
         assertNull(cfg.expectedDeclaredPermissionSemanticsSha256)
         assertTrue(cfg.expectedDeclaredPermissionFieldValues.isEmpty())
         assertTrue(cfg.expectedComponentSignatureSha256.isEmpty())
+        assertTrue(cfg.expectedComponentAccessSemanticsSha256.isEmpty())
+        assertTrue(cfg.expectedComponentOperationalSemanticsSha256.isEmpty())
         assertTrue(cfg.expectedComponentFieldValues.isEmpty())
         assertTrue(cfg.expectedProviderUriPermissionPatternsSha256.isEmpty())
         assertTrue(cfg.expectedProviderPathPermissionsSha256.isEmpty())
@@ -78,15 +86,19 @@ class LeonaConfigTest {
         assertTrue(cfg.expectedIntentFilterDataAuthoritySha256.isEmpty())
         assertTrue(cfg.expectedIntentFilterDataPathSha256.isEmpty())
         assertTrue(cfg.expectedIntentFilterDataMimeTypeSha256.isEmpty())
+        assertTrue(cfg.expectedIntentFilterSemanticsSha256.isEmpty())
         assertTrue(cfg.expectedGrantUriPermissionSha256.isEmpty())
+        assertTrue(cfg.expectedGrantUriPermissionSemanticsSha256.isEmpty())
         assertNull(cfg.expectedUsesFeatureSha256)
         assertNull(cfg.expectedUsesFeatureNameSha256)
         assertNull(cfg.expectedUsesFeatureRequiredSha256)
         assertNull(cfg.expectedUsesFeatureGlEsVersionSha256)
+        assertTrue(cfg.expectedUsesFeatureFieldValues.isEmpty())
         assertNull(cfg.expectedUsesSdkSha256)
         assertNull(cfg.expectedUsesSdkMinSha256)
         assertNull(cfg.expectedUsesSdkTargetSha256)
         assertNull(cfg.expectedUsesSdkMaxSha256)
+        assertTrue(cfg.expectedUsesSdkFieldValues.isEmpty())
         assertNull(cfg.expectedSupportsScreensSha256)
         assertNull(cfg.expectedSupportsScreensSmallScreensSha256)
         assertNull(cfg.expectedSupportsScreensNormalScreensSha256)
@@ -103,17 +115,21 @@ class LeonaConfigTest {
         assertNull(cfg.expectedUsesLibrarySha256)
         assertNull(cfg.expectedUsesLibraryNameSha256)
         assertNull(cfg.expectedUsesLibraryRequiredSha256)
+        assertTrue(cfg.expectedUsesLibraryFieldValues.isEmpty())
         assertNull(cfg.expectedUsesLibraryOnlySha256)
         assertNull(cfg.expectedUsesLibraryOnlyNameSha256)
         assertNull(cfg.expectedUsesLibraryOnlyRequiredSha256)
         assertNull(cfg.expectedUsesNativeLibrarySha256)
         assertNull(cfg.expectedUsesNativeLibraryNameSha256)
         assertNull(cfg.expectedUsesNativeLibraryRequiredSha256)
+        assertTrue(cfg.expectedUsesNativeLibraryFieldValues.isEmpty())
         assertNull(cfg.expectedQueriesSha256)
         assertNull(cfg.expectedQueriesPackageSha256)
         assertNull(cfg.expectedQueriesPackageNameSha256)
+        assertNull(cfg.expectedQueriesPackageSemanticsSha256)
         assertNull(cfg.expectedQueriesProviderSha256)
         assertNull(cfg.expectedQueriesProviderAuthoritySha256)
+        assertNull(cfg.expectedQueriesProviderSemanticsSha256)
         assertNull(cfg.expectedQueriesIntentSha256)
         assertNull(cfg.expectedQueriesIntentActionSha256)
         assertNull(cfg.expectedQueriesIntentCategorySha256)
@@ -122,10 +138,15 @@ class LeonaConfigTest {
         assertNull(cfg.expectedQueriesIntentDataAuthoritySha256)
         assertNull(cfg.expectedQueriesIntentDataPathSha256)
         assertNull(cfg.expectedQueriesIntentDataMimeTypeSha256)
+        assertNull(cfg.expectedQueriesIntentSemanticsSha256)
         assertNull(cfg.expectedApplicationSemanticsSha256)
         assertNull(cfg.expectedApplicationSecuritySemanticsSha256)
         assertNull(cfg.expectedApplicationRuntimeSemanticsSha256)
         assertTrue(cfg.expectedApplicationFieldValues.isEmpty())
+        assertTrue(cfg.expectedMetaDataType.isEmpty())
+        assertTrue(cfg.expectedMetaDataValueSha256.isEmpty())
+        assertTrue(cfg.expectedManifestMetaDataEntrySha256.isEmpty())
+        assertTrue(cfg.expectedManifestMetaDataSemanticsSha256.isEmpty())
         assertTrue(cfg.expectedMetaData.isEmpty())
     }
 
@@ -234,10 +255,16 @@ class LeonaConfigTest {
             .expectedPackageName("io.leonasec.demo")
             .allowedInstallerPackages("com.android.vending", " com.amazon.venezia ")
             .allowedSigningCertSha256("AA11", " bb22 ")
+            .expectedSigningCertificateLineageSha256("aa33")
+            .expectedApkSigningBlockSha256("aa44")
+            .expectedApkSigningBlockIdSha256("0x7109871a", "aa55")
             .expectedApkSha256("CC33")
             .expectedNativeLibrarySha256("libleona.so", "DD44")
             .expectedNativeLibrarySha256(mapOf("libfoo.so" to "EE55"))
             .expectedManifestEntrySha256("FF66")
+            .expectedResourcesArscSha256("ff77")
+            .expectedResourceInventorySha256("ff78")
+            .expectedResourceEntrySha256("res/raw/leona.bin", "ff88")
             .expectedDexSha256("classes.dex", "1122")
             .expectedDexSectionSha256("classes.dex#code_item", "5566")
             .expectedDexMethodSha256("classes.dex#Lcom/example/MainActivity;->isTampered()Z", "6677")
@@ -261,6 +288,8 @@ class LeonaConfigTest {
                 "18",
             )
             .expectedComponentSignatureSha256("activity:com.example.MainActivity", "ddee")
+            .expectedComponentAccessSemanticsSha256("activity:com.example.MainActivity", "ddf0")
+            .expectedComponentOperationalSemanticsSha256("activity:com.example.MainActivity", "ddf1")
             .expectedComponentFieldValue("activity:com.example.MainActivity#exported", "false")
             .expectedProviderUriPermissionPatternsSha256("provider:com.example.DataProvider", "eeff")
             .expectedProviderPathPermissionsSha256("provider:com.example.DataProvider", "ffaa")
@@ -276,15 +305,19 @@ class LeonaConfigTest {
             .expectedIntentFilterDataAuthoritySha256("activity:com.example.MainActivity", "b0b0")
             .expectedIntentFilterDataPathSha256("activity:com.example.MainActivity", "b1b1")
             .expectedIntentFilterDataMimeTypeSha256("activity:com.example.MainActivity", "b2b2")
+            .expectedIntentFilterSemanticsSha256("activity:com.example.MainActivity", "b3b3")
             .expectedGrantUriPermissionSha256("provider:com.example.DataProvider", "bcbc")
+            .expectedGrantUriPermissionSemanticsSha256("provider:com.example.DataProvider", "bdbd")
             .expectedUsesFeatureSha256("c1c1")
             .expectedUsesFeatureNameSha256("c1c2")
             .expectedUsesFeatureRequiredSha256("c1c3")
             .expectedUsesFeatureGlEsVersionSha256("c1c4")
+            .expectedUsesFeatureFieldValue("uses-feature:android.hardware.camera#required", "true")
             .expectedUsesSdkSha256("c2c2")
             .expectedUsesSdkMinSha256("c2c3")
             .expectedUsesSdkTargetSha256("c2c4")
             .expectedUsesSdkMaxSha256("c2c5")
+            .expectedUsesSdkFieldValue("uses-sdk#targetSdkVersion", "34")
             .expectedSupportsScreensSha256("c3c3")
             .expectedSupportsScreensSmallScreensSha256("c3c4")
             .expectedSupportsScreensNormalScreensSha256("c3c5")
@@ -301,17 +334,21 @@ class LeonaConfigTest {
             .expectedUsesLibrarySha256("c5c5")
             .expectedUsesLibraryNameSha256("c5c8")
             .expectedUsesLibraryRequiredSha256("c5c9")
+            .expectedUsesLibraryFieldValue("uses-library:org.apache.http.legacy#required", "false")
             .expectedUsesLibraryOnlySha256("c5c6")
             .expectedUsesLibraryOnlyNameSha256("c5ca")
             .expectedUsesLibraryOnlyRequiredSha256("c5cb")
             .expectedUsesNativeLibrarySha256("c5c7")
             .expectedUsesNativeLibraryNameSha256("c5cc")
             .expectedUsesNativeLibraryRequiredSha256("c5cd")
+            .expectedUsesNativeLibraryFieldValue("uses-native-library:com.example.foo#required", "true")
             .expectedQueriesSha256("c6c6")
             .expectedQueriesPackageSha256("c7c7")
             .expectedQueriesPackageNameSha256("c7ca")
+            .expectedQueriesPackageSemanticsSha256("c7cb")
             .expectedQueriesProviderSha256("c8c8")
             .expectedQueriesProviderAuthoritySha256("c8ca")
+            .expectedQueriesProviderSemanticsSha256("c8cb")
             .expectedQueriesIntentSha256("c9c9")
             .expectedQueriesIntentActionSha256("caca")
             .expectedQueriesIntentCategorySha256("cbcb")
@@ -320,16 +357,24 @@ class LeonaConfigTest {
             .expectedQueriesIntentDataAuthoritySha256("cece")
             .expectedQueriesIntentDataPathSha256("cfcf")
             .expectedQueriesIntentDataMimeTypeSha256("d0d0")
+            .expectedQueriesIntentSemanticsSha256("d0d1")
             .expectedApplicationSemanticsSha256("d1d1")
             .expectedApplicationSecuritySemanticsSha256("d1d2")
             .expectedApplicationRuntimeSemanticsSha256("d1d3")
             .expectedApplicationFieldValue("application#usesCleartextTraffic", "false")
+            .expectedMetaDataType("channel", "string")
+            .expectedMetaDataValueSha256("channel", "e1e1")
+            .expectedManifestMetaDataEntrySha256("channel", "e2e2")
+            .expectedManifestMetaDataSemanticsSha256("channel", "e3e3")
             .expectedMetaData("channel", "play")
             .build()
 
         assertEquals("io.leonasec.demo", cfg.expectedPackageName)
         assertEquals(setOf("com.android.vending", "com.amazon.venezia"), cfg.allowedInstallerPackages)
         assertEquals(setOf("aa11", "bb22"), cfg.allowedSigningCertSha256)
+        assertEquals("aa33", cfg.expectedSigningCertificateLineageSha256)
+        assertEquals("aa44", cfg.expectedApkSigningBlockSha256)
+        assertEquals(mapOf("0x7109871a" to "aa55"), cfg.expectedApkSigningBlockIdSha256)
         assertEquals("cc33", cfg.expectedApkSha256)
         assertEquals(
             mapOf(
@@ -339,6 +384,9 @@ class LeonaConfigTest {
             cfg.expectedNativeLibSha256,
         )
         assertEquals("ff66", cfg.expectedManifestEntrySha256)
+        assertEquals("ff77", cfg.expectedResourcesArscSha256)
+        assertEquals("ff78", cfg.expectedResourceInventorySha256)
+        assertEquals(mapOf("res/raw/leona.bin" to "ff88"), cfg.expectedResourceEntrySha256)
         assertEquals(mapOf("classes.dex" to "1122"), cfg.expectedDexSha256)
         assertEquals(mapOf("classes.dex#code_item" to "5566"), cfg.expectedDexSectionSha256)
         assertEquals(
@@ -367,6 +415,14 @@ class LeonaConfigTest {
         assertEquals(
             mapOf("activity:com.example.MainActivity" to "ddee"),
             cfg.expectedComponentSignatureSha256,
+        )
+        assertEquals(
+            mapOf("activity:com.example.MainActivity" to "ddf0"),
+            cfg.expectedComponentAccessSemanticsSha256,
+        )
+        assertEquals(
+            mapOf("activity:com.example.MainActivity" to "ddf1"),
+            cfg.expectedComponentOperationalSemanticsSha256,
         )
         assertEquals(
             mapOf("activity:com.example.MainActivity#exported" to "false"),
@@ -429,17 +485,30 @@ class LeonaConfigTest {
             cfg.expectedIntentFilterDataMimeTypeSha256,
         )
         assertEquals(
+            mapOf("activity:com.example.MainActivity" to "b3b3"),
+            cfg.expectedIntentFilterSemanticsSha256,
+        )
+        assertEquals(
             mapOf("provider:com.example.DataProvider" to "bcbc"),
             cfg.expectedGrantUriPermissionSha256,
+        )
+        assertEquals(
+            mapOf("provider:com.example.DataProvider" to "bdbd"),
+            cfg.expectedGrantUriPermissionSemanticsSha256,
         )
         assertEquals("c1c1", cfg.expectedUsesFeatureSha256)
         assertEquals("c1c2", cfg.expectedUsesFeatureNameSha256)
         assertEquals("c1c3", cfg.expectedUsesFeatureRequiredSha256)
         assertEquals("c1c4", cfg.expectedUsesFeatureGlEsVersionSha256)
+        assertEquals(
+            mapOf("uses-feature:android.hardware.camera#required" to "true"),
+            cfg.expectedUsesFeatureFieldValues,
+        )
         assertEquals("c2c2", cfg.expectedUsesSdkSha256)
         assertEquals("c2c3", cfg.expectedUsesSdkMinSha256)
         assertEquals("c2c4", cfg.expectedUsesSdkTargetSha256)
         assertEquals("c2c5", cfg.expectedUsesSdkMaxSha256)
+        assertEquals(mapOf("uses-sdk#targetSdkVersion" to "34"), cfg.expectedUsesSdkFieldValues)
         assertEquals("c3c3", cfg.expectedSupportsScreensSha256)
         assertEquals("c3c4", cfg.expectedSupportsScreensSmallScreensSha256)
         assertEquals("c3c5", cfg.expectedSupportsScreensNormalScreensSha256)
@@ -456,17 +525,27 @@ class LeonaConfigTest {
         assertEquals("c5c5", cfg.expectedUsesLibrarySha256)
         assertEquals("c5c8", cfg.expectedUsesLibraryNameSha256)
         assertEquals("c5c9", cfg.expectedUsesLibraryRequiredSha256)
+        assertEquals(
+            mapOf("uses-library:org.apache.http.legacy#required" to "false"),
+            cfg.expectedUsesLibraryFieldValues,
+        )
         assertEquals("c5c6", cfg.expectedUsesLibraryOnlySha256)
         assertEquals("c5ca", cfg.expectedUsesLibraryOnlyNameSha256)
         assertEquals("c5cb", cfg.expectedUsesLibraryOnlyRequiredSha256)
         assertEquals("c5c7", cfg.expectedUsesNativeLibrarySha256)
         assertEquals("c5cc", cfg.expectedUsesNativeLibraryNameSha256)
         assertEquals("c5cd", cfg.expectedUsesNativeLibraryRequiredSha256)
+        assertEquals(
+            mapOf("uses-native-library:com.example.foo#required" to "true"),
+            cfg.expectedUsesNativeLibraryFieldValues,
+        )
         assertEquals("c6c6", cfg.expectedQueriesSha256)
         assertEquals("c7c7", cfg.expectedQueriesPackageSha256)
         assertEquals("c7ca", cfg.expectedQueriesPackageNameSha256)
+        assertEquals("c7cb", cfg.expectedQueriesPackageSemanticsSha256)
         assertEquals("c8c8", cfg.expectedQueriesProviderSha256)
         assertEquals("c8ca", cfg.expectedQueriesProviderAuthoritySha256)
+        assertEquals("c8cb", cfg.expectedQueriesProviderSemanticsSha256)
         assertEquals("c9c9", cfg.expectedQueriesIntentSha256)
         assertEquals("caca", cfg.expectedQueriesIntentActionSha256)
         assertEquals("cbcb", cfg.expectedQueriesIntentCategorySha256)
@@ -475,6 +554,7 @@ class LeonaConfigTest {
         assertEquals("cece", cfg.expectedQueriesIntentDataAuthoritySha256)
         assertEquals("cfcf", cfg.expectedQueriesIntentDataPathSha256)
         assertEquals("d0d0", cfg.expectedQueriesIntentDataMimeTypeSha256)
+        assertEquals("d0d1", cfg.expectedQueriesIntentSemanticsSha256)
         assertEquals("d1d1", cfg.expectedApplicationSemanticsSha256)
         assertEquals("d1d2", cfg.expectedApplicationSecuritySemanticsSha256)
         assertEquals("d1d3", cfg.expectedApplicationRuntimeSemanticsSha256)
@@ -482,6 +562,10 @@ class LeonaConfigTest {
             mapOf("application#usesCleartextTraffic" to "false"),
             cfg.expectedApplicationFieldValues,
         )
+        assertEquals(mapOf("channel" to "string"), cfg.expectedMetaDataType)
+        assertEquals(mapOf("channel" to "e1e1"), cfg.expectedMetaDataValueSha256)
+        assertEquals(mapOf("channel" to "e2e2"), cfg.expectedManifestMetaDataEntrySha256)
+        assertEquals(mapOf("channel" to "e3e3"), cfg.expectedManifestMetaDataSemanticsSha256)
         assertEquals(mapOf("channel" to "play"), cfg.expectedMetaData)
     }
 }

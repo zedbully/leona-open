@@ -77,7 +77,8 @@ public class EventConsumer {
         BoxEntity entity = new BoxEntity(
             envelope.boxId().value(),
             envelope.tenantId(),
-            /* deviceFingerprint = */ null,
+            envelope.deviceFingerprint(),
+            envelope.canonicalDeviceId(),
             risk.level().name(),
             risk.score(),
             reasonsJson,
@@ -89,6 +90,8 @@ public class EventConsumer {
 
         cache.store(
             envelope.boxId().value(),
+            envelope.deviceFingerprint(),
+            envelope.canonicalDeviceId(),
             risk.level().name(),
             risk.score(),
             reasonsJson,

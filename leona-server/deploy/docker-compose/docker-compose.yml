@@ -108,6 +108,10 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       LEONA_REGION: local
+      # Local/demo-only mainland attestation provider used by sample
+      # oem_debug_fake E2E. Production must replace this with real OEM
+      # provider keys / verifier policy.
+      LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS: sample_mainland_debug
 
   query-service:
     build:

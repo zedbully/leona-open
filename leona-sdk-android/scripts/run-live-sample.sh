@@ -3,13 +3,28 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-: "${JAVA_HOME:=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
-: "${ANDROID_SDK_ROOT:=/Users/a/Library/Android/sdk}"
-: "${GRADLE_USER_HOME:=/Users/a/back/Game/cq/.gradle-home}"
-: "${LEONA_REPORTING_ENDPOINT:=http://10.0.2.2:8080}"
-: "${LEONA_CLOUD_CONFIG_ENDPOINT:=http://10.0.2.2:8090/v1/mobile-config}"
-: "${LEONA_DEMO_BACKEND_BASE_URL:=http://10.0.2.2:8090}"
-: "${LEONA_TASK:=auto}"
+: "${JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
+: "${ANDROID_SDK_ROOT=/Users/a/Library/Android/sdk}"
+: "${GRADLE_USER_HOME=/Users/a/back/Game/cq/.gradle-home}"
+: "${LEONA_REPORTING_ENDPOINT=http://10.0.2.2:8080}"
+: "${LEONA_CLOUD_CONFIG_ENDPOINT=http://10.0.2.2:8090/v1/mobile-config}"
+: "${LEONA_DEMO_BACKEND_BASE_URL=http://10.0.2.2:8090}"
+: "${LEONA_ADMIN_BASE_URL:=}"
+: "${LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY:=0}"
+: "${LEONA_SAMPLE_ATTESTATION_MODE=off}"
+: "${LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER=}"
+: "${LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP=false}"
+: "${LEONA_TASK=auto}"
+
+if [[ -z "${LEONA_API_KEY:-}" && "$LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY" == "1" ]]; then
+  if [[ -z "$LEONA_ADMIN_BASE_URL" ]]; then
+    LEONA_ADMIN_BASE_URL="http://127.0.0.1:8083"
+  fi
+  eval "$(bash "$ROOT_DIR/scripts/resolve-local-leona-server-app-key.sh")"
+  if [[ -n "${LEONA_API_KEY:-}" ]]; then
+    echo "[Leona] auto-created local server app key from $LEONA_ADMIN_BASE_URL for tenant ${LEONA_SERVER_TENANT_ID:-unknown}"
+  fi
+fi
 
 if [[ -z "${LEONA_API_KEY:-}" ]]; then
   cat >&2 <<'USAGE'
@@ -23,6 +38,11 @@ Optional env:
   LEONA_REPORTING_ENDPOINT=http://10.0.2.2:8080
   LEONA_CLOUD_CONFIG_ENDPOINT=http://10.0.2.2:8090/v1/mobile-config
   LEONA_DEMO_BACKEND_BASE_URL=http://10.0.2.2:8090
+  LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083
+  LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=0|1
+  LEONA_SAMPLE_ATTESTATION_MODE=off|debug_fake|bridge|oem_debug_fake|oem_bridge
+  LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER=1234567890123
+  LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP=false|true
   LEONA_TASK=assembleDebug|installDebug|auto
 USAGE
   exit 1
@@ -50,9 +70,14 @@ cd "$ROOT_DIR"
 ./gradlew \
   :sample-app:"$LEONA_TASK" \
   -PLEONA_API_KEY="$LEONA_API_KEY" \
+  -PLEONA_TENANT_ID="${LEONA_SERVER_TENANT_ID:-${LEONA_TENANT_ID:-sample}}" \
   -PLEONA_REPORTING_ENDPOINT="$LEONA_REPORTING_ENDPOINT" \
   -PLEONA_CLOUD_CONFIG_ENDPOINT="$LEONA_CLOUD_CONFIG_ENDPOINT" \
   -PLEONA_DEMO_BACKEND_BASE_URL="$LEONA_DEMO_BACKEND_BASE_URL" \
+  -PLEONA_DEMO_VERDICT_SECRET_KEY="${LEONA_SERVER_SECRET_KEY:-}" \
+  -PLEONA_SAMPLE_ATTESTATION_MODE="$LEONA_SAMPLE_ATTESTATION_MODE" \
+  -PLEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER="$LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER" \
+  -PLEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP="$LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP" \
   --no-daemon \
   --no-configuration-cache \
   --stacktrace
@@ -67,4 +92,4 @@ echo "[Leona] BuildConfig: $BUILD_CONFIG"
 echo "[Leona] APK:         $APK_PATH"
 echo "[Leona] AAR:         $AAR_PATH"
 
-grep -E 'LEONA_(API_KEY|REPORTING_ENDPOINT|CLOUD_CONFIG_ENDPOINT|DEMO_BACKEND_BASE_URL)' "$BUILD_CONFIG" || true
+grep -E 'LEONA_(API_KEY|TENANT_ID|REPORTING_ENDPOINT|CLOUD_CONFIG_ENDPOINT|DEMO_BACKEND_BASE_URL|DEMO_VERDICT_SECRET_KEY|SAMPLE_ATTESTATION_MODE|SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER)' "$BUILD_CONFIG" || true

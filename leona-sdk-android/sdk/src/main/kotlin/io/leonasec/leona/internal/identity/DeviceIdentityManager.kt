@@ -31,6 +31,12 @@ internal class DeviceIdentityManager(
     fun resolve(policy: CollectionPolicy = CollectionPolicy()): DeviceFingerprintSnapshot {
         val cached = store.loadLastSnapshot()
         val persistedCanonicalDeviceId = store.loadCanonicalDeviceId()
+            ?.let(::normalizeCanonicalId)
+            ?.also { normalized ->
+                if (normalized != store.loadCanonicalDeviceId()) {
+                    store.persistCanonicalDeviceId(normalized)
+                }
+            }
         if (policy.disableCollectionWindowMs >= 0 && cached != null && cached.canonicalDeviceId == persistedCanonicalDeviceId) {
             val age = System.currentTimeMillis() - cached.generatedAtMillis
             if (age in 0..policy.disableCollectionWindowMs) {
@@ -116,7 +122,7 @@ internal class DeviceIdentityManager(
 
     fun updateCanonicalDeviceId(deviceId: String?) {
         val normalized = deviceId?.trim()?.ifEmpty { null } ?: return
-        store.persistCanonicalDeviceId(stripKnownPrefix(normalized))
+        store.persistCanonicalDeviceId(normalizeCanonicalId(normalized))
     }
 
     private fun buildIdentityAnchor(androidId: String?, installId: String): String =
@@ -388,13 +394,6 @@ internal class DeviceIdentityManager(
     companion object {
         private fun normalizeCanonicalId(value: String): String =
             if (value.startsWith("L")) value else "L$value"
-
-        private fun stripKnownPrefix(value: String): String =
-            when {
-                value.startsWith("L") -> value.removePrefix("L")
-                value.startsWith("T") -> value.removePrefix("T")
-                else -> value
-            }
 
         private fun canonicalizeMap(values: Map<String, String>): String = buildString {
             values.toSortedMap().forEach { (key, value) ->

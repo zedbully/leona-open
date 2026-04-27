@@ -59,7 +59,7 @@ public class SenseService {
                                       String requestId,
                                       long timestamp,
                                       String nonce) {
-        return ingest(sessionId, tenantId, encrypted, requestId, timestamp, nonce, SenseRequestRiskSignals.EMPTY);
+        return ingest(sessionId, tenantId, encrypted, requestId, timestamp, nonce, null, null, SenseRequestRiskSignals.EMPTY);
     }
 
     public Mono<SenseResponse> ingest(String sessionId,
@@ -68,6 +68,18 @@ public class SenseService {
                                       String requestId,
                                       long timestamp,
                                       String nonce,
+                                      SenseRequestRiskSignals requestRiskSignals) {
+        return ingest(sessionId, tenantId, encrypted, requestId, timestamp, nonce, null, null, requestRiskSignals);
+    }
+
+    public Mono<SenseResponse> ingest(String sessionId,
+                                      String tenantId,
+                                      byte[] encrypted,
+                                      String requestId,
+                                      long timestamp,
+                                      String nonce,
+                                      String deviceFingerprint,
+                                      String canonicalDeviceId,
                                       SenseRequestRiskSignals requestRiskSignals) {
         UUID tenant = parseTenant(tenantId);
         Instant observedAt = Instant.now();
@@ -78,7 +90,13 @@ public class SenseService {
             .publishOn(Schedulers.boundedElastic())
             .map(sessionKey -> decrypt(sessionKey, encrypted, sessionId, requestId, timestamp, nonce))
             .map(plain -> TlvPayload.parseScrambled(plain, observedAt))
-            .flatMap(events -> persistAndPublish(tenant, observedAt, events, requestRiskSignals));
+            .flatMap(events -> persistAndPublish(
+                tenant,
+                sanitize(deviceFingerprint),
+                normalizeCanonicalDeviceId(canonicalDeviceId),
+                observedAt,
+                events,
+                requestRiskSignals));
     }
 
     private byte[] decrypt(byte[] key,
@@ -103,17 +121,26 @@ public class SenseService {
     }
 
     private Mono<SenseResponse> persistAndPublish(UUID tenant,
+                                                 String deviceFingerprint,
+                                                 String canonicalDeviceId,
                                                  Instant observedAt,
                                                  List<DetectionEvent> events,
                                                  SenseRequestRiskSignals requestRiskSignals) {
         BoxId id = BoxId.generate();
         Instant expiresAt = observedAt.plus(BOX_ID_TTL);
         List<DetectionEvent> effectiveEvents = mergeRiskSignals(events, requestRiskSignals, observedAt);
-        ParsedEventEnvelope envelope = new ParsedEventEnvelope(id, tenant, observedAt, expiresAt, effectiveEvents);
+        ParsedEventEnvelope envelope = new ParsedEventEnvelope(
+            id,
+            tenant,
+            deviceFingerprint,
+            canonicalDeviceId,
+            observedAt,
+            expiresAt,
+            effectiveEvents);
         RiskAssessment risk = RiskScoringEngines.active().score(effectiveEvents, RiskScoringContext.ingestion(tenant));
         String eventsJson = writeJson(effectiveEvents);
 
-        return boxIds.store(id, tenant, observedAt, expiresAt, risk, eventsJson)
+        return boxIds.store(id, tenant, deviceFingerprint, canonicalDeviceId, observedAt, expiresAt, risk, eventsJson)
             .then(kafka.publishParsed(envelope))
             .doOnSuccess(ignored -> {
                 metrics.counter("leona.sense.success").increment();
@@ -139,6 +166,21 @@ public class SenseService {
         } catch (IllegalArgumentException e) {
             throw new LeonaException(ErrorCode.LEONA_AUTH_INVALID, "Tenant header malformed", e);
         }
+    }
+
+    private String sanitize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String normalizeCanonicalDeviceId(String value) {
+        String trimmed = sanitize(value);
+        if (trimmed == null) {
+            return null;
+        }
+        return trimmed.startsWith("L") ? trimmed : "L" + trimmed;
     }
 
     private String writeJson(Object value) {

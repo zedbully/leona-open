@@ -6,10 +6,24 @@ WORKSPACE_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 DEMO_BACKEND_DIR="$WORKSPACE_ROOT/demo-backend"
 
 : "${OUTPUT_DIR:=/tmp/leona-alpha-closure-$(date +%Y%m%d-%H%M%S)}"
+: "${RUN_ATTESTATION_E2E:=0}"
 : "${RUN_EMULATOR_E2E:=0}"
 : "${RUN_DEVICE_E2E:=0}"
-: "${DEMO_BACKEND_ADDR:=127.0.0.1:18090}"
-: "${DEMO_BACKEND_BASE_URL:=http://127.0.0.1:18090}"
+: "${DEMO_BACKEND_HOST:=127.0.0.1}"
+: "${LEONA_ADMIN_BASE_URL:=http://127.0.0.1:8083}"
+: "${LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY:=0}"
+if [[ -z "${DEMO_BACKEND_ADDR:-}" ]]; then
+  DEMO_BACKEND_PORT="$(python3 - <<'PY'
+import socket
+sock = socket.socket()
+sock.bind(("127.0.0.1", 0))
+print(sock.getsockname()[1])
+sock.close()
+PY
+)"
+  DEMO_BACKEND_ADDR="$DEMO_BACKEND_HOST:$DEMO_BACKEND_PORT"
+fi
+: "${DEMO_BACKEND_BASE_URL:=http://$DEMO_BACKEND_ADDR}"
 : "${DEMO_CLOUD_DISABLED_SIGNALS:=androidId}"
 : "${DEMO_CLOUD_DISABLE_COLLECTION_WINDOW_MS:=120000}"
 : "${DEMO_CLOUD_STORE_PATH:=$OUTPUT_DIR/demo-cloud-store.json}"
@@ -73,23 +87,28 @@ stop_demo_backend() {
 write_report() {
   local build_gate="$1"
   local cloud_smoke="$2"
-  local emulator_gate="$3"
-  local device_gate="$4"
+  local attestation_gate="$3"
+  local emulator_gate="$4"
+  local device_gate="$5"
   python3 - "$OUTPUT_DIR/report.json" "$OUTPUT_DIR/report.md" \
-    "$build_gate" "$cloud_smoke" "$emulator_gate" "$device_gate" \
-    "$RUN_EMULATOR_E2E" "$RUN_DEVICE_E2E" <<'PY'
+    "$build_gate" "$cloud_smoke" "$attestation_gate" "$emulator_gate" "$device_gate" \
+    "$RUN_ATTESTATION_E2E" "$RUN_EMULATOR_E2E" "$RUN_DEVICE_E2E" <<'PY'
 import json
 import pathlib
 import sys
 
 report_json = pathlib.Path(sys.argv[1])
 report_md = pathlib.Path(sys.argv[2])
-build_gate, cloud_smoke, emulator_gate, device_gate = [v == "1" for v in sys.argv[3:7]]
-run_emulator, run_device = [v == "1" for v in sys.argv[7:9]]
+build_gate, cloud_smoke, attestation_gate, emulator_gate, device_gate = [v == "1" for v in sys.argv[3:8]]
+run_attestation, run_emulator, run_device = [v == "1" for v in sys.argv[8:11]]
 
 payload = {
     "buildGate": build_gate,
     "cloudConfigSmoke": cloud_smoke,
+    "attestationE2E": {
+        "requested": run_attestation,
+        "passed": attestation_gate if run_attestation else None,
+    },
     "emulatorE2E": {
         "requested": run_emulator,
         "passed": emulator_gate if run_emulator else None,
@@ -106,6 +125,8 @@ lines = [
     "",
     f"- buildGate: `{build_gate}`",
     f"- cloudConfigSmoke: `{cloud_smoke}`",
+    f"- attestationE2E requested: `{run_attestation}`",
+    f"- attestationE2E passed: `{attestation_gate if run_attestation else 'skipped'}`",
     f"- emulatorE2E requested: `{run_emulator}`",
     f"- emulatorE2E passed: `{emulator_gate if run_emulator else 'skipped'}`",
     f"- deviceE2E requested: `{run_device}`",
@@ -118,6 +139,7 @@ PY
 main() {
   local build_gate=0
   local cloud_smoke=0
+  local attestation_gate=0
   local emulator_gate=0
   local device_gate=0
 
@@ -134,36 +156,59 @@ main() {
     "$ROOT_DIR/scripts/verify-demo-cloud-config.sh"
   cloud_smoke=1
 
-  if [[ "$RUN_EMULATOR_E2E" == "1" ]]; then
+  if [[ "$RUN_ATTESTATION_E2E" == "1" ]]; then
     if [[ -z "${LEONA_API_KEY:-}" ]]; then
+      echo "LEONA_API_KEY is required when RUN_ATTESTATION_E2E=1" >&2
+      exit 1
+    fi
+    run_and_capture attestation-e2e env \
+      LEONA_API_KEY="$LEONA_API_KEY" \
+      LEONA_HOST_BASE_URL="${LEONA_HOST_BASE_URL:-http://127.0.0.1:8080}" \
+      LEONA_REPORTING_ENDPOINT="${LEONA_REPORTING_ENDPOINT:-http://10.0.2.2:8080}" \
+      LEONA_CLOUD_CONFIG_ENDPOINT="${LEONA_CLOUD_CONFIG_ENDPOINT:-}" \
+      LEONA_DEMO_BACKEND_BASE_URL="${LEONA_DEMO_BACKEND_BASE_URL:-}" \
+      LEONA_SAMPLE_ATTESTATION_MODE="${LEONA_SAMPLE_ATTESTATION_MODE:-debug_fake}" \
+      LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER="${LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER:-1234567890123}" \
+      LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP="${LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP:-false}" \
+      "$ROOT_DIR/scripts/run-emulator-attestation-e2e.sh"
+    attestation_gate=1
+  fi
+
+  if [[ "$RUN_EMULATOR_E2E" == "1" ]]; then
+    if [[ -z "${LEONA_API_KEY:-}" && "$LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY" != "1" ]]; then
       echo "LEONA_API_KEY is required when RUN_EMULATOR_E2E=1" >&2
       exit 1
     fi
     run_and_capture emulator-e2e env \
-      LEONA_API_KEY="$LEONA_API_KEY" \
+      LEONA_API_KEY="${LEONA_API_KEY:-}" \
       LEONA_REPORTING_ENDPOINT="${LEONA_REPORTING_ENDPOINT:-http://10.0.2.2:8080}" \
       LEONA_CLOUD_CONFIG_ENDPOINT="${LEONA_CLOUD_CONFIG_ENDPOINT:-http://10.0.2.2:8090/v1/mobile-config}" \
       LEONA_DEMO_BACKEND_BASE_URL="${LEONA_DEMO_BACKEND_BASE_URL:-http://10.0.2.2:8090}" \
+      LEONA_ADMIN_BASE_URL="${LEONA_ADMIN_BASE_URL}" \
+      LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY="${LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY}" \
+      LEONA_SAMPLE_ATTESTATION_MODE="${LEONA_SAMPLE_ATTESTATION_MODE:-oem_debug_fake}" \
       "$ROOT_DIR/scripts/run-emulator-e2e.sh"
     emulator_gate=1
   fi
 
   if [[ "$RUN_DEVICE_E2E" == "1" ]]; then
-    if [[ -z "${LEONA_API_KEY:-}" ]]; then
+    if [[ -z "${LEONA_API_KEY:-}" && "$LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY" != "1" ]]; then
       echo "LEONA_API_KEY is required when RUN_DEVICE_E2E=1" >&2
       exit 1
     fi
     run_and_capture device-e2e env \
       ADB_SERIAL="${ADB_SERIAL:-}" \
-      LEONA_API_KEY="$LEONA_API_KEY" \
+      LEONA_API_KEY="${LEONA_API_KEY:-}" \
       LEONA_REPORTING_ENDPOINT="${LEONA_REPORTING_ENDPOINT:-http://127.0.0.1:8080}" \
       LEONA_CLOUD_CONFIG_ENDPOINT="${LEONA_CLOUD_CONFIG_ENDPOINT:-http://127.0.0.1:8090/v1/mobile-config}" \
       LEONA_DEMO_BACKEND_BASE_URL="${LEONA_DEMO_BACKEND_BASE_URL:-http://127.0.0.1:8090}" \
+      LEONA_ADMIN_BASE_URL="${LEONA_ADMIN_BASE_URL}" \
+      LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY="${LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY}" \
       "$ROOT_DIR/scripts/run-device-e2e.sh"
     device_gate=1
   fi
 
-  write_report "$build_gate" "$cloud_smoke" "$emulator_gate" "$device_gate"
+  write_report "$build_gate" "$cloud_smoke" "$attestation_gate" "$emulator_gate" "$device_gate"
 
   log "report.json: $OUTPUT_DIR/report.json"
   log "report.md:   $OUTPUT_DIR/report.md"

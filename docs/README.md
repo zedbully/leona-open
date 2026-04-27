@@ -1,6 +1,6 @@
 # Leona Docs Index
 
-> 更新时间: 2026-04-24
+> 更新时间: 2026-04-27
 > 用途：作为当前项目的文档入口，按“先收口、再验收、再发布”的顺序阅读。
 
 ---
@@ -29,12 +29,31 @@
 - 发布前清理记录：`/Users/a/back/Game/cq/docs/release-cleanup-record-2026-04-24.md`
 - 最终发布口令清单：`/Users/a/back/Game/cq/docs/release-final-commands.md`
 - 模拟器联调留档：`/Users/a/back/Game/cq/docs/demo-record-2026-04-23.md`
+- Attestation 摘要专项留档：`/Users/a/back/Game/cq/docs/attestation-record-2026-04-25.md`
 - Admin 联调留档：`/Users/a/back/Game/cq/docs/admin-record-2026-04-23.md`
 - 观测留档：`/Users/a/back/Game/cq/docs/observability-record-2026-04-23.md`
 - CI E2E 说明：`/Users/a/back/Game/cq/docs/ci-e2e-setup.md`
 - 本地执行入口：`/Users/a/back/Game/cq/docs/local-runbook.md`
+- 本地/线上数据同步执行包：`/Users/a/back/Game/cq/docs/online-data-sync-runbook.md`
+- 真机 attestation 执行包：`/Users/a/back/Game/cq/docs/physical-attestation-runbook.md`
 - Alpha 发布准备：`/Users/a/back/Game/cq/docs/alpha-release-prep.md`
 - Alpha release notes：`/Users/a/back/Game/cq/docs/alpha-release-notes.md`
+- 大陆 / 非 GMS 收口总览：`/Users/a/back/Game/cq/docs/mainland-closeout-summary.md`
+- 大陆 / 非 GMS OEM 留档：`/Users/a/back/Game/cq/docs/mainland-attestation-record-2026-04-25.md`
+- 大陆 / 非 GMS 风险分层：`/Users/a/back/Game/cq/docs/mainland-attestation-risk-posture.md`
+- 大陆 / 非 GMS 验收清单：`/Users/a/back/Game/cq/docs/mainland-attestation-acceptance-checklist.md`
+- 大陆 / 非 GMS 设计稿：`/Users/a/back/Game/cq/docs/mainland-non-gms-attestation-design.md`
+
+---
+
+## Mainland / 非 GMS 快速入口
+
+1. `/Users/a/back/Game/cq/docs/mainland-closeout-summary.md`
+2. `/Users/a/back/Game/cq/docs/mainland-attestation-record-2026-04-25.md`
+3. `/Users/a/back/Game/cq/docs/mainland-attestation-risk-posture.md`
+4. `/Users/a/back/Game/cq/leona-sdk-android/docs/mainland-attestation-release-gate.md`
+5. `/Users/a/back/Game/cq/leona-sdk-android/docs/mainland-attestation-e2e.md`
+6. `/Users/a/back/Game/cq/docs/mainland-attestation-acceptance-checklist.md`
 
 ---
 
@@ -53,5 +72,6 @@
 1. 在真实 Git 工作树里执行最后一轮 `git status` / `git diff --cached` 检查
 2. 条件允许时补真机留档
 3. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E
-4. 如正式发布前有改动，再补一轮 public-only 构建检查
-5. 后续新增能力只进入 private 模块
+4. 如需继续补 attestation 侧留档，优先补真机记录 / 真 OEM 记录
+5. 如正式发布前有改动，再补一轮 public-only 构建检查
+6. 后续新增能力只进入 private 模块

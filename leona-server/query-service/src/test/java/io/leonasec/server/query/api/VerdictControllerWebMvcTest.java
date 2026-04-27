@@ -52,7 +52,8 @@ class VerdictControllerWebMvcTest {
         Instant usedAt = Instant.parse("2026-04-21T12:00:00Z");
         VerdictResponse response = new VerdictResponse(
             boxId,
-            null,
+            "fp-123",
+            "L756bc06b9f5afc8e80548d41ce43062",
             new RiskAssessment(RiskAssessment.Level.MEDIUM, 42, List.of("rule.demo")),
             List.of(new DetectionEvent(
                 "injection.frida.known_library",
@@ -76,6 +77,8 @@ class VerdictControllerWebMvcTest {
             .andExpect(header().exists("X-Leona-Verdict-Signature"))
             .andExpect(header().string("X-Leona-Verdict-Signature-Alg", "HMAC-SHA256"))
             .andExpect(jsonPath("$.boxId").value(boxId.value()))
+            .andExpect(jsonPath("$.deviceFingerprint").value("fp-123"))
+            .andExpect(jsonPath("$.canonicalDeviceId").value("L756bc06b9f5afc8e80548d41ce43062"))
             .andExpect(jsonPath("$.decision").value("reject"))
             .andExpect(jsonPath("$.action").value("block"))
             .andExpect(jsonPath("$.risk.level").value("MEDIUM"))

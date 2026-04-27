@@ -67,9 +67,15 @@ Leona.init(this, LeonaConfig.Builder()
     .expectedPackageName("com.example.app")
     .allowedInstallerPackages("com.android.vending")
     .allowedSigningCertSha256("your_signing_cert_sha256")
+    .expectedSigningCertificateLineageSha256("expected_signing_lineage_fingerprint")
+    .expectedApkSigningBlockSha256("expected_apk_signing_block_sha256")
+    .expectedApkSigningBlockIdSha256("0x7109871a", "expected_v2_signing_block_value_sha256")
     .expectedApkSha256("expected_apk_sha256")
     .expectedNativeLibrarySha256("libleona.so", "expected_lib_sha256")
     .expectedManifestEntrySha256("expected_manifest_entry_sha256")
+    .expectedResourcesArscSha256("expected_resources_arsc_sha256")
+    .expectedResourceInventorySha256("expected_resource_inventory_fingerprint")
+    .expectedResourceEntrySha256("res/raw/leona.bin", "expected_resource_entry_sha256")
     .expectedDexSha256("classes.dex", "expected_classes_dex_sha256")
     .expectedDexSectionSha256("classes.dex#code_item", "expected_code_item_section_sha256")
     .expectedDexMethodSha256(
@@ -98,6 +104,14 @@ Leona.init(this, LeonaConfig.Builder()
     .expectedComponentSignatureSha256(
         "activity:com.example.app.MainActivity",
         "expected_component_fingerprint"
+    )
+    .expectedComponentAccessSemanticsSha256(
+        "activity:com.example.app.MainActivity",
+        "expected_component_access_fingerprint"
+    )
+    .expectedComponentOperationalSemanticsSha256(
+        "activity:com.example.app.MainActivity",
+        "expected_component_operational_fingerprint"
     )
     .expectedComponentFieldValue(
         "activity:com.example.app.MainActivity#exported",
@@ -159,18 +173,28 @@ Leona.init(this, LeonaConfig.Builder()
         "activity:com.example.app.MainActivity",
         "expected_intent_filter_data_mimetype_fingerprint"
     )
+    .expectedIntentFilterSemanticsSha256(
+        "activity:com.example.app.MainActivity",
+        "expected_intent_filter_semantics_fingerprint"
+    )
     .expectedGrantUriPermissionSha256(
         "provider:com.example.app.DataProvider",
         "expected_grant_uri_permission_fingerprint"
+    )
+    .expectedGrantUriPermissionSemanticsSha256(
+        "provider:com.example.app.DataProvider",
+        "expected_grant_uri_permission_semantics_fingerprint"
     )
     .expectedUsesFeatureSha256("expected_uses_feature_fingerprint")
     .expectedUsesFeatureNameSha256("expected_uses_feature_name_fingerprint")
     .expectedUsesFeatureRequiredSha256("expected_uses_feature_required_fingerprint")
     .expectedUsesFeatureGlEsVersionSha256("expected_uses_feature_gles_fingerprint")
+    .expectedUsesFeatureFieldValue("uses-feature:android.hardware.camera#required", "true")
     .expectedUsesSdkSha256("expected_uses_sdk_fingerprint")
     .expectedUsesSdkMinSha256("expected_uses_sdk_min_fingerprint")
     .expectedUsesSdkTargetSha256("expected_uses_sdk_target_fingerprint")
     .expectedUsesSdkMaxSha256("expected_uses_sdk_max_fingerprint")
+    .expectedUsesSdkFieldValue("uses-sdk#targetSdkVersion", "34")
     .expectedSupportsScreensSha256("expected_supports_screens_fingerprint")
     .expectedSupportsScreensAnyDensitySha256("expected_supports_screens_any_density_fingerprint")
     .expectedSupportsScreensResizeableSha256("expected_supports_screens_resizeable_fingerprint")
@@ -180,17 +204,21 @@ Leona.init(this, LeonaConfig.Builder()
     .expectedUsesLibrarySha256("expected_uses_library_fingerprint")
     .expectedUsesLibraryNameSha256("expected_uses_library_name_fingerprint")
     .expectedUsesLibraryRequiredSha256("expected_uses_library_required_fingerprint")
+    .expectedUsesLibraryFieldValue("uses-library:org.apache.http.legacy#required", "false")
     .expectedUsesLibraryOnlySha256("expected_uses_library_only_fingerprint")
     .expectedUsesLibraryOnlyNameSha256("expected_uses_library_only_name_fingerprint")
     .expectedUsesLibraryOnlyRequiredSha256("expected_uses_library_only_required_fingerprint")
     .expectedUsesNativeLibrarySha256("expected_uses_native_library_fingerprint")
     .expectedUsesNativeLibraryNameSha256("expected_uses_native_library_name_fingerprint")
     .expectedUsesNativeLibraryRequiredSha256("expected_uses_native_library_required_fingerprint")
+    .expectedUsesNativeLibraryFieldValue("uses-native-library:com.example.sec#required", "true")
     .expectedQueriesSha256("expected_queries_fingerprint")
     .expectedQueriesPackageSha256("expected_queries_package_fingerprint")
     .expectedQueriesPackageNameSha256("expected_queries_package_name_fingerprint")
+    .expectedQueriesPackageSemanticsSha256("expected_queries_package_semantics_fingerprint")
     .expectedQueriesProviderSha256("expected_queries_provider_fingerprint")
     .expectedQueriesProviderAuthoritySha256("expected_queries_provider_authority_fingerprint")
+    .expectedQueriesProviderSemanticsSha256("expected_queries_provider_semantics_fingerprint")
     .expectedQueriesIntentSha256("expected_queries_intent_fingerprint")
     .expectedQueriesIntentActionSha256("expected_queries_intent_action_fingerprint")
     .expectedQueriesIntentCategorySha256("expected_queries_intent_category_fingerprint")
@@ -199,11 +227,16 @@ Leona.init(this, LeonaConfig.Builder()
     .expectedQueriesIntentDataAuthoritySha256("expected_queries_intent_data_authority_fingerprint")
     .expectedQueriesIntentDataPathSha256("expected_queries_intent_data_path_fingerprint")
     .expectedQueriesIntentDataMimeTypeSha256("expected_queries_intent_mimetype_fingerprint")
+    .expectedQueriesIntentSemanticsSha256("expected_queries_intent_semantics_fingerprint")
     .expectedApplicationSemanticsSha256("expected_application_semantics_fingerprint")
     .expectedApplicationSecuritySemanticsSha256("expected_application_security_semantics_fingerprint")
     .expectedApplicationRuntimeSemanticsSha256("expected_application_runtime_semantics_fingerprint")
     .expectedApplicationFieldValue("application#usesCleartextTraffic", "false")
     .expectedApplicationFieldValue("application#allowBackup", "false")
+    .expectedMetaDataType("channel", "string")
+    .expectedMetaDataValueSha256("channel", "expected_metadata_value_hash")
+    .expectedManifestMetaDataEntrySha256("channel", "expected_manifest_metadata_entry_hash")
+    .expectedManifestMetaDataSemanticsSha256("channel", "expected_manifest_metadata_semantics_hash")
     .expectedMetaData("channel", "play")
     .build())
 ```
@@ -433,6 +466,9 @@ For a repo-wide snapshot of what is implemented today, see
 For execution / demo / release docs, start from
 [`/Users/a/back/Game/cq/docs/README.md`](/Users/a/back/Game/cq/docs/README.md).
 
+For mainland / non-GMS rollout docs, start from
+[`/Users/a/back/Game/cq/docs/mainland-closeout-summary.md`](/Users/a/back/Game/cq/docs/mainland-closeout-summary.md).
+
 For a one-command local alpha closure pass, run:
 
 ```bash
@@ -451,7 +487,9 @@ The live E2E job is intended for a hosted Leona staging environment and
 expects:
 
 - GitHub secret: `LEONA_E2E_API_KEY`
+- GitHub secret: `LEONA_E2E_SECRET_KEY`
 - GitHub repository variable: `LEONA_E2E_REPORTING_ENDPOINT`
+- GitHub repository variable: `LEONA_E2E_FORMAL_VERDICT_BASE_URL`
 - GitHub repository variable: `LEONA_E2E_CLOUD_CONFIG_ENDPOINT`
 - GitHub repository variable: `LEONA_E2E_DEMO_BACKEND_BASE_URL`
 
@@ -461,6 +499,10 @@ inside GitHub Actions and uploads the generated closure reports.
 
 It runs `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`
 inside an Android API 34 emulator and uploads screenshots / XML artifacts.
+The local/live E2E now checks both the sample demo verdict path and a direct
+formal `/v1/verdict` call, including response-signature verification,
+`canonicalDeviceId`, `deviceFingerprint`, and cross-surface canonical
+consistency.
 
 For a locally connected physical Android device, use:
 

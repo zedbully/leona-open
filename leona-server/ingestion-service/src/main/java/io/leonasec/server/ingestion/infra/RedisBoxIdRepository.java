@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,20 +33,25 @@ public class RedisBoxIdRepository implements BoxIdRepository {
     }
 
     @Override
-    public Mono<Void> store(BoxId id, UUID tenantId, Instant observedAt, Instant expiresAt,
-                            RiskAssessment risk, String eventsJson) {
+    public Mono<Void> store(BoxId id, UUID tenantId, String deviceFingerprint, String canonicalDeviceId,
+                            Instant observedAt, Instant expiresAt, RiskAssessment risk, String eventsJson) {
         String key = KEY_PREFIX + id.value();
         Duration ttl = Duration.between(Instant.now(), expiresAt);
-        Map<Object, Object> fields = Map.of(
-            "tenant", tenantId.toString(),
-            "observed_at", observedAt.toString(),
-            "expires_at", expiresAt.toString(),
-            "expires_at_epoch_ms", String.valueOf(expiresAt.toEpochMilli()),
-            "risk_level", risk.level().name(),
-            "risk_score", String.valueOf(risk.score()),
-            "risk_reasons_json", toJsonArray(risk.reasons()),
-            "events_json", eventsJson
-        );
+        Map<Object, Object> fields = new LinkedHashMap<>();
+        fields.put("tenant", tenantId.toString());
+        if (deviceFingerprint != null && !deviceFingerprint.isBlank()) {
+            fields.put("device_fingerprint", deviceFingerprint);
+        }
+        if (canonicalDeviceId != null && !canonicalDeviceId.isBlank()) {
+            fields.put("canonical_device_id", canonicalDeviceId);
+        }
+        fields.put("observed_at", observedAt.toString());
+        fields.put("expires_at", expiresAt.toString());
+        fields.put("expires_at_epoch_ms", String.valueOf(expiresAt.toEpochMilli()));
+        fields.put("risk_level", risk.level().name());
+        fields.put("risk_score", String.valueOf(risk.score()));
+        fields.put("risk_reasons_json", toJsonArray(risk.reasons()));
+        fields.put("events_json", eventsJson);
         return redis.opsForHash().putAll(key, fields)
             .then(redis.expire(key, ttl))
             .then();

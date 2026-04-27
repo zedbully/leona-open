@@ -32,6 +32,9 @@ public class BoxEntity {
     @Column(name = "device_fingerprint")
     private String deviceFingerprint;
 
+    @Column(name = "canonical_device_id")
+    private String canonicalDeviceId;
+
     @Column(name = "risk_level", nullable = false)
     private String riskLevel;
 
@@ -58,13 +61,14 @@ public class BoxEntity {
     protected BoxEntity() {}
 
     public BoxEntity(
-        String boxId, UUID tenantId, String deviceFingerprint,
+        String boxId, UUID tenantId, String deviceFingerprint, String canonicalDeviceId,
         String riskLevel, int riskScore, String riskReasonsJson,
         String eventsJson, Instant observedAt, Instant expiresAt
     ) {
         this.boxId = boxId;
         this.tenantId = tenantId;
         this.deviceFingerprint = deviceFingerprint;
+        this.canonicalDeviceId = canonicalDeviceId;
         this.riskLevel = riskLevel;
         this.riskScore = riskScore;
         this.riskReasonsJson = riskReasonsJson;
@@ -76,6 +80,7 @@ public class BoxEntity {
     public String getBoxId() { return boxId; }
     public UUID getTenantId() { return tenantId; }
     public String getDeviceFingerprint() { return deviceFingerprint; }
+    public String getCanonicalDeviceId() { return canonicalDeviceId; }
     public String getRiskLevel() { return riskLevel; }
     public int getRiskScore() { return riskScore; }
     public String getRiskReasonsJson() { return riskReasonsJson; }

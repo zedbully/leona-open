@@ -120,9 +120,19 @@ internal class SecureChannel(
                 allowedSigningCertSha256 = json.optStringArray("allowedSigningCertSha256")
                     .map { it.lowercase() }
                     .toSet(),
+                expectedSigningCertificateLineageSha256 =
+                    json.optString("expectedSigningCertificateLineageSha256").lowercase().ifBlank { null },
+                expectedApkSigningBlockSha256 =
+                    json.optString("expectedApkSigningBlockSha256").lowercase().ifBlank { null },
+                expectedApkSigningBlockIdSha256 = json.optStringMap("expectedApkSigningBlockIdSha256"),
                 expectedApkSha256 = json.optString("expectedApkSha256").lowercase().ifBlank { null },
                 expectedNativeLibSha256 = json.optStringMap("expectedNativeLibSha256"),
                 expectedManifestEntrySha256 = json.optString("expectedManifestEntrySha256").lowercase().ifBlank { null },
+                expectedResourcesArscSha256 =
+                    json.optString("expectedResourcesArscSha256").lowercase().ifBlank { null },
+                expectedResourceInventorySha256 =
+                    json.optString("expectedResourceInventorySha256").lowercase().ifBlank { null },
+                expectedResourceEntrySha256 = json.optStringMap("expectedResourceEntrySha256"),
                 expectedDexSha256 = json.optStringMap("expectedDexSha256"),
                 expectedDexSectionSha256 = json.optStringMap("expectedDexSectionSha256"),
                 expectedDexMethodSha256 = json.optStringMap("expectedDexMethodSha256"),
@@ -155,6 +165,10 @@ internal class SecureChannel(
                 expectedDeclaredPermissionFieldValues =
                     json.optStringMap("expectedDeclaredPermissionFieldValues", normalizeValues = false),
                 expectedComponentSignatureSha256 = json.optStringMap("expectedComponentSignatureSha256"),
+                expectedComponentAccessSemanticsSha256 =
+                    json.optStringMap("expectedComponentAccessSemanticsSha256"),
+                expectedComponentOperationalSemanticsSha256 =
+                    json.optStringMap("expectedComponentOperationalSemanticsSha256"),
                 expectedComponentFieldValues =
                     json.optStringMap("expectedComponentFieldValues", normalizeValues = false),
                 expectedProviderUriPermissionPatternsSha256 =
@@ -181,7 +195,11 @@ internal class SecureChannel(
                     json.optStringMap("expectedIntentFilterDataPathSha256"),
                 expectedIntentFilterDataMimeTypeSha256 =
                     json.optStringMap("expectedIntentFilterDataMimeTypeSha256"),
+                expectedIntentFilterSemanticsSha256 =
+                    json.optStringMap("expectedIntentFilterSemanticsSha256"),
                 expectedGrantUriPermissionSha256 = json.optStringMap("expectedGrantUriPermissionSha256"),
+                expectedGrantUriPermissionSemanticsSha256 =
+                    json.optStringMap("expectedGrantUriPermissionSemanticsSha256"),
                 expectedUsesFeatureSha256 =
                     json.optString("expectedUsesFeatureSha256").lowercase().ifBlank { null },
                 expectedUsesFeatureNameSha256 =
@@ -190,6 +208,8 @@ internal class SecureChannel(
                     json.optString("expectedUsesFeatureRequiredSha256").lowercase().ifBlank { null },
                 expectedUsesFeatureGlEsVersionSha256 =
                     json.optString("expectedUsesFeatureGlEsVersionSha256").lowercase().ifBlank { null },
+                expectedUsesFeatureFieldValues =
+                    json.optStringMap("expectedUsesFeatureFieldValues", normalizeValues = false),
                 expectedUsesSdkSha256 =
                     json.optString("expectedUsesSdkSha256").lowercase().ifBlank { null },
                 expectedUsesSdkMinSha256 =
@@ -198,6 +218,8 @@ internal class SecureChannel(
                     json.optString("expectedUsesSdkTargetSha256").lowercase().ifBlank { null },
                 expectedUsesSdkMaxSha256 =
                     json.optString("expectedUsesSdkMaxSha256").lowercase().ifBlank { null },
+                expectedUsesSdkFieldValues =
+                    json.optStringMap("expectedUsesSdkFieldValues", normalizeValues = false),
                 expectedSupportsScreensSha256 =
                     json.optString("expectedSupportsScreensSha256").lowercase().ifBlank { null },
                 expectedSupportsScreensSmallScreensSha256 =
@@ -236,6 +258,8 @@ internal class SecureChannel(
                     json.optString("expectedUsesLibraryNameSha256").lowercase().ifBlank { null },
                 expectedUsesLibraryRequiredSha256 =
                     json.optString("expectedUsesLibraryRequiredSha256").lowercase().ifBlank { null },
+                expectedUsesLibraryFieldValues =
+                    json.optStringMap("expectedUsesLibraryFieldValues", normalizeValues = false),
                 expectedUsesLibraryOnlySha256 =
                     json.optString("expectedUsesLibraryOnlySha256").lowercase().ifBlank { null },
                 expectedUsesLibraryOnlyNameSha256 =
@@ -248,16 +272,22 @@ internal class SecureChannel(
                     json.optString("expectedUsesNativeLibraryNameSha256").lowercase().ifBlank { null },
                 expectedUsesNativeLibraryRequiredSha256 =
                     json.optString("expectedUsesNativeLibraryRequiredSha256").lowercase().ifBlank { null },
+                expectedUsesNativeLibraryFieldValues =
+                    json.optStringMap("expectedUsesNativeLibraryFieldValues", normalizeValues = false),
                 expectedQueriesSha256 =
                     json.optString("expectedQueriesSha256").lowercase().ifBlank { null },
                 expectedQueriesPackageSha256 =
                     json.optString("expectedQueriesPackageSha256").lowercase().ifBlank { null },
                 expectedQueriesPackageNameSha256 =
                     json.optString("expectedQueriesPackageNameSha256").lowercase().ifBlank { null },
+                expectedQueriesPackageSemanticsSha256 =
+                    json.optString("expectedQueriesPackageSemanticsSha256").lowercase().ifBlank { null },
                 expectedQueriesProviderSha256 =
                     json.optString("expectedQueriesProviderSha256").lowercase().ifBlank { null },
                 expectedQueriesProviderAuthoritySha256 =
                     json.optString("expectedQueriesProviderAuthoritySha256").lowercase().ifBlank { null },
+                expectedQueriesProviderSemanticsSha256 =
+                    json.optString("expectedQueriesProviderSemanticsSha256").lowercase().ifBlank { null },
                 expectedQueriesIntentSha256 =
                     json.optString("expectedQueriesIntentSha256").lowercase().ifBlank { null },
                 expectedQueriesIntentActionSha256 =
@@ -274,6 +304,8 @@ internal class SecureChannel(
                     json.optString("expectedQueriesIntentDataPathSha256").lowercase().ifBlank { null },
                 expectedQueriesIntentDataMimeTypeSha256 =
                     json.optString("expectedQueriesIntentDataMimeTypeSha256").lowercase().ifBlank { null },
+                expectedQueriesIntentSemanticsSha256 =
+                    json.optString("expectedQueriesIntentSemanticsSha256").lowercase().ifBlank { null },
                 expectedApplicationSemanticsSha256 =
                     json.optString("expectedApplicationSemanticsSha256").lowercase().ifBlank { null },
                 expectedApplicationSecuritySemanticsSha256 =
@@ -282,6 +314,14 @@ internal class SecureChannel(
                     json.optString("expectedApplicationRuntimeSemanticsSha256").lowercase().ifBlank { null },
                 expectedApplicationFieldValues =
                     json.optStringMap("expectedApplicationFieldValues", normalizeValues = false),
+                expectedMetaDataType =
+                    json.optStringMap("expectedMetaDataType"),
+                expectedMetaDataValueSha256 =
+                    json.optStringMap("expectedMetaDataValueSha256"),
+                expectedManifestMetaDataEntrySha256 =
+                    json.optStringMap("expectedManifestMetaDataEntrySha256"),
+                expectedManifestMetaDataSemanticsSha256 =
+                    json.optStringMap("expectedManifestMetaDataSemanticsSha256"),
                 expectedMetaData = json.optStringMap("expectedMetaData", normalizeValues = false),
             )
         }

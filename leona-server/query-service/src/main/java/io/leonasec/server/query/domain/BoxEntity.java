@@ -29,6 +29,9 @@ public class BoxEntity {
     @Column(name = "device_fingerprint")
     private String deviceFingerprint;
 
+    @Column(name = "canonical_device_id")
+    private String canonicalDeviceId;
+
     @Column(name = "risk_level", nullable = false)
     private String riskLevel;
 
@@ -57,6 +60,7 @@ public class BoxEntity {
     public String getBoxId() { return boxId; }
     public UUID getTenantId() { return tenantId; }
     public String getDeviceFingerprint() { return deviceFingerprint; }
+    public String getCanonicalDeviceId() { return canonicalDeviceId; }
     public String getRiskLevel() { return riskLevel; }
     public int getRiskScore() { return riskScore; }
     public String getRiskReasonsJson() { return riskReasonsJson; }

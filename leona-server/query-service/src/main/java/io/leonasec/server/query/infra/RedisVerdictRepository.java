@@ -59,7 +59,8 @@ public class RedisVerdictRepository {
 
         return Optional.of(new VerdictResponse(
             id,
-            /* deviceFingerprint = */ null,
+            str(entries, "device_fingerprint", null),
+            str(entries, "canonical_device_id", null),
             new RiskAssessment(
                 RiskAssessment.Level.valueOf(riskLevel),
                 riskScore,

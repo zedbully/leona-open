@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import java.io.File
 import java.io.FileInputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
@@ -27,6 +28,12 @@ import java.util.zip.ZipFile
  * instead of heuristic-only checks in native code.
  */
 internal object AppIntegrity {
+    private val APK_SIGNING_BLOCK_MAGIC = "APK Sig Block 42".toByteArray()
+    private const val APK_SIGNING_BLOCK_FOOTER_SIZE = 24
+    private const val ZIP_EOCD_MIN_SIZE = 22
+    private const val ZIP_EOCD_MAX_SEARCH = ZIP_EOCD_MIN_SIZE + 65_535
+    private const val ZIP_EOCD_CENTRAL_DIR_OFFSET_FIELD = 16
+    private const val ZIP_EOCD_COMMENT_LENGTH_FIELD = 20
 
     private val applicationSemanticsManifestFields = listOf(
         "name",
@@ -104,6 +111,24 @@ internal object AppIntegrity {
             "certSha256" to packageInfo.signingDigestsSha256().joinToString(","),
         )
 
+        if (policy.expectedSigningCertificateLineageSha256 != null) {
+            lines["signingCertificateLineageSha256"] =
+                hashSigningCertificateLineage(packageInfo.signingDigestsSha256()).orEmpty()
+        }
+
+        if (policy.expectedApkSigningBlockSha256 != null ||
+            policy.expectedApkSigningBlockIdSha256.isNotEmpty()
+        ) {
+            val signingBlock = readApkSigningBlock(appInfo.sourceDir)
+            policy.expectedApkSigningBlockSha256?.let {
+                lines["apkSigningBlockSha256"] = signingBlock?.blockBytes?.let(::sha256Hex).orEmpty()
+            }
+            val idHashes = signingBlock?.hashIds(policy.expectedApkSigningBlockIdSha256.keys).orEmpty()
+            policy.expectedApkSigningBlockIdSha256.keys.sorted().forEach { key ->
+                lines["apkSigningBlockIdSha256.$key"] = idHashes[key].orEmpty()
+            }
+        }
+
         if (policy.expectedApkSha256 != null) {
             lines["apkSha256"] = hashFileHex(appInfo.sourceDir).orEmpty()
         }
@@ -115,16 +140,32 @@ internal object AppIntegrity {
             }
         }
 
-        if (policy.expectedManifestEntrySha256 != null || policy.expectedDexSha256.isNotEmpty()) {
+        if (policy.expectedManifestEntrySha256 != null ||
+            policy.expectedResourcesArscSha256 != null ||
+            policy.expectedResourceInventorySha256 != null ||
+            policy.expectedResourceEntrySha256.isNotEmpty() ||
+            policy.expectedDexSha256.isNotEmpty()
+        ) {
             val zipEntries = hashZipEntries(
                 apkPath = appInfo.sourceDir,
                 entryNames = buildSet {
                     if (policy.expectedManifestEntrySha256 != null) add("AndroidManifest.xml")
+                    if (policy.expectedResourcesArscSha256 != null) add("resources.arsc")
+                    addAll(policy.expectedResourceEntrySha256.keys)
                     addAll(policy.expectedDexSha256.keys)
                 },
             )
             policy.expectedManifestEntrySha256?.let {
                 lines["manifestEntrySha256"] = zipEntries["AndroidManifest.xml"].orEmpty()
+            }
+            policy.expectedResourcesArscSha256?.let {
+                lines["resourcesArscSha256"] = zipEntries["resources.arsc"].orEmpty()
+            }
+            policy.expectedResourceInventorySha256?.let {
+                lines["resourceInventorySha256"] = hashResourceInventory(appInfo.sourceDir).orEmpty()
+            }
+            policy.expectedResourceEntrySha256.keys.sorted().forEach { entryName ->
+                lines["resourceEntrySha256.$entryName"] = zipEntries[entryName].orEmpty()
             }
             policy.expectedDexSha256.keys.sorted().forEach { entryName ->
                 lines["dexSha256.$entryName"] = zipEntries[entryName].orEmpty()
@@ -267,6 +308,20 @@ internal object AppIntegrity {
             }
         }
 
+        if (policy.expectedComponentAccessSemanticsSha256.isNotEmpty()) {
+            val componentSignatures = collectComponentAccessSemantics(manifestInfo)
+            policy.expectedComponentAccessSemanticsSha256.keys.sorted().forEach { key ->
+                lines["componentAccessSemanticsSha256.$key"] = componentSignatures[key].orEmpty()
+            }
+        }
+
+        if (policy.expectedComponentOperationalSemanticsSha256.isNotEmpty()) {
+            val componentSignatures = collectComponentOperationalSemantics(manifestInfo)
+            policy.expectedComponentOperationalSemanticsSha256.keys.sorted().forEach { key ->
+                lines["componentOperationalSemanticsSha256.$key"] = componentSignatures[key].orEmpty()
+            }
+        }
+
         if (policy.expectedComponentFieldValues.isNotEmpty()) {
             val componentFields = collectComponentFieldValues(manifestInfo)
             policy.expectedComponentFieldValues.keys.sorted().forEach { key ->
@@ -324,7 +379,9 @@ internal object AppIntegrity {
             policy.expectedIntentFilterDataAuthoritySha256.isNotEmpty() ||
             policy.expectedIntentFilterDataPathSha256.isNotEmpty() ||
             policy.expectedIntentFilterDataMimeTypeSha256.isNotEmpty() ||
-            policy.expectedGrantUriPermissionSha256.isNotEmpty()
+            policy.expectedIntentFilterSemanticsSha256.isNotEmpty() ||
+            policy.expectedGrantUriPermissionSha256.isNotEmpty() ||
+            policy.expectedGrantUriPermissionSemanticsSha256.isNotEmpty()
         ) {
             val requestedIntentFilterKeys = buildSet {
                 addAll(policy.expectedIntentFilterSha256.keys)
@@ -335,11 +392,15 @@ internal object AppIntegrity {
                 addAll(policy.expectedIntentFilterDataAuthoritySha256.keys)
                 addAll(policy.expectedIntentFilterDataPathSha256.keys)
                 addAll(policy.expectedIntentFilterDataMimeTypeSha256.keys)
+                addAll(policy.expectedIntentFilterSemanticsSha256.keys)
             }
             val manifestHashes = collectManifestSubtreeFingerprints(
                 apkPath = appInfo.sourceDir,
                 requestedIntentFilters = requestedIntentFilterKeys,
-                requestedGrantUriPermissions = policy.expectedGrantUriPermissionSha256.keys,
+                requestedGrantUriPermissions = buildSet {
+                    addAll(policy.expectedGrantUriPermissionSha256.keys)
+                    addAll(policy.expectedGrantUriPermissionSemanticsSha256.keys)
+                },
             )
             policy.expectedIntentFilterSha256.keys.sorted().forEach { key ->
                 lines["intentFilterSha256.$key"] = manifestHashes.intentFilterHashes[key].orEmpty()
@@ -365,8 +426,15 @@ internal object AppIntegrity {
             policy.expectedIntentFilterDataMimeTypeSha256.keys.sorted().forEach { key ->
                 lines["intentFilterDataMimeTypeSha256.$key"] = manifestHashes.intentFilterDataMimeTypeHashes[key].orEmpty()
             }
+            policy.expectedIntentFilterSemanticsSha256.keys.sorted().forEach { key ->
+                lines["intentFilterSemanticsSha256.$key"] = manifestHashes.intentFilterSemanticsHashes[key].orEmpty()
+            }
             policy.expectedGrantUriPermissionSha256.keys.sorted().forEach { key ->
                 lines["grantUriPermissionSha256.$key"] = manifestHashes.grantUriPermissionHashes[key].orEmpty()
+            }
+            policy.expectedGrantUriPermissionSemanticsSha256.keys.sorted().forEach { key ->
+                lines["grantUriPermissionSemanticsSha256.$key"] =
+                    manifestHashes.grantUriPermissionSemanticsHashes[key].orEmpty()
             }
         }
 
@@ -374,10 +442,12 @@ internal object AppIntegrity {
             policy.expectedUsesFeatureNameSha256 != null ||
             policy.expectedUsesFeatureRequiredSha256 != null ||
             policy.expectedUsesFeatureGlEsVersionSha256 != null ||
+            policy.expectedUsesFeatureFieldValues.isNotEmpty() ||
             policy.expectedUsesSdkSha256 != null ||
             policy.expectedUsesSdkMinSha256 != null ||
             policy.expectedUsesSdkTargetSha256 != null ||
             policy.expectedUsesSdkMaxSha256 != null ||
+            policy.expectedUsesSdkFieldValues.isNotEmpty() ||
             policy.expectedSupportsScreensSha256 != null ||
             policy.expectedSupportsScreensSmallScreensSha256 != null ||
             policy.expectedSupportsScreensNormalScreensSha256 != null ||
@@ -394,17 +464,21 @@ internal object AppIntegrity {
             policy.expectedUsesLibrarySha256 != null ||
             policy.expectedUsesLibraryNameSha256 != null ||
             policy.expectedUsesLibraryRequiredSha256 != null ||
+            policy.expectedUsesLibraryFieldValues.isNotEmpty() ||
             policy.expectedUsesLibraryOnlySha256 != null ||
             policy.expectedUsesLibraryOnlyNameSha256 != null ||
             policy.expectedUsesLibraryOnlyRequiredSha256 != null ||
             policy.expectedUsesNativeLibrarySha256 != null ||
             policy.expectedUsesNativeLibraryNameSha256 != null ||
             policy.expectedUsesNativeLibraryRequiredSha256 != null ||
+            policy.expectedUsesNativeLibraryFieldValues.isNotEmpty() ||
             policy.expectedQueriesSha256 != null ||
             policy.expectedQueriesPackageSha256 != null ||
             policy.expectedQueriesPackageNameSha256 != null ||
+            policy.expectedQueriesPackageSemanticsSha256 != null ||
             policy.expectedQueriesProviderSha256 != null ||
             policy.expectedQueriesProviderAuthoritySha256 != null ||
+            policy.expectedQueriesProviderSemanticsSha256 != null ||
             policy.expectedQueriesIntentSha256 != null ||
             policy.expectedQueriesIntentActionSha256 != null ||
             policy.expectedQueriesIntentCategorySha256 != null ||
@@ -413,10 +487,13 @@ internal object AppIntegrity {
             policy.expectedQueriesIntentDataAuthoritySha256 != null ||
             policy.expectedQueriesIntentDataPathSha256 != null ||
             policy.expectedQueriesIntentDataMimeTypeSha256 != null ||
+            policy.expectedQueriesIntentSemanticsSha256 != null ||
             policy.expectedApplicationSemanticsSha256 != null ||
             policy.expectedApplicationSecuritySemanticsSha256 != null ||
             policy.expectedApplicationRuntimeSemanticsSha256 != null ||
-            policy.expectedApplicationFieldValues.isNotEmpty()
+            policy.expectedApplicationFieldValues.isNotEmpty() ||
+            policy.expectedManifestMetaDataEntrySha256.isNotEmpty() ||
+            policy.expectedManifestMetaDataSemanticsSha256.isNotEmpty()
         ) {
             val manifestHashes = collectManifestGlobalFingerprints(appInfo.sourceDir)
             policy.expectedUsesFeatureSha256?.let {
@@ -431,6 +508,9 @@ internal object AppIntegrity {
             policy.expectedUsesFeatureGlEsVersionSha256?.let {
                 lines["usesFeatureGlEsVersionSha256"] = manifestHashes.usesFeatureGlEsVersionSha256.orEmpty()
             }
+            policy.expectedUsesFeatureFieldValues.keys.sorted().forEach { key ->
+                lines["usesFeatureField.$key"] = manifestHashes.usesFeatureFieldValues[key].orEmpty()
+            }
             policy.expectedUsesSdkSha256?.let {
                 lines["usesSdkSha256"] = manifestHashes.usesSdkSha256.orEmpty()
             }
@@ -442,6 +522,9 @@ internal object AppIntegrity {
             }
             policy.expectedUsesSdkMaxSha256?.let {
                 lines["usesSdkMaxSha256"] = manifestHashes.usesSdkMaxVersionSha256.orEmpty()
+            }
+            policy.expectedUsesSdkFieldValues.keys.sorted().forEach { key ->
+                lines["usesSdkField.$key"] = manifestHashes.usesSdkFieldValues[key].orEmpty()
             }
             policy.expectedSupportsScreensSha256?.let {
                 lines["supportsScreensSha256"] = manifestHashes.supportsScreensSha256.orEmpty()
@@ -502,6 +585,9 @@ internal object AppIntegrity {
             policy.expectedUsesLibraryRequiredSha256?.let {
                 lines["usesLibraryRequiredSha256"] = manifestHashes.usesLibraryRequiredSha256.orEmpty()
             }
+            policy.expectedUsesLibraryFieldValues.keys.sorted().forEach { key ->
+                lines["usesLibraryField.$key"] = manifestHashes.usesLibraryFieldValues[key].orEmpty()
+            }
             policy.expectedUsesLibraryOnlySha256?.let {
                 lines["usesLibraryOnlySha256"] = manifestHashes.usesLibraryOnlySha256.orEmpty()
             }
@@ -523,6 +609,10 @@ internal object AppIntegrity {
                 lines["usesNativeLibraryRequiredSha256"] =
                     manifestHashes.usesNativeLibraryRequiredSha256.orEmpty()
             }
+            policy.expectedUsesNativeLibraryFieldValues.keys.sorted().forEach { key ->
+                lines["usesNativeLibraryField.$key"] =
+                    manifestHashes.usesNativeLibraryFieldValues[key].orEmpty()
+            }
             policy.expectedQueriesSha256?.let {
                 lines["queriesSha256"] = manifestHashes.queriesSha256.orEmpty()
             }
@@ -532,11 +622,19 @@ internal object AppIntegrity {
             policy.expectedQueriesPackageNameSha256?.let {
                 lines["queriesPackageNameSha256"] = manifestHashes.queriesPackageNameSha256.orEmpty()
             }
+            policy.expectedQueriesPackageSemanticsSha256?.let {
+                lines["queriesPackageSemanticsSha256"] =
+                    manifestHashes.queriesPackageSemanticsSha256.orEmpty()
+            }
             policy.expectedQueriesProviderSha256?.let {
                 lines["queriesProviderSha256"] = manifestHashes.queriesProviderSha256.orEmpty()
             }
             policy.expectedQueriesProviderAuthoritySha256?.let {
                 lines["queriesProviderAuthoritySha256"] = manifestHashes.queriesProviderAuthoritySha256.orEmpty()
+            }
+            policy.expectedQueriesProviderSemanticsSha256?.let {
+                lines["queriesProviderSemanticsSha256"] =
+                    manifestHashes.queriesProviderSemanticsSha256.orEmpty()
             }
             policy.expectedQueriesIntentSha256?.let {
                 lines["queriesIntentSha256"] = manifestHashes.queriesIntentSha256.orEmpty()
@@ -562,6 +660,10 @@ internal object AppIntegrity {
             policy.expectedQueriesIntentDataMimeTypeSha256?.let {
                 lines["queriesIntentDataMimeTypeSha256"] = manifestHashes.queriesIntentDataMimeTypeSha256.orEmpty()
             }
+            policy.expectedQueriesIntentSemanticsSha256?.let {
+                lines["queriesIntentSemanticsSha256"] =
+                    manifestHashes.queriesIntentSemanticsSha256.orEmpty()
+            }
             policy.expectedApplicationSemanticsSha256?.let {
                 lines["applicationSemanticsSha256"] = manifestHashes.applicationSemanticsSha256.orEmpty()
             }
@@ -578,10 +680,27 @@ internal object AppIntegrity {
                     lines["applicationField.$key"] = manifestHashes.applicationFieldValues[key].orEmpty()
                 }
             }
+            policy.expectedManifestMetaDataEntrySha256.keys.sorted().forEach { key ->
+                lines["manifestMetaDataEntrySha256.$key"] =
+                    manifestHashes.manifestMetaDataEntryHashes[key].orEmpty()
+            }
+            policy.expectedManifestMetaDataSemanticsSha256.keys.sorted().forEach { key ->
+                lines["manifestMetaDataSemanticsSha256.$key"] =
+                    manifestHashes.manifestMetaDataSemanticsHashes[key].orEmpty()
+            }
         }
 
-        if (policy.expectedMetaData.isNotEmpty()) {
+        if (policy.expectedMetaDataType.isNotEmpty() ||
+            policy.expectedMetaDataValueSha256.isNotEmpty() ||
+            policy.expectedMetaData.isNotEmpty()
+        ) {
             val metaData = packageManager.safeMetaData(packageName)
+            policy.expectedMetaDataType.keys.sorted().forEach { key ->
+                lines["metaDataType.$key"] = metaDataType(metaData?.get(key))
+            }
+            policy.expectedMetaDataValueSha256.keys.sorted().forEach { key ->
+                lines["metaDataValueSha256.$key"] = metaDataValueSha256(metaData?.get(key)).orEmpty()
+            }
             policy.expectedMetaData.keys.sorted().forEach { key ->
                 lines["metaData.$key"] = sanitizeMetaData(metaData?.get(key))
             }
@@ -601,11 +720,23 @@ internal object AppIntegrity {
         if (policy.allowedSigningCertSha256.isNotEmpty()) {
             lines["allowedCertSha256"] = policy.allowedSigningCertSha256.sorted().joinToString(",")
         }
+        policy.expectedSigningCertificateLineageSha256?.let {
+            lines["expectedSigningCertificateLineageSha256"] = it
+        }
+        policy.expectedApkSigningBlockSha256?.let { lines["expectedApkSigningBlockSha256"] = it }
+        policy.expectedApkSigningBlockIdSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedApkSigningBlockIdSha256.${sanitize(name)}"] = digest
+        }
         policy.expectedApkSha256?.let { lines["expectedApkSha256"] = it }
         policy.expectedNativeLibSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedLibSha256.${sanitize(name)}"] = digest
         }
         policy.expectedManifestEntrySha256?.let { lines["expectedManifestEntrySha256"] = it }
+        policy.expectedResourcesArscSha256?.let { lines["expectedResourcesArscSha256"] = it }
+        policy.expectedResourceInventorySha256?.let { lines["expectedResourceInventorySha256"] = it }
+        policy.expectedResourceEntrySha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedResourceEntrySha256.${sanitize(name)}"] = digest
+        }
         policy.expectedDexSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedDexSha256.${sanitize(name)}"] = digest
         }
@@ -647,6 +778,12 @@ internal object AppIntegrity {
         }
         policy.expectedComponentSignatureSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedComponentSignatureSha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedComponentAccessSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedComponentAccessSemanticsSha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedComponentOperationalSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedComponentOperationalSemanticsSha256.${sanitize(name)}"] = digest
         }
         policy.expectedComponentFieldValues.toSortedMap().forEach { (name, value) ->
             lines["expectedComponentField.${sanitize(name)}"] = sanitize(value)
@@ -693,17 +830,29 @@ internal object AppIntegrity {
         policy.expectedIntentFilterDataMimeTypeSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedIntentFilterDataMimeTypeSha256.${sanitize(name)}"] = digest
         }
+        policy.expectedIntentFilterSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedIntentFilterSemanticsSha256.${sanitize(name)}"] = digest
+        }
         policy.expectedGrantUriPermissionSha256.toSortedMap().forEach { (name, digest) ->
             lines["expectedGrantUriPermissionSha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedGrantUriPermissionSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedGrantUriPermissionSemanticsSha256.${sanitize(name)}"] = digest
         }
         policy.expectedUsesFeatureSha256?.let { lines["expectedUsesFeatureSha256"] = it }
         policy.expectedUsesFeatureNameSha256?.let { lines["expectedUsesFeatureNameSha256"] = it }
         policy.expectedUsesFeatureRequiredSha256?.let { lines["expectedUsesFeatureRequiredSha256"] = it }
         policy.expectedUsesFeatureGlEsVersionSha256?.let { lines["expectedUsesFeatureGlEsVersionSha256"] = it }
+        policy.expectedUsesFeatureFieldValues.toSortedMap().forEach { (name, value) ->
+            lines["expectedUsesFeatureField.${sanitize(name)}"] = sanitize(value)
+        }
         policy.expectedUsesSdkSha256?.let { lines["expectedUsesSdkSha256"] = it }
         policy.expectedUsesSdkMinSha256?.let { lines["expectedUsesSdkMinSha256"] = it }
         policy.expectedUsesSdkTargetSha256?.let { lines["expectedUsesSdkTargetSha256"] = it }
         policy.expectedUsesSdkMaxSha256?.let { lines["expectedUsesSdkMaxSha256"] = it }
+        policy.expectedUsesSdkFieldValues.toSortedMap().forEach { (name, value) ->
+            lines["expectedUsesSdkField.${sanitize(name)}"] = sanitize(value)
+        }
         policy.expectedSupportsScreensSha256?.let { lines["expectedSupportsScreensSha256"] = it }
         policy.expectedSupportsScreensSmallScreensSha256?.let {
             lines["expectedSupportsScreensSmallScreensSha256"] = it
@@ -742,6 +891,9 @@ internal object AppIntegrity {
         policy.expectedUsesLibrarySha256?.let { lines["expectedUsesLibrarySha256"] = it }
         policy.expectedUsesLibraryNameSha256?.let { lines["expectedUsesLibraryNameSha256"] = it }
         policy.expectedUsesLibraryRequiredSha256?.let { lines["expectedUsesLibraryRequiredSha256"] = it }
+        policy.expectedUsesLibraryFieldValues.toSortedMap().forEach { (name, value) ->
+            lines["expectedUsesLibraryField.${sanitize(name)}"] = sanitize(value)
+        }
         policy.expectedUsesLibraryOnlySha256?.let { lines["expectedUsesLibraryOnlySha256"] = it }
         policy.expectedUsesLibraryOnlyNameSha256?.let {
             lines["expectedUsesLibraryOnlyNameSha256"] = it
@@ -756,11 +908,20 @@ internal object AppIntegrity {
         policy.expectedUsesNativeLibraryRequiredSha256?.let {
             lines["expectedUsesNativeLibraryRequiredSha256"] = it
         }
+        policy.expectedUsesNativeLibraryFieldValues.toSortedMap().forEach { (name, value) ->
+            lines["expectedUsesNativeLibraryField.${sanitize(name)}"] = sanitize(value)
+        }
         policy.expectedQueriesSha256?.let { lines["expectedQueriesSha256"] = it }
         policy.expectedQueriesPackageSha256?.let { lines["expectedQueriesPackageSha256"] = it }
         policy.expectedQueriesPackageNameSha256?.let { lines["expectedQueriesPackageNameSha256"] = it }
+        policy.expectedQueriesPackageSemanticsSha256?.let {
+            lines["expectedQueriesPackageSemanticsSha256"] = it
+        }
         policy.expectedQueriesProviderSha256?.let { lines["expectedQueriesProviderSha256"] = it }
         policy.expectedQueriesProviderAuthoritySha256?.let { lines["expectedQueriesProviderAuthoritySha256"] = it }
+        policy.expectedQueriesProviderSemanticsSha256?.let {
+            lines["expectedQueriesProviderSemanticsSha256"] = it
+        }
         policy.expectedQueriesIntentSha256?.let { lines["expectedQueriesIntentSha256"] = it }
         policy.expectedQueriesIntentActionSha256?.let { lines["expectedQueriesIntentActionSha256"] = it }
         policy.expectedQueriesIntentCategorySha256?.let { lines["expectedQueriesIntentCategorySha256"] = it }
@@ -769,6 +930,9 @@ internal object AppIntegrity {
         policy.expectedQueriesIntentDataAuthoritySha256?.let { lines["expectedQueriesIntentDataAuthoritySha256"] = it }
         policy.expectedQueriesIntentDataPathSha256?.let { lines["expectedQueriesIntentDataPathSha256"] = it }
         policy.expectedQueriesIntentDataMimeTypeSha256?.let { lines["expectedQueriesIntentDataMimeTypeSha256"] = it }
+        policy.expectedQueriesIntentSemanticsSha256?.let {
+            lines["expectedQueriesIntentSemanticsSha256"] = it
+        }
         policy.expectedApplicationSemanticsSha256?.let { lines["expectedApplicationSemanticsSha256"] = it }
         policy.expectedApplicationSecuritySemanticsSha256?.let {
             lines["expectedApplicationSecuritySemanticsSha256"] = it
@@ -778,6 +942,18 @@ internal object AppIntegrity {
         }
         policy.expectedApplicationFieldValues.toSortedMap().forEach { (name, value) ->
             lines["expectedApplicationField.${sanitize(name)}"] = sanitize(value)
+        }
+        policy.expectedMetaDataType.toSortedMap().forEach { (name, type) ->
+            lines["expectedMetaDataType.${sanitize(name)}"] = sanitize(type)
+        }
+        policy.expectedMetaDataValueSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedMetaDataValueSha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedManifestMetaDataEntrySha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedManifestMetaDataEntrySha256.${sanitize(name)}"] = digest
+        }
+        policy.expectedManifestMetaDataSemanticsSha256.toSortedMap().forEach { (name, digest) ->
+            lines["expectedManifestMetaDataSemanticsSha256.${sanitize(name)}"] = digest
         }
         policy.expectedMetaData.toSortedMap().forEach { (name, value) ->
             lines["expectedMetaData.${sanitize(name)}"] = sanitize(value)
@@ -793,6 +969,21 @@ internal object AppIntegrity {
         is Boolean, is Int, is Long, is Float, is Double -> value.toString()
         else -> sanitize(value.toString())
     }
+
+    private fun metaDataType(value: Any?): String = when (value) {
+        null -> ""
+        is Boolean -> "boolean"
+        is Int -> "int"
+        is Long -> "long"
+        is Float -> "float"
+        is Double -> "double"
+        else -> "string"
+    }
+
+    private fun metaDataValueSha256(value: Any?): String? =
+        sanitizeMetaData(value)
+            .takeIf { it.isNotBlank() }
+            ?.let { sha256Hex(it.toByteArray()) }
 
     private fun hashNativeLibraryHex(nativeLibraryDir: String?, fileName: String): String? {
         if (nativeLibraryDir.isNullOrBlank()) return null
@@ -844,6 +1035,116 @@ internal object AppIntegrity {
         }
     }
 
+    private fun hashSigningCertificateLineage(digests: List<String>): String? =
+        digests
+            .filter { it.isNotBlank() }
+            .sorted()
+            .joinToString(separator = "\n")
+            .takeIf { it.isNotBlank() }
+            ?.let { sha256Hex(it.toByteArray()) }
+
+    private fun hashResourceInventory(apkPath: String?): String? {
+        if (apkPath.isNullOrBlank()) return null
+        val file = File(apkPath)
+        if (!file.isFile) return null
+        return try {
+            ZipFile(file).use { zip ->
+                zip.entries()
+                    .asSequence()
+                    .map { it.name }
+                    .filter { it == "resources.arsc" || it.startsWith("res/") || it.startsWith("assets/") }
+                    .filter { it.isNotBlank() }
+                    .sorted()
+                    .joinToString(separator = "\n")
+                    .takeIf { it.isNotBlank() }
+                    ?.let { sha256Hex(it.toByteArray()) }
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun readApkSigningBlock(apkPath: String?): ApkSigningBlock? {
+        if (apkPath.isNullOrBlank()) return null
+        val file = File(apkPath)
+        if (!file.isFile) return null
+        return try {
+            RandomAccessFile(file, "r").use { raf ->
+                val fileSize = raf.length()
+                if (fileSize < ZIP_EOCD_MIN_SIZE + APK_SIGNING_BLOCK_FOOTER_SIZE) return null
+                val eocdOffset = findZipEocdOffset(raf, fileSize) ?: return null
+                val centralDirOffset = readUInt32Le(raf, eocdOffset + ZIP_EOCD_CENTRAL_DIR_OFFSET_FIELD)
+                if (centralDirOffset < APK_SIGNING_BLOCK_FOOTER_SIZE || centralDirOffset > fileSize) return null
+
+                val footerOffset = centralDirOffset - APK_SIGNING_BLOCK_FOOTER_SIZE
+                raf.seek(footerOffset + Long.SIZE_BYTES)
+                val magic = ByteArray(APK_SIGNING_BLOCK_MAGIC.size)
+                raf.readFully(magic)
+                if (!magic.contentEquals(APK_SIGNING_BLOCK_MAGIC)) return null
+
+                raf.seek(footerOffset)
+                val blockSizeInFooter = readLongLe(raf)
+                if (blockSizeInFooter < APK_SIGNING_BLOCK_FOOTER_SIZE || blockSizeInFooter > Int.MAX_VALUE) {
+                    return null
+                }
+                val totalSize = blockSizeInFooter + Long.SIZE_BYTES
+                val blockStart = centralDirOffset - totalSize
+                if (blockStart < 0 || totalSize > Int.MAX_VALUE) return null
+
+                raf.seek(blockStart)
+                val blockBytes = ByteArray(totalSize.toInt())
+                raf.readFully(blockBytes)
+                val blockSizeInHeader = ByteBuffer.wrap(blockBytes, 0, Long.SIZE_BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .long
+                if (blockSizeInHeader != blockSizeInFooter) return null
+                ApkSigningBlock(blockBytes)
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun findZipEocdOffset(raf: RandomAccessFile, fileSize: Long): Long? {
+        val tailSize = minOf(fileSize, ZIP_EOCD_MAX_SEARCH.toLong()).toInt()
+        val tail = ByteArray(tailSize)
+        val tailOffset = fileSize - tailSize
+        raf.seek(tailOffset)
+        raf.readFully(tail)
+        for (i in tailSize - ZIP_EOCD_MIN_SIZE downTo 0) {
+            if (tail[i] != 0x50.toByte() ||
+                tail[i + 1] != 0x4b.toByte() ||
+                tail[i + 2] != 0x05.toByte() ||
+                tail[i + 3] != 0x06.toByte()
+            ) continue
+            val commentLength = readUInt16Le(tail, i + ZIP_EOCD_COMMENT_LENGTH_FIELD)
+            if (i + ZIP_EOCD_MIN_SIZE + commentLength == tailSize) {
+                return tailOffset + i
+            }
+        }
+        return null
+    }
+
+    private fun readUInt32Le(raf: RandomAccessFile, offset: Long): Long {
+        raf.seek(offset)
+        return readIntLe(raf).toLong() and 0xffffffffL
+    }
+
+    private fun readLongLe(raf: RandomAccessFile): Long {
+        val bytes = ByteArray(Long.SIZE_BYTES)
+        raf.readFully(bytes)
+        return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).long
+    }
+
+    private fun readIntLe(raf: RandomAccessFile): Int {
+        val bytes = ByteArray(Int.SIZE_BYTES)
+        raf.readFully(bytes)
+        return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).int
+    }
+
+    private fun readUInt16Le(bytes: ByteArray, offset: Int): Int =
+        (bytes[offset].toInt() and 0xff) or ((bytes[offset + 1].toInt() and 0xff) shl 8)
+
     private fun collectManifestSubtreeFingerprints(
         apkPath: String?,
         requestedIntentFilters: Set<String>,
@@ -885,10 +1186,12 @@ internal object AppIntegrity {
         val usesFeatureNames = mutableListOf<String>()
         val usesFeatureRequired = mutableListOf<String>()
         val usesFeatureGlEsVersions = mutableListOf<String>()
+        val usesFeatureFieldValues = linkedMapOf<String, String>()
         val usesSdk = mutableListOf<String>()
         val usesSdkMin = mutableListOf<String>()
         val usesSdkTarget = mutableListOf<String>()
         val usesSdkMax = mutableListOf<String>()
+        val usesSdkFieldValues = linkedMapOf<String, String>()
         val supportsScreens = mutableListOf<String>()
         val supportsScreensSmallScreens = mutableListOf<String>()
         val supportsScreensNormalScreens = mutableListOf<String>()
@@ -905,16 +1208,20 @@ internal object AppIntegrity {
         val usesLibraries = mutableListOf<String>()
         val usesLibraryNames = mutableListOf<String>()
         val usesLibraryRequired = mutableListOf<String>()
+        val usesLibraryFieldValues = linkedMapOf<String, String>()
         val usesLibraryOnly = mutableListOf<String>()
         val usesLibraryOnlyNames = mutableListOf<String>()
         val usesLibraryOnlyRequired = mutableListOf<String>()
         val usesNativeLibraries = mutableListOf<String>()
         val usesNativeLibraryNames = mutableListOf<String>()
         val usesNativeLibraryRequired = mutableListOf<String>()
+        val usesNativeLibraryFieldValues = linkedMapOf<String, String>()
         val queryPackages = mutableListOf<String>()
         val queryPackageNames = mutableListOf<String>()
+        val queryPackageSemantics = mutableListOf<String>()
         val queryProviders = mutableListOf<String>()
         val queryProviderAuthorities = mutableListOf<String>()
+        val queryProviderSemantics = mutableListOf<String>()
         val queryIntents = mutableListOf<String>()
         val queryIntentActions = mutableListOf<String>()
         val queryIntentCategories = mutableListOf<String>()
@@ -923,13 +1230,29 @@ internal object AppIntegrity {
         val queryIntentDataAuthorities = mutableListOf<String>()
         val queryIntentDataPaths = mutableListOf<String>()
         val queryIntentDataMimeTypes = mutableListOf<String>()
+        val queryIntentSemantics = mutableListOf<String>()
         val applicationFieldValues = linkedMapOf<String, String>()
         val applicationSemanticsFieldValues = linkedMapOf<String, String>()
         val applicationSecuritySemanticsFieldValues = linkedMapOf<String, String>()
         val applicationRuntimeSemanticsFieldValues = linkedMapOf<String, String>()
+        val manifestMetaDataEntryHashes = linkedMapOf<String, String>()
+        val manifestMetaDataSemanticsHashes = linkedMapOf<String, String>()
         var inQueries = false
         var inCompatibleScreens = false
+        var inApplication = false
         var currentQueryIntent: MutableList<String>? = null
+
+        fun collectManifestFieldValues(
+            identifier: String,
+            attrs: Map<String, String>,
+            target: MutableMap<String, String>,
+        ) {
+            attrs.forEach { (field, value) ->
+                if (value.isNotBlank()) {
+                    target["$identifier#$field"] = value
+                }
+            }
+        }
 
         val parsed = walkBinaryXml(
             xmlBytes = manifestBytes,
@@ -938,6 +1261,7 @@ internal object AppIntegrity {
                     "queries" -> inQueries = true
                     "compatible-screens" -> inCompatibleScreens = true
                     "application" -> {
+                        inApplication = true
                         applicationDriftManifestFields.forEach { field ->
                             attrs[field]?.takeIf { it.isNotBlank() }?.let {
                                 applicationFieldValues["application#$field"] = it
@@ -953,17 +1277,36 @@ internal object AppIntegrity {
                             }
                         }
                     }
+                    "meta-data" -> if (inApplication) {
+                        val metaName = attrs["name"]?.takeIf { it.isNotBlank() } ?: return@walkBinaryXml
+                        manifestMetaDataEntryHashes[metaName] =
+                            sha256Hex(canonicalizeManifestNode(name, attrs).toByteArray())
+                        manifestMetaDataSemanticsHashes[metaName] =
+                            sha256Hex(
+                                attrs.toSortedMap()
+                                    .filterKeys { it != "name" }
+                                    .entries
+                                    .joinToString(separator = "\n") { (key, value) -> "$key=$value" }
+                                    .toByteArray(),
+                            )
+                    }
                     "uses-feature" -> {
                         usesFeatures += canonicalizeManifestNode(name, attrs)
                         attrs["name"]?.takeIf { it.isNotBlank() }?.let(usesFeatureNames::add)
                         attrs["required"]?.takeIf { it.isNotBlank() }?.let(usesFeatureRequired::add)
                         attrs["glEsVersion"]?.takeIf { it.isNotBlank() }?.let(usesFeatureGlEsVersions::add)
+                        val featureIdentity = attrs["name"]?.takeIf { it.isNotBlank() }
+                            ?: attrs["glEsVersion"]?.takeIf { it.isNotBlank() }
+                        featureIdentity?.let {
+                            collectManifestFieldValues("uses-feature:$it", attrs, usesFeatureFieldValues)
+                        }
                     }
                     "uses-sdk" -> {
                         usesSdk += canonicalizeManifestNode(name, attrs)
                         attrs["minSdkVersion"]?.takeIf { it.isNotBlank() }?.let(usesSdkMin::add)
                         attrs["targetSdkVersion"]?.takeIf { it.isNotBlank() }?.let(usesSdkTarget::add)
                         attrs["maxSdkVersion"]?.takeIf { it.isNotBlank() }?.let(usesSdkMax::add)
+                        collectManifestFieldValues("uses-sdk", attrs, usesSdkFieldValues)
                     }
                     "supports-screens" -> {
                         supportsScreens += canonicalizeManifestNode(name, attrs)
@@ -992,6 +1335,7 @@ internal object AppIntegrity {
                         attrs["name"]?.takeIf { it.isNotBlank() }?.let {
                             usesLibraryNames += it
                             usesLibraryOnlyNames += it
+                            collectManifestFieldValues("uses-library:$it", attrs, usesLibraryFieldValues)
                         }
                         attrs["required"]?.takeIf { it.isNotBlank() }?.let {
                             usesLibraryRequired += it
@@ -1005,6 +1349,11 @@ internal object AppIntegrity {
                         attrs["name"]?.takeIf { it.isNotBlank() }?.let {
                             usesLibraryNames += it
                             usesNativeLibraryNames += it
+                            collectManifestFieldValues(
+                                "uses-native-library:$it",
+                                attrs,
+                                usesNativeLibraryFieldValues,
+                            )
                         }
                         attrs["required"]?.takeIf { it.isNotBlank() }?.let {
                             usesLibraryRequired += it
@@ -1013,16 +1362,23 @@ internal object AppIntegrity {
                     }
                     "package" -> if (inQueries) {
                         queryPackages += canonicalizeManifestNode(name, attrs)
-                        attrs["name"]?.takeIf { it.isNotBlank() }?.let(queryPackageNames::add)
+                        attrs["name"]?.takeIf { it.isNotBlank() }?.let {
+                            queryPackageNames += it
+                            queryPackageSemantics += "package#name=$it"
+                        }
                     }
                     "provider" -> if (inQueries) {
                         queryProviders += canonicalizeManifestNode(name, attrs)
                         attrs["authorities"]?.takeIf { it.isNotBlank() }?.let { authorities ->
-                            authorities.split(';')
+                            val normalizedAuthorities = authorities.split(';')
                                 .map { value -> value.trim() }
                                 .filter { value -> value.isNotBlank() }
                                 .sorted()
-                                .forEach(queryProviderAuthorities::add)
+                            queryProviderAuthorities += normalizedAuthorities
+                            normalizedAuthorities
+                                .joinToString(separator = ";")
+                                .takeIf { it.isNotBlank() }
+                                ?.let { queryProviderSemantics += "provider#authorities=$it" }
                         }
                     }
                     "intent" -> if (inQueries) currentQueryIntent = mutableListOf(canonicalizeManifestNode(name, attrs))
@@ -1063,9 +1419,11 @@ internal object AppIntegrity {
                 when (name) {
                     "queries" -> inQueries = false
                     "compatible-screens" -> inCompatibleScreens = false
+                    "application" -> inApplication = false
                     "intent" -> {
                         currentQueryIntent?.let { lines ->
                             queryIntents += lines.joinToString(separator = "\n")
+                            queryIntentSemantics += buildQueryIntentSemantics(lines)
                         }
                         currentQueryIntent = null
                     }
@@ -1088,10 +1446,12 @@ internal object AppIntegrity {
             usesFeatureNameSha256 = hashLines(usesFeatureNames),
             usesFeatureRequiredSha256 = hashLines(usesFeatureRequired),
             usesFeatureGlEsVersionSha256 = hashLines(usesFeatureGlEsVersions),
+            usesFeatureFieldValues = usesFeatureFieldValues,
             usesSdkSha256 = hashLines(usesSdk),
             usesSdkMinVersionSha256 = hashLines(usesSdkMin),
             usesSdkTargetVersionSha256 = hashLines(usesSdkTarget),
             usesSdkMaxVersionSha256 = hashLines(usesSdkMax),
+            usesSdkFieldValues = usesSdkFieldValues,
             supportsScreensSha256 = hashLines(supportsScreens),
             supportsScreensSmallScreensSha256 = hashLines(supportsScreensSmallScreens),
             supportsScreensNormalScreensSha256 = hashLines(supportsScreensNormalScreens),
@@ -1111,16 +1471,20 @@ internal object AppIntegrity {
             usesLibrarySha256 = hashLines(usesLibraries),
             usesLibraryNameSha256 = hashLines(usesLibraryNames),
             usesLibraryRequiredSha256 = hashLines(usesLibraryRequired),
+            usesLibraryFieldValues = usesLibraryFieldValues,
             usesLibraryOnlySha256 = hashLines(usesLibraryOnly),
             usesLibraryOnlyNameSha256 = hashLines(usesLibraryOnlyNames),
             usesLibraryOnlyRequiredSha256 = hashLines(usesLibraryOnlyRequired),
             usesNativeLibrarySha256 = hashLines(usesNativeLibraries),
             usesNativeLibraryNameSha256 = hashLines(usesNativeLibraryNames),
             usesNativeLibraryRequiredSha256 = hashLines(usesNativeLibraryRequired),
+            usesNativeLibraryFieldValues = usesNativeLibraryFieldValues,
             queriesPackageSha256 = hashLines(queryPackages),
             queriesPackageNameSha256 = hashLines(queryPackageNames),
+            queriesPackageSemanticsSha256 = hashLines(queryPackageSemantics),
             queriesProviderSha256 = hashLines(queryProviders),
             queriesProviderAuthoritySha256 = hashLines(queryProviderAuthorities),
+            queriesProviderSemanticsSha256 = hashLines(queryProviderSemantics),
             queriesIntentSha256 = hashLines(queryIntents),
             queriesIntentActionSha256 = hashLines(queryIntentActions),
             queriesIntentCategorySha256 = hashLines(queryIntentCategories),
@@ -1129,6 +1493,7 @@ internal object AppIntegrity {
             queriesIntentDataAuthoritySha256 = hashLines(queryIntentDataAuthorities),
             queriesIntentDataPathSha256 = hashLines(queryIntentDataPaths),
             queriesIntentDataMimeTypeSha256 = hashLines(queryIntentDataMimeTypes),
+            queriesIntentSemanticsSha256 = hashLines(queryIntentSemantics),
             queriesSha256 = hashLines(queriesLines),
             applicationSemanticsSha256 = applicationSemanticsFieldValues.entries
                 .sortedBy { it.key }
@@ -1146,6 +1511,8 @@ internal object AppIntegrity {
                 .takeIf { it.isNotBlank() }
                 ?.let { sha256Hex(it.toByteArray()) },
             applicationFieldValues = applicationFieldValues,
+            manifestMetaDataEntryHashes = manifestMetaDataEntryHashes,
+            manifestMetaDataSemanticsHashes = manifestMetaDataSemanticsHashes,
         )
     }
 
@@ -1162,7 +1529,9 @@ internal object AppIntegrity {
         val intentFilterDataAuthorities = linkedMapOf<String, MutableList<String>>()
         val intentFilterDataPaths = linkedMapOf<String, MutableList<String>>()
         val intentFilterDataMimeTypes = linkedMapOf<String, MutableList<String>>()
+        val intentFilterSemantics = linkedMapOf<String, MutableList<String>>()
         val grantUriPermissions = linkedMapOf<String, MutableList<String>>()
+        val grantUriPermissionSemantics = linkedMapOf<String, MutableList<String>>()
         var manifestPackage = ""
         var currentComponent: ManifestComponent? = null
         var currentIntentFilterLines: MutableList<String>? = null
@@ -1239,6 +1608,8 @@ internal object AppIntegrity {
                         if (providerKey !in requestedGrantUriPermissions) return@walkBinaryXml
                         grantUriPermissions.getOrPut(providerKey) { mutableListOf() }
                             .add(canonicalizeManifestNode(name, attrs))
+                        grantUriPermissionSemantics.getOrPut(providerKey) { mutableListOf() }
+                            .add(buildGrantUriPermissionSemantics(attrs))
                     }
                 }
             },
@@ -1270,6 +1641,8 @@ internal object AppIntegrity {
                                         intentFilterData.getOrPut(componentKey) { mutableListOf() }
                                             .addAll(values)
                                     }
+                                intentFilterSemantics.getOrPut(componentKey) { mutableListOf() }
+                                    .add(buildIntentFilterSemantics(lines))
                             }
                         }
                         currentIntentFilterLines = null
@@ -1352,8 +1725,24 @@ internal object AppIntegrity {
                     ?.let { sha256Hex(it.toByteArray()) }
                     .orEmpty()
             },
+            intentFilterSemanticsHashes = requestedIntentFilters.associateWith { key ->
+                intentFilterSemantics[key]
+                    ?.sorted()
+                    ?.joinToString(separator = "\n---\n")
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { sha256Hex(it.toByteArray()) }
+                    .orEmpty()
+            },
             grantUriPermissionHashes = requestedGrantUriPermissions.associateWith { key ->
                 grantUriPermissions[key]
+                    ?.sorted()
+                    ?.joinToString(separator = "\n")
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { sha256Hex(it.toByteArray()) }
+                    .orEmpty()
+            },
+            grantUriPermissionSemanticsHashes = requestedGrantUriPermissions.associateWith { key ->
+                grantUriPermissionSemantics[key]
                     ?.sorted()
                     ?.joinToString(separator = "\n")
                     ?.takeIf { it.isNotBlank() }
@@ -2134,6 +2523,24 @@ internal object AppIntegrity {
         }
     }
 
+    private fun collectComponentAccessSemantics(info: PackageInfo?): Map<String, String> {
+        if (info == null) return emptyMap()
+        return buildMap {
+            putAll(componentAccessHashes("activity", info.activities))
+            putAll(componentAccessHashes("service", info.services))
+            putAll(componentAccessHashes("receiver", info.receivers))
+        }
+    }
+
+    private fun collectComponentOperationalSemantics(info: PackageInfo?): Map<String, String> {
+        if (info == null) return emptyMap()
+        return buildMap {
+            putAll(componentOperationalHashes("activity", info.activities))
+            putAll(componentOperationalHashes("service", info.services))
+            putAll(componentOperationalHashes("receiver", info.receivers))
+        }
+    }
+
     private fun collectComponentFieldValues(info: PackageInfo?): Map<String, String> {
         if (info == null) return emptyMap()
         return buildMap {
@@ -2160,6 +2567,42 @@ internal object AppIntegrity {
                 component.enabled.toString(),
                 component.exported.toString(),
                 permission,
+                component.processName.orEmpty(),
+                component.directBootAware.toString(),
+            ).joinToString("|")
+            "$type:${component.name}" to sha256Hex(signature.toByteArray())
+        }
+        .orEmpty()
+
+    private fun componentAccessHashes(
+        type: String,
+        components: Array<out ComponentInfo>?,
+    ): Map<String, String> = components
+        ?.filterNotNull()
+        ?.associate { component ->
+            val permission = when (component) {
+                is android.content.pm.ActivityInfo -> component.permission.orEmpty()
+                is android.content.pm.ServiceInfo -> component.permission.orEmpty()
+                else -> ""
+            }
+            val signature = listOf(
+                component.name.orEmpty(),
+                component.exported.toString(),
+                permission,
+            ).joinToString("|")
+            "$type:${component.name}" to sha256Hex(signature.toByteArray())
+        }
+        .orEmpty()
+
+    private fun componentOperationalHashes(
+        type: String,
+        components: Array<out ComponentInfo>?,
+    ): Map<String, String> = components
+        ?.filterNotNull()
+        ?.associate { component ->
+            val signature = listOf(
+                component.name.orEmpty(),
+                component.enabled.toString(),
                 component.processName.orEmpty(),
                 component.directBootAware.toString(),
             ).joinToString("|")
@@ -2586,10 +3029,14 @@ internal object AppIntegrity {
         val intentFilterDataAuthorityHashes: Map<String, String>,
         val intentFilterDataPathHashes: Map<String, String>,
         val intentFilterDataMimeTypeHashes: Map<String, String>,
+        val intentFilterSemanticsHashes: Map<String, String>,
         val grantUriPermissionHashes: Map<String, String>,
+        val grantUriPermissionSemanticsHashes: Map<String, String>,
     ) {
         companion object {
             val EMPTY = ManifestSubtreeFingerprints(
+                emptyMap(),
+                emptyMap(),
                 emptyMap(),
                 emptyMap(),
                 emptyMap(),
@@ -2608,10 +3055,12 @@ internal object AppIntegrity {
         val usesFeatureNameSha256: String? = null,
         val usesFeatureRequiredSha256: String? = null,
         val usesFeatureGlEsVersionSha256: String? = null,
+        val usesFeatureFieldValues: Map<String, String> = emptyMap(),
         val usesSdkSha256: String? = null,
         val usesSdkMinVersionSha256: String? = null,
         val usesSdkTargetVersionSha256: String? = null,
         val usesSdkMaxVersionSha256: String? = null,
+        val usesSdkFieldValues: Map<String, String> = emptyMap(),
         val supportsScreensSha256: String? = null,
         val supportsScreensSmallScreensSha256: String? = null,
         val supportsScreensNormalScreensSha256: String? = null,
@@ -2628,16 +3077,20 @@ internal object AppIntegrity {
         val usesLibrarySha256: String? = null,
         val usesLibraryNameSha256: String? = null,
         val usesLibraryRequiredSha256: String? = null,
+        val usesLibraryFieldValues: Map<String, String> = emptyMap(),
         val usesLibraryOnlySha256: String? = null,
         val usesLibraryOnlyNameSha256: String? = null,
         val usesLibraryOnlyRequiredSha256: String? = null,
         val usesNativeLibrarySha256: String? = null,
         val usesNativeLibraryNameSha256: String? = null,
         val usesNativeLibraryRequiredSha256: String? = null,
+        val usesNativeLibraryFieldValues: Map<String, String> = emptyMap(),
         val queriesPackageSha256: String? = null,
         val queriesPackageNameSha256: String? = null,
+        val queriesPackageSemanticsSha256: String? = null,
         val queriesProviderSha256: String? = null,
         val queriesProviderAuthoritySha256: String? = null,
+        val queriesProviderSemanticsSha256: String? = null,
         val queriesIntentSha256: String? = null,
         val queriesIntentActionSha256: String? = null,
         val queriesIntentCategorySha256: String? = null,
@@ -2646,11 +3099,14 @@ internal object AppIntegrity {
         val queriesIntentDataAuthoritySha256: String? = null,
         val queriesIntentDataPathSha256: String? = null,
         val queriesIntentDataMimeTypeSha256: String? = null,
+        val queriesIntentSemanticsSha256: String? = null,
         val queriesSha256: String? = null,
         val applicationSemanticsSha256: String? = null,
         val applicationSecuritySemanticsSha256: String? = null,
         val applicationRuntimeSemanticsSha256: String? = null,
         val applicationFieldValues: Map<String, String> = emptyMap(),
+        val manifestMetaDataEntryHashes: Map<String, String> = emptyMap(),
+        val manifestMetaDataSemanticsHashes: Map<String, String> = emptyMap(),
     ) {
         companion object {
             val EMPTY = ManifestGlobalFingerprints()
@@ -2661,6 +3117,183 @@ internal object AppIntegrity {
         val type: String,
         val name: String,
     )
+
+    private data class ApkSigningBlock(
+        val blockBytes: ByteArray,
+    ) {
+        fun hashIds(requestedIds: Set<String>): Map<String, String> {
+            val requested = requestedIds.mapNotNull { key ->
+                parseSigningBlockId(key)?.let { id -> key to id }
+            }
+            if (requested.isEmpty() || blockBytes.size < APK_SIGNING_BLOCK_FOOTER_SIZE + Long.SIZE_BYTES) {
+                return emptyMap()
+            }
+            val result = linkedMapOf<String, String>()
+            val payloadEnd = blockBytes.size - APK_SIGNING_BLOCK_FOOTER_SIZE
+            var cursor = Long.SIZE_BYTES
+            while (cursor + Long.SIZE_BYTES <= payloadEnd) {
+                val pairSize = ByteBuffer.wrap(blockBytes, cursor, Long.SIZE_BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .long
+                cursor += Long.SIZE_BYTES
+                if (pairSize < Int.SIZE_BYTES || pairSize > payloadEnd - cursor) break
+
+                val id = ByteBuffer.wrap(blockBytes, cursor, Int.SIZE_BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .int
+                    .toLong() and 0xffffffffL
+                val valueStart = cursor + Int.SIZE_BYTES
+                val valueEnd = cursor + pairSize.toInt()
+                requested
+                    .filter { (_, requestedId) -> requestedId == id }
+                    .forEach { (key, _) ->
+                        if (key !in result) {
+                            result[key] = sha256Hex(blockBytes.copyOfRange(valueStart, valueEnd))
+                        }
+                    }
+                cursor = valueEnd
+            }
+            return result
+        }
+
+        private fun parseSigningBlockId(value: String): Long? {
+            val trimmed = value.trim()
+            if (trimmed.isEmpty()) return null
+            val parsed = runCatching {
+                when {
+                    trimmed.startsWith("0x", ignoreCase = true) ->
+                        trimmed.drop(2).toLong(16)
+                    trimmed.any { it.lowercaseChar() in 'a'..'f' } ->
+                        trimmed.toLong(16)
+                    else -> trimmed.toLong(10)
+                }
+            }.getOrNull() ?: return null
+            return parsed.takeIf { it in 0..0xffffffffL }
+        }
+    }
+
+    private fun buildIntentFilterSemantics(lines: List<String>): String {
+        val filterAttributes = mutableListOf<String>()
+        val actions = mutableListOf<String>()
+        val categories = mutableListOf<String>()
+        val data = mutableListOf<String>()
+        val schemes = mutableListOf<String>()
+        val authorities = mutableListOf<String>()
+        val paths = mutableListOf<String>()
+        val mimeTypes = mutableListOf<String>()
+
+        lines.forEachIndexed { index, line ->
+            when {
+                index == 0 && line.startsWith("intent-filter|") -> {
+                    line.substringAfter("intent-filter|")
+                        .split('|')
+                        .mapNotNull { part ->
+                            val key = part.substringBefore('=', missingDelimiterValue = "").trim()
+                            val value = part.substringAfter('=', missingDelimiterValue = "").trim()
+                            if (key.isBlank() || value.isBlank()) null else "$key=$value"
+                        }
+                        .sorted()
+                        .forEach(filterAttributes::add)
+                }
+                line.startsWith("action|") -> actions += line
+                line.startsWith("category|") -> categories += line
+                line.startsWith("data|") -> {
+                    data += line
+                    val attributes = line.substringAfter("data|")
+                        .split('|')
+                        .mapNotNull { part ->
+                            val key = part.substringBefore('=', missingDelimiterValue = "").trim()
+                            val value = part.substringAfter('=', missingDelimiterValue = "").trim()
+                            if (key.isBlank() || value.isBlank()) null else key to value
+                        }
+                        .groupBy({ it.first }, { it.second })
+                    attributes["scheme"].orEmpty().forEach(schemes::add)
+                    val hosts = attributes["host"].orEmpty()
+                    val ports = attributes["port"].orEmpty()
+                    hosts.forEachIndexed { hostIndex, host ->
+                        val port = ports.getOrNull(hostIndex).orEmpty()
+                        authorities += if (port.isBlank()) host else "$host:$port"
+                    }
+                    listOf("path", "pathPrefix", "pathPattern", "pathAdvancedPattern", "pathSuffix").forEach { key ->
+                        attributes[key].orEmpty().forEach { value -> paths += "$key=$value" }
+                    }
+                    attributes["mimeType"].orEmpty().forEach(mimeTypes::add)
+                }
+            }
+        }
+
+        return buildList {
+            filterAttributes.sorted().takeIf { it.isNotEmpty() }?.let { add("intent-filter=${it.joinToString(",")}") }
+            actions.sorted().takeIf { it.isNotEmpty() }?.let { add("actions=${it.joinToString(",")}") }
+            categories.sorted().takeIf { it.isNotEmpty() }?.let { add("categories=${it.joinToString(",")}") }
+            data.sorted().takeIf { it.isNotEmpty() }?.let { add("data=${it.joinToString(",")}") }
+            schemes.sorted().takeIf { it.isNotEmpty() }?.let { add("schemes=${it.joinToString(",")}") }
+            authorities.sorted().takeIf { it.isNotEmpty() }?.let { add("authorities=${it.joinToString(",")}") }
+            paths.sorted().takeIf { it.isNotEmpty() }?.let { add("paths=${it.joinToString(",")}") }
+            mimeTypes.sorted().takeIf { it.isNotEmpty() }?.let { add("mimeTypes=${it.joinToString(",")}") }
+        }.joinToString(separator = "\n")
+    }
+
+    private fun buildGrantUriPermissionSemantics(attrs: Map<String, String>): String =
+        buildList {
+            listOf("path", "pathPrefix", "pathPattern", "pathAdvancedPattern", "pathSuffix")
+                .forEach { key ->
+                    attrs[key]?.takeIf { it.isNotBlank() }?.let { value ->
+                        add("$key=$value")
+                    }
+                }
+        }.sorted().joinToString(separator = "\n")
+
+    private fun buildQueryIntentSemantics(lines: List<String>): String {
+        val actions = mutableListOf<String>()
+        val categories = mutableListOf<String>()
+        val data = mutableListOf<String>()
+        val schemes = mutableListOf<String>()
+        val authorities = mutableListOf<String>()
+        val paths = mutableListOf<String>()
+        val mimeTypes = mutableListOf<String>()
+
+        lines.forEach { line ->
+            when {
+                line.startsWith("action|") -> actions += line
+                line.startsWith("category|") -> categories += line
+                line.startsWith("data|") -> {
+                    data += line
+                    line.substringAfter("data|")
+                        .split('|')
+                        .mapNotNull { part ->
+                            val key = part.substringBefore('=', missingDelimiterValue = "").trim()
+                            val value = part.substringAfter('=', missingDelimiterValue = "").trim()
+                            if (key.isBlank() || value.isBlank()) null else key to value
+                        }
+                        .forEach { (key, value) ->
+                            when (key) {
+                                "scheme" -> schemes += value
+                                "host" -> {
+                                    val port = line.substringAfter("|port=", missingDelimiterValue = "")
+                                        .substringBefore('|')
+                                        .trim()
+                                    authorities += if (port.isBlank()) value else "$value:$port"
+                                }
+                                "path", "pathPrefix", "pathPattern", "pathAdvancedPattern", "pathSuffix" ->
+                                    paths += "$key=$value"
+                                "mimeType" -> mimeTypes += value
+                            }
+                        }
+                }
+            }
+        }
+
+        return buildList {
+            actions.sorted().takeIf { it.isNotEmpty() }?.let { add("actions=${it.joinToString(",")}") }
+            categories.sorted().takeIf { it.isNotEmpty() }?.let { add("categories=${it.joinToString(",")}") }
+            data.sorted().takeIf { it.isNotEmpty() }?.let { add("data=${it.joinToString(",")}") }
+            schemes.sorted().takeIf { it.isNotEmpty() }?.let { add("schemes=${it.joinToString(",")}") }
+            authorities.sorted().takeIf { it.isNotEmpty() }?.let { add("authorities=${it.joinToString(",")}") }
+            paths.sorted().takeIf { it.isNotEmpty() }?.let { add("paths=${it.joinToString(",")}") }
+            mimeTypes.sorted().takeIf { it.isNotEmpty() }?.let { add("mimeTypes=${it.joinToString(",")}") }
+        }.joinToString(separator = "\n")
+    }
 
     private data class XmlStartElement(
         val name: String,

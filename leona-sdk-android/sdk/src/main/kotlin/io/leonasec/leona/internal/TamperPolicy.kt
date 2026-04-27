@@ -10,9 +10,15 @@ internal data class TamperPolicy(
     val expectedPackageName: String? = null,
     val allowedInstallerPackages: Set<String> = emptySet(),
     val allowedSigningCertSha256: Set<String> = emptySet(),
+    val expectedSigningCertificateLineageSha256: String? = null,
+    val expectedApkSigningBlockSha256: String? = null,
+    val expectedApkSigningBlockIdSha256: Map<String, String> = emptyMap(),
     val expectedApkSha256: String? = null,
     val expectedNativeLibSha256: Map<String, String> = emptyMap(),
     val expectedManifestEntrySha256: String? = null,
+    val expectedResourcesArscSha256: String? = null,
+    val expectedResourceInventorySha256: String? = null,
+    val expectedResourceEntrySha256: Map<String, String> = emptyMap(),
     val expectedDexSha256: Map<String, String> = emptyMap(),
     val expectedDexSectionSha256: Map<String, String> = emptyMap(),
     val expectedDexMethodSha256: Map<String, String> = emptyMap(),
@@ -33,6 +39,8 @@ internal data class TamperPolicy(
     val expectedDeclaredPermissionSemanticsSha256: String? = null,
     val expectedDeclaredPermissionFieldValues: Map<String, String> = emptyMap(),
     val expectedComponentSignatureSha256: Map<String, String> = emptyMap(),
+    val expectedComponentAccessSemanticsSha256: Map<String, String> = emptyMap(),
+    val expectedComponentOperationalSemanticsSha256: Map<String, String> = emptyMap(),
     val expectedComponentFieldValues: Map<String, String> = emptyMap(),
     val expectedProviderUriPermissionPatternsSha256: Map<String, String> = emptyMap(),
     val expectedProviderPathPermissionsSha256: Map<String, String> = emptyMap(),
@@ -48,15 +56,19 @@ internal data class TamperPolicy(
     val expectedIntentFilterDataAuthoritySha256: Map<String, String> = emptyMap(),
     val expectedIntentFilterDataPathSha256: Map<String, String> = emptyMap(),
     val expectedIntentFilterDataMimeTypeSha256: Map<String, String> = emptyMap(),
+    val expectedIntentFilterSemanticsSha256: Map<String, String> = emptyMap(),
     val expectedGrantUriPermissionSha256: Map<String, String> = emptyMap(),
+    val expectedGrantUriPermissionSemanticsSha256: Map<String, String> = emptyMap(),
     val expectedUsesFeatureSha256: String? = null,
     val expectedUsesFeatureNameSha256: String? = null,
     val expectedUsesFeatureRequiredSha256: String? = null,
     val expectedUsesFeatureGlEsVersionSha256: String? = null,
+    val expectedUsesFeatureFieldValues: Map<String, String> = emptyMap(),
     val expectedUsesSdkSha256: String? = null,
     val expectedUsesSdkMinSha256: String? = null,
     val expectedUsesSdkTargetSha256: String? = null,
     val expectedUsesSdkMaxSha256: String? = null,
+    val expectedUsesSdkFieldValues: Map<String, String> = emptyMap(),
     val expectedSupportsScreensSha256: String? = null,
     val expectedSupportsScreensSmallScreensSha256: String? = null,
     val expectedSupportsScreensNormalScreensSha256: String? = null,
@@ -73,17 +85,21 @@ internal data class TamperPolicy(
     val expectedUsesLibrarySha256: String? = null,
     val expectedUsesLibraryNameSha256: String? = null,
     val expectedUsesLibraryRequiredSha256: String? = null,
+    val expectedUsesLibraryFieldValues: Map<String, String> = emptyMap(),
     val expectedUsesLibraryOnlySha256: String? = null,
     val expectedUsesLibraryOnlyNameSha256: String? = null,
     val expectedUsesLibraryOnlyRequiredSha256: String? = null,
     val expectedUsesNativeLibrarySha256: String? = null,
     val expectedUsesNativeLibraryNameSha256: String? = null,
     val expectedUsesNativeLibraryRequiredSha256: String? = null,
+    val expectedUsesNativeLibraryFieldValues: Map<String, String> = emptyMap(),
     val expectedQueriesSha256: String? = null,
     val expectedQueriesPackageSha256: String? = null,
     val expectedQueriesPackageNameSha256: String? = null,
+    val expectedQueriesPackageSemanticsSha256: String? = null,
     val expectedQueriesProviderSha256: String? = null,
     val expectedQueriesProviderAuthoritySha256: String? = null,
+    val expectedQueriesProviderSemanticsSha256: String? = null,
     val expectedQueriesIntentSha256: String? = null,
     val expectedQueriesIntentActionSha256: String? = null,
     val expectedQueriesIntentCategorySha256: String? = null,
@@ -92,10 +108,15 @@ internal data class TamperPolicy(
     val expectedQueriesIntentDataAuthoritySha256: String? = null,
     val expectedQueriesIntentDataPathSha256: String? = null,
     val expectedQueriesIntentDataMimeTypeSha256: String? = null,
+    val expectedQueriesIntentSemanticsSha256: String? = null,
     val expectedApplicationSemanticsSha256: String? = null,
     val expectedApplicationSecuritySemanticsSha256: String? = null,
     val expectedApplicationRuntimeSemanticsSha256: String? = null,
     val expectedApplicationFieldValues: Map<String, String> = emptyMap(),
+    val expectedMetaDataType: Map<String, String> = emptyMap(),
+    val expectedMetaDataValueSha256: Map<String, String> = emptyMap(),
+    val expectedManifestMetaDataEntrySha256: Map<String, String> = emptyMap(),
+    val expectedManifestMetaDataSemanticsSha256: Map<String, String> = emptyMap(),
     val expectedMetaData: Map<String, String> = emptyMap(),
 ) {
     fun merge(server: TamperPolicy?): TamperPolicy {
@@ -112,9 +133,20 @@ internal data class TamperPolicy(
             } else {
                 allowedSigningCertSha256
             },
+            expectedSigningCertificateLineageSha256 =
+                server.expectedSigningCertificateLineageSha256 ?: expectedSigningCertificateLineageSha256,
+            expectedApkSigningBlockSha256 =
+                server.expectedApkSigningBlockSha256 ?: expectedApkSigningBlockSha256,
+            expectedApkSigningBlockIdSha256 =
+                expectedApkSigningBlockIdSha256 + server.expectedApkSigningBlockIdSha256,
             expectedApkSha256 = server.expectedApkSha256 ?: expectedApkSha256,
             expectedNativeLibSha256 = expectedNativeLibSha256 + server.expectedNativeLibSha256,
             expectedManifestEntrySha256 = server.expectedManifestEntrySha256 ?: expectedManifestEntrySha256,
+            expectedResourcesArscSha256 =
+                server.expectedResourcesArscSha256 ?: expectedResourcesArscSha256,
+            expectedResourceInventorySha256 =
+                server.expectedResourceInventorySha256 ?: expectedResourceInventorySha256,
+            expectedResourceEntrySha256 = expectedResourceEntrySha256 + server.expectedResourceEntrySha256,
             expectedDexSha256 = expectedDexSha256 + server.expectedDexSha256,
             expectedDexSectionSha256 = expectedDexSectionSha256 + server.expectedDexSectionSha256,
             expectedDexMethodSha256 = expectedDexMethodSha256 + server.expectedDexMethodSha256,
@@ -147,6 +179,10 @@ internal data class TamperPolicy(
                 + server.expectedDeclaredPermissionFieldValues,
             expectedComponentSignatureSha256 = expectedComponentSignatureSha256
                 + server.expectedComponentSignatureSha256,
+            expectedComponentAccessSemanticsSha256 = expectedComponentAccessSemanticsSha256
+                + server.expectedComponentAccessSemanticsSha256,
+            expectedComponentOperationalSemanticsSha256 = expectedComponentOperationalSemanticsSha256
+                + server.expectedComponentOperationalSemanticsSha256,
             expectedComponentFieldValues = expectedComponentFieldValues
                 + server.expectedComponentFieldValues,
             expectedProviderUriPermissionPatternsSha256 = expectedProviderUriPermissionPatternsSha256
@@ -176,8 +212,12 @@ internal data class TamperPolicy(
                 expectedIntentFilterDataPathSha256 + server.expectedIntentFilterDataPathSha256,
             expectedIntentFilterDataMimeTypeSha256 =
                 expectedIntentFilterDataMimeTypeSha256 + server.expectedIntentFilterDataMimeTypeSha256,
+            expectedIntentFilterSemanticsSha256 =
+                expectedIntentFilterSemanticsSha256 + server.expectedIntentFilterSemanticsSha256,
             expectedGrantUriPermissionSha256 =
                 expectedGrantUriPermissionSha256 + server.expectedGrantUriPermissionSha256,
+            expectedGrantUriPermissionSemanticsSha256 =
+                expectedGrantUriPermissionSemanticsSha256 + server.expectedGrantUriPermissionSemanticsSha256,
             expectedUsesFeatureSha256 = server.expectedUsesFeatureSha256 ?: expectedUsesFeatureSha256,
             expectedUsesFeatureNameSha256 =
                 server.expectedUsesFeatureNameSha256 ?: expectedUsesFeatureNameSha256,
@@ -185,11 +225,14 @@ internal data class TamperPolicy(
                 server.expectedUsesFeatureRequiredSha256 ?: expectedUsesFeatureRequiredSha256,
             expectedUsesFeatureGlEsVersionSha256 =
                 server.expectedUsesFeatureGlEsVersionSha256 ?: expectedUsesFeatureGlEsVersionSha256,
+            expectedUsesFeatureFieldValues =
+                expectedUsesFeatureFieldValues + server.expectedUsesFeatureFieldValues,
             expectedUsesSdkSha256 = server.expectedUsesSdkSha256 ?: expectedUsesSdkSha256,
             expectedUsesSdkMinSha256 = server.expectedUsesSdkMinSha256 ?: expectedUsesSdkMinSha256,
             expectedUsesSdkTargetSha256 =
                 server.expectedUsesSdkTargetSha256 ?: expectedUsesSdkTargetSha256,
             expectedUsesSdkMaxSha256 = server.expectedUsesSdkMaxSha256 ?: expectedUsesSdkMaxSha256,
+            expectedUsesSdkFieldValues = expectedUsesSdkFieldValues + server.expectedUsesSdkFieldValues,
             expectedSupportsScreensSha256 = server.expectedSupportsScreensSha256 ?: expectedSupportsScreensSha256,
             expectedSupportsScreensSmallScreensSha256 =
                 server.expectedSupportsScreensSmallScreensSha256 ?: expectedSupportsScreensSmallScreensSha256,
@@ -223,6 +266,8 @@ internal data class TamperPolicy(
                 server.expectedUsesLibraryNameSha256 ?: expectedUsesLibraryNameSha256,
             expectedUsesLibraryRequiredSha256 =
                 server.expectedUsesLibraryRequiredSha256 ?: expectedUsesLibraryRequiredSha256,
+            expectedUsesLibraryFieldValues =
+                expectedUsesLibraryFieldValues + server.expectedUsesLibraryFieldValues,
             expectedUsesLibraryOnlySha256 =
                 server.expectedUsesLibraryOnlySha256 ?: expectedUsesLibraryOnlySha256,
             expectedUsesLibraryOnlyNameSha256 =
@@ -235,13 +280,19 @@ internal data class TamperPolicy(
                 server.expectedUsesNativeLibraryNameSha256 ?: expectedUsesNativeLibraryNameSha256,
             expectedUsesNativeLibraryRequiredSha256 =
                 server.expectedUsesNativeLibraryRequiredSha256 ?: expectedUsesNativeLibraryRequiredSha256,
+            expectedUsesNativeLibraryFieldValues =
+                expectedUsesNativeLibraryFieldValues + server.expectedUsesNativeLibraryFieldValues,
             expectedQueriesSha256 = server.expectedQueriesSha256 ?: expectedQueriesSha256,
             expectedQueriesPackageSha256 = server.expectedQueriesPackageSha256 ?: expectedQueriesPackageSha256,
             expectedQueriesPackageNameSha256 =
                 server.expectedQueriesPackageNameSha256 ?: expectedQueriesPackageNameSha256,
+            expectedQueriesPackageSemanticsSha256 =
+                server.expectedQueriesPackageSemanticsSha256 ?: expectedQueriesPackageSemanticsSha256,
             expectedQueriesProviderSha256 = server.expectedQueriesProviderSha256 ?: expectedQueriesProviderSha256,
             expectedQueriesProviderAuthoritySha256 =
                 server.expectedQueriesProviderAuthoritySha256 ?: expectedQueriesProviderAuthoritySha256,
+            expectedQueriesProviderSemanticsSha256 =
+                server.expectedQueriesProviderSemanticsSha256 ?: expectedQueriesProviderSemanticsSha256,
             expectedQueriesIntentSha256 = server.expectedQueriesIntentSha256 ?: expectedQueriesIntentSha256,
             expectedQueriesIntentActionSha256 =
                 server.expectedQueriesIntentActionSha256 ?: expectedQueriesIntentActionSha256,
@@ -257,6 +308,8 @@ internal data class TamperPolicy(
                 server.expectedQueriesIntentDataPathSha256 ?: expectedQueriesIntentDataPathSha256,
             expectedQueriesIntentDataMimeTypeSha256 =
                 server.expectedQueriesIntentDataMimeTypeSha256 ?: expectedQueriesIntentDataMimeTypeSha256,
+            expectedQueriesIntentSemanticsSha256 =
+                server.expectedQueriesIntentSemanticsSha256 ?: expectedQueriesIntentSemanticsSha256,
             expectedApplicationSemanticsSha256 =
                 server.expectedApplicationSemanticsSha256 ?: expectedApplicationSemanticsSha256,
             expectedApplicationSecuritySemanticsSha256 =
@@ -264,6 +317,12 @@ internal data class TamperPolicy(
             expectedApplicationRuntimeSemanticsSha256 =
                 server.expectedApplicationRuntimeSemanticsSha256 ?: expectedApplicationRuntimeSemanticsSha256,
             expectedApplicationFieldValues = expectedApplicationFieldValues + server.expectedApplicationFieldValues,
+            expectedMetaDataType = expectedMetaDataType + server.expectedMetaDataType,
+            expectedMetaDataValueSha256 = expectedMetaDataValueSha256 + server.expectedMetaDataValueSha256,
+            expectedManifestMetaDataEntrySha256 =
+                expectedManifestMetaDataEntrySha256 + server.expectedManifestMetaDataEntrySha256,
+            expectedManifestMetaDataSemanticsSha256 =
+                expectedManifestMetaDataSemanticsSha256 + server.expectedManifestMetaDataSemanticsSha256,
             expectedMetaData = expectedMetaData + server.expectedMetaData,
         )
     }
@@ -278,9 +337,15 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedPackageName = expectedPackageName,
         allowedInstallerPackages = allowedInstallerPackages,
         allowedSigningCertSha256 = allowedSigningCertSha256,
+        expectedSigningCertificateLineageSha256 = expectedSigningCertificateLineageSha256,
+        expectedApkSigningBlockSha256 = expectedApkSigningBlockSha256,
+        expectedApkSigningBlockIdSha256 = expectedApkSigningBlockIdSha256,
         expectedApkSha256 = expectedApkSha256,
         expectedNativeLibSha256 = expectedNativeLibSha256,
         expectedManifestEntrySha256 = expectedManifestEntrySha256,
+        expectedResourcesArscSha256 = expectedResourcesArscSha256,
+        expectedResourceInventorySha256 = expectedResourceInventorySha256,
+        expectedResourceEntrySha256 = expectedResourceEntrySha256,
         expectedDexSha256 = expectedDexSha256,
         expectedDexSectionSha256 = expectedDexSectionSha256,
         expectedDexMethodSha256 = expectedDexMethodSha256,
@@ -301,6 +366,8 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedDeclaredPermissionSemanticsSha256 = expectedDeclaredPermissionSemanticsSha256,
         expectedDeclaredPermissionFieldValues = expectedDeclaredPermissionFieldValues,
         expectedComponentSignatureSha256 = expectedComponentSignatureSha256,
+        expectedComponentAccessSemanticsSha256 = expectedComponentAccessSemanticsSha256,
+        expectedComponentOperationalSemanticsSha256 = expectedComponentOperationalSemanticsSha256,
         expectedComponentFieldValues = expectedComponentFieldValues,
         expectedProviderUriPermissionPatternsSha256 = expectedProviderUriPermissionPatternsSha256,
         expectedProviderPathPermissionsSha256 = expectedProviderPathPermissionsSha256,
@@ -316,15 +383,19 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedIntentFilterDataAuthoritySha256 = expectedIntentFilterDataAuthoritySha256,
         expectedIntentFilterDataPathSha256 = expectedIntentFilterDataPathSha256,
         expectedIntentFilterDataMimeTypeSha256 = expectedIntentFilterDataMimeTypeSha256,
+        expectedIntentFilterSemanticsSha256 = expectedIntentFilterSemanticsSha256,
         expectedGrantUriPermissionSha256 = expectedGrantUriPermissionSha256,
+        expectedGrantUriPermissionSemanticsSha256 = expectedGrantUriPermissionSemanticsSha256,
         expectedUsesFeatureSha256 = expectedUsesFeatureSha256,
         expectedUsesFeatureNameSha256 = expectedUsesFeatureNameSha256,
         expectedUsesFeatureRequiredSha256 = expectedUsesFeatureRequiredSha256,
         expectedUsesFeatureGlEsVersionSha256 = expectedUsesFeatureGlEsVersionSha256,
+        expectedUsesFeatureFieldValues = expectedUsesFeatureFieldValues,
         expectedUsesSdkSha256 = expectedUsesSdkSha256,
         expectedUsesSdkMinSha256 = expectedUsesSdkMinSha256,
         expectedUsesSdkTargetSha256 = expectedUsesSdkTargetSha256,
         expectedUsesSdkMaxSha256 = expectedUsesSdkMaxSha256,
+        expectedUsesSdkFieldValues = expectedUsesSdkFieldValues,
         expectedSupportsScreensSha256 = expectedSupportsScreensSha256,
         expectedSupportsScreensSmallScreensSha256 = expectedSupportsScreensSmallScreensSha256,
         expectedSupportsScreensNormalScreensSha256 = expectedSupportsScreensNormalScreensSha256,
@@ -344,17 +415,21 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedUsesLibrarySha256 = expectedUsesLibrarySha256,
         expectedUsesLibraryNameSha256 = expectedUsesLibraryNameSha256,
         expectedUsesLibraryRequiredSha256 = expectedUsesLibraryRequiredSha256,
+        expectedUsesLibraryFieldValues = expectedUsesLibraryFieldValues,
         expectedUsesLibraryOnlySha256 = expectedUsesLibraryOnlySha256,
         expectedUsesLibraryOnlyNameSha256 = expectedUsesLibraryOnlyNameSha256,
         expectedUsesLibraryOnlyRequiredSha256 = expectedUsesLibraryOnlyRequiredSha256,
         expectedUsesNativeLibrarySha256 = expectedUsesNativeLibrarySha256,
         expectedUsesNativeLibraryNameSha256 = expectedUsesNativeLibraryNameSha256,
         expectedUsesNativeLibraryRequiredSha256 = expectedUsesNativeLibraryRequiredSha256,
+        expectedUsesNativeLibraryFieldValues = expectedUsesNativeLibraryFieldValues,
         expectedQueriesSha256 = expectedQueriesSha256,
         expectedQueriesPackageSha256 = expectedQueriesPackageSha256,
         expectedQueriesPackageNameSha256 = expectedQueriesPackageNameSha256,
+        expectedQueriesPackageSemanticsSha256 = expectedQueriesPackageSemanticsSha256,
         expectedQueriesProviderSha256 = expectedQueriesProviderSha256,
         expectedQueriesProviderAuthoritySha256 = expectedQueriesProviderAuthoritySha256,
+        expectedQueriesProviderSemanticsSha256 = expectedQueriesProviderSemanticsSha256,
         expectedQueriesIntentSha256 = expectedQueriesIntentSha256,
         expectedQueriesIntentActionSha256 = expectedQueriesIntentActionSha256,
         expectedQueriesIntentCategorySha256 = expectedQueriesIntentCategorySha256,
@@ -363,9 +438,14 @@ internal fun LeonaConfig.toTamperPolicy(): TamperPolicy =
         expectedQueriesIntentDataAuthoritySha256 = expectedQueriesIntentDataAuthoritySha256,
         expectedQueriesIntentDataPathSha256 = expectedQueriesIntentDataPathSha256,
         expectedQueriesIntentDataMimeTypeSha256 = expectedQueriesIntentDataMimeTypeSha256,
+        expectedQueriesIntentSemanticsSha256 = expectedQueriesIntentSemanticsSha256,
         expectedApplicationSemanticsSha256 = expectedApplicationSemanticsSha256,
         expectedApplicationSecuritySemanticsSha256 = expectedApplicationSecuritySemanticsSha256,
         expectedApplicationRuntimeSemanticsSha256 = expectedApplicationRuntimeSemanticsSha256,
         expectedApplicationFieldValues = expectedApplicationFieldValues,
+        expectedMetaDataType = expectedMetaDataType,
+        expectedMetaDataValueSha256 = expectedMetaDataValueSha256,
+        expectedManifestMetaDataEntrySha256 = expectedManifestMetaDataEntrySha256,
+        expectedManifestMetaDataSemanticsSha256 = expectedManifestMetaDataSemanticsSha256,
         expectedMetaData = expectedMetaData,
     )

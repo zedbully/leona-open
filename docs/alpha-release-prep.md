@@ -1,6 +1,6 @@
 # Leona Alpha 发布准备清单
 
-> 更新时间: 2026-04-23
+> 更新时间: 2026-04-27
 > 目标：把当前工程状态收口成一次可内测的 Android alpha 发布准备文档
 
 ---
@@ -70,6 +70,10 @@
 当前已经完成：
 
 - 模拟器留档
+- 真机 attestation 执行包
+  - `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-attestation-e2e.sh`
+  - `/Users/a/back/Game/cq/docs/physical-attestation-runbook.md`
+  - `/Users/a/back/Game/cq/docs/device-attestation-record-template.md`
 
 建议补充：
 

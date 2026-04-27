@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -28,18 +29,24 @@ public class RedisVerdictCache {
         this.redis = redis;
     }
 
-    public void store(String boxId, String riskLevel, int riskScore,
-                       String reasonsJson, String eventsJson,
+    public void store(String boxId, String deviceFingerprint, String canonicalDeviceId,
+                       String riskLevel, int riskScore, String reasonsJson, String eventsJson,
                        Instant observedAt, Instant expiresAt) {
         String key = KEY_PREFIX + boxId;
-        redis.opsForHash().putAll(key, Map.of(
-            "risk_level", riskLevel,
-            "risk_score", String.valueOf(riskScore),
-            "risk_reasons_json", reasonsJson,
-            "events_json", eventsJson,
-            "observed_at", observedAt.toString(),
-            "scored_at", Instant.now().toString()
-        ));
+        Map<String, String> fields = new LinkedHashMap<>();
+        if (deviceFingerprint != null && !deviceFingerprint.isBlank()) {
+            fields.put("device_fingerprint", deviceFingerprint);
+        }
+        if (canonicalDeviceId != null && !canonicalDeviceId.isBlank()) {
+            fields.put("canonical_device_id", canonicalDeviceId);
+        }
+        fields.put("risk_level", riskLevel);
+        fields.put("risk_score", String.valueOf(riskScore));
+        fields.put("risk_reasons_json", reasonsJson);
+        fields.put("events_json", eventsJson);
+        fields.put("observed_at", observedAt.toString());
+        fields.put("scored_at", Instant.now().toString());
+        redis.opsForHash().putAll(key, fields);
         Duration ttl = Duration.between(Instant.now(), expiresAt);
         if (!ttl.isNegative() && !ttl.isZero()) {
             redis.expire(key, ttl);

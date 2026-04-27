@@ -50,6 +50,7 @@ public class DbVerdictRepository implements VerdictRepository {
         return new VerdictResponse(
             BoxId.of(e.getBoxId()),
             e.getDeviceFingerprint(),
+            e.getCanonicalDeviceId(),
             new RiskAssessment(
                 RiskAssessment.Level.valueOf(e.getRiskLevel()),
                 e.getRiskScore(),

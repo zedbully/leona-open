@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Establishes ECDHE sessions and binds installs to an Android Keystore key.
@@ -50,21 +51,27 @@ public class SessionService {
     public Mono<HandshakeResponse> establish(HandshakeRequest request) {
         validateRequest(request);
         return validateDeviceBinding(request)
-            .flatMap(bindingStatus -> {
+            .flatMap(validation -> {
                 EcdheSession ephemeral = EcdheSession.generate();
                 String sessionId = UlidCreator.getUlid().toString();
-                byte[] sessionKey = ephemeral.deriveSessionKey(request.clientPublicKey(), sessionId, "leona/v2/session/" + request.installId());
+                byte[] sessionKey = ephemeral.deriveSessionKey(
+                    request.clientPublicKey(),
+                    sessionId,
+                    "leona/v2/session/" + request.installId());
                 return sessionStore.store(sessionId, sessionKey, SESSION_TTL)
                     .doOnSuccess(ignored -> {
                         metrics.counter("leona.handshake.success").increment();
-                        metrics.counter("leona.handshake.binding", "status", bindingStatus).increment();
+                        metrics.counter("leona.handshake.binding", "status", validation.bindingStatus()).increment();
+                        recordAttestationMetric(validation.attestation());
                     })
                     .thenReturn(new HandshakeResponse(
                         ephemeral.publicKeyBase64Url(),
                         sessionId,
                         Instant.now().plus(SESSION_TTL),
                         tamperBaselineProvider.current(),
-                        bindingStatus));
+                        validation.bindingStatus(),
+                        toAttestationSummary(validation.attestation()),
+                        canonicalDeviceId(request)));
             });
     }
 
@@ -74,7 +81,7 @@ public class SessionService {
         }
     }
 
-    private Mono<String> validateDeviceBinding(HandshakeRequest request) {
+    private Mono<BindingValidation> validateDeviceBinding(HandshakeRequest request) {
         HandshakeRequest.DeviceBinding binding = request.deviceBinding();
         if (binding == null || isBlank(binding.publicKey()) || isBlank(binding.signature())) {
             metrics.counter("leona.handshake.binding_rejected", "reason", "missing").increment();
@@ -86,8 +93,17 @@ public class SessionService {
         }
         DeviceAttestationVerifier.Result attestation = attestationVerifier.verify(request);
         if (!attestation.accepted()) {
-            metrics.counter("leona.handshake.binding_rejected", "reason", attestation.status()).increment();
-            return Mono.error(new LeonaException(ErrorCode.LEONA_AUTH_INVALID, "Device attestation rejected"));
+            metrics.counter(
+                "leona.handshake.binding_rejected",
+                "reason", attestation.status(),
+                "provider", metricValue(attestation.provider()),
+                "code", metricValue(attestation.code()))
+                .increment();
+            recordAttestationMetric(attestation);
+            return Mono.error(new LeonaException(
+                ErrorCode.LEONA_AUTH_INVALID,
+                "Device attestation rejected: " + attestation.status(),
+                attestationDetails(attestation)));
         }
         return deviceBindingStore.load(request.installId())
             .defaultIfEmpty("")
@@ -97,7 +113,7 @@ public class SessionService {
                     return Mono.error(new LeonaException(ErrorCode.LEONA_AUTH_INVALID, "Install is bound to a different device key"));
                 }
                 return deviceBindingStore.store(request.installId(), binding.publicKey(), DEVICE_BINDING_TTL)
-                    .thenReturn(buildBindingStatus(binding, attestation.status()));
+                    .thenReturn(new BindingValidation(buildBindingStatus(binding, attestation.status()), attestation));
             });
     }
 
@@ -106,7 +122,75 @@ public class SessionService {
         return "bound-" + hardware + "/" + attestationStatus;
     }
 
+    private HandshakeResponse.AttestationSummary toAttestationSummary(DeviceAttestationVerifier.Result attestation) {
+        if (attestation == null) {
+            return null;
+        }
+        return new HandshakeResponse.AttestationSummary(
+            attestation.provider(),
+            attestation.status(),
+            attestation.code(),
+            attestation.retryable());
+    }
+
+    private String canonicalDeviceId(HandshakeRequest request) {
+        HandshakeRequest.DeviceIdentity identity = request.deviceIdentity();
+        if (identity == null) {
+            return null;
+        }
+        String candidate = firstNonBlank(
+            identity.canonicalDeviceId(),
+            identity.resolvedDeviceId(),
+            identity.fingerprintHash());
+        if (isBlank(candidate)) {
+            return null;
+        }
+        return candidate.startsWith("L") ? candidate : "L" + candidate;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Object> attestationDetails(DeviceAttestationVerifier.Result attestation) {
+        return Map.of(
+            "attestation", Map.of(
+                "provider", metricValue(attestation.provider()),
+                "status", metricValue(attestation.status()),
+                "code", metricValue(attestation.code()),
+                "retryable", attestation.retryable() != null && attestation.retryable()
+            )
+        );
+    }
+
+    private void recordAttestationMetric(DeviceAttestationVerifier.Result attestation) {
+        if (attestation == null) {
+            return;
+        }
+        metrics.counter(
+            "leona.handshake.attestation",
+            "accepted", String.valueOf(attestation.accepted()),
+            "provider", metricValue(attestation.provider()),
+            "status", metricValue(attestation.status()),
+            "code", metricValue(attestation.code()))
+            .increment();
+    }
+
+    private String metricValue(String value) {
+        return isBlank(value) ? "none" : value;
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
+
+    private record BindingValidation(String bindingStatus, DeviceAttestationVerifier.Result attestation) {}
 }

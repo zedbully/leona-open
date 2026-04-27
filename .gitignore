@@ -2,6 +2,9 @@
 .gocache/
 .gradle-home/
 
+# Local sync credentials
+.env.local-sync
+
 # OS / editor
 .DS_Store
 Thumbs.db

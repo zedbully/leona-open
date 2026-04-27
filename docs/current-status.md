@@ -1,6 +1,6 @@
 # Leona 当前项目状态
 
-> 更新时间: 2026-04-24
+> 更新时间: 2026-04-27
 > 适用范围: `/Users/a/back/Game/cq`
 
 ---
@@ -75,10 +75,20 @@ Leona 当前执行范围已经收敛为：
 - sample app 已在 Android 模拟器上真实跑通 `sense()` → `demo verdict` 闭环
 - Android 模拟器本地 E2E 自动化脚本已跑通：
   - `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`
-  - 2026-04-23 自动化结果：`BoxId=01KPV5E417A7467GRBRMQXYF30`，`decision=deny`，`risk=CRITICAL`，`score=100`
+  - 2026-04-27 自动化结果：`BoxId=01KQ792YC06BAEHG4WQZH308WX`，`formalVerdictBoxId=01KQ794PAP1N9SXQVQ501B1075`，`canonical=L8a5d40fa9aa6a9ebd14101ef9b62c5b`，`decision=deny`，`risk=CRITICAL`，`score=100`
+  - 当前脚本同时覆盖 sample `demo verdict` 与直接调用 formal `/v1/verdict`：校验 response signature、`canonicalDeviceId`、`deviceFingerprint`，并要求 diagnostic / transport / verdict / support bundle 四处 canonical 对齐。
+- handshake attestation 摘要专项回归脚本已跑通：
+  - `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-attestation-e2e.sh`
+  - 2026-04-25 自动化结果：`mode=debug_fake`，`BoxId=01KQ04NPATG3KP1S1526KXX3M3`
+  - attestation：`provider=play_integrity`，`status=play_integrity/MEETS_DEVICE_INTEGRITY`，`code=PLAY_INTEGRITY_VERIFIED`
+  - 专项留档：`/Users/a/back/Game/cq/docs/attestation-record-2026-04-25.md`
 - Android GitHub manual live emulator E2E workflow scaffold 已补：
   - `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
   - `/Users/a/back/Game/cq/docs/ci-e2e-setup.md`
+- Android GitHub manual live attestation E2E workflow scaffold 已补：
+  - `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+  - workflow_dispatch 输入：`run_live_attestation_e2e`
+  - job summary 已支持显示 attestation provider / status / code / retryable
 - public-only 构建验收已完成：
   - `/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-23.md`
   - `/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-24.md`
@@ -112,6 +122,13 @@ Leona 当前执行范围已经收敛为：
 - 真机留档仍待补齐
 - 误报/漏报验证还不完整
 - 公开 API 已进入冻结口径，后续不再继续扩大 public 面
+- 大陆 / 非 GMS 文档链路已补齐：design / acceptance / risk posture / sample E2E / release gate
+- `oem_debug_fake` 已于 2026-04-25 在标准 gateway `:8080` 链路完成真实留档：
+  - `/Users/a/back/Game/cq/docs/mainland-attestation-record-2026-04-25.md`
+- 真机 attestation 执行包已于 2026-04-27 补齐：
+  - `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-attestation-e2e.sh`
+  - `/Users/a/back/Game/cq/docs/physical-attestation-runbook.md`
+  - `/Users/a/back/Game/cq/docs/device-attestation-record-template.md`
 
 结论：
 
@@ -217,7 +234,10 @@ Leona 当前执行范围已经收敛为：
    - 不利于真实联调
 
 3. **E2E 自动化已具备本地回归入口**
-   - 模拟器自动化脚本已跑通，GitHub manual workflow scaffold 也已补，但仍待真实仓库 secrets / variables 配置与首次 CI 跑验
+   - 模拟器主链路自动化脚本已跑通
+   - handshake attestation 摘要专项回归也已跑通
+   - attestation 专项真实留档已补齐并挂接 docs 索引
+   - GitHub manual workflow scaffold 已支持主链路与 attestation 两条 hosted 路径，但仍待真实仓库 secrets / variables 配置与首次 CI 跑验
 
 4. **真机留档仍未完成**
    - 当前已有模拟器留档，但还没有真机联调记录

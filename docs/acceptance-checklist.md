@@ -1,6 +1,6 @@
 # Leona Phase 验收清单
 
-> 更新时间: 2026-04-23
+> 更新时间: 2026-04-27
 > 说明：该清单用于跟踪按 Phase 推进后的阶段性验收结果。
 
 状态说明：
@@ -91,10 +91,20 @@
 - [x] `docker compose` 本地 5 服务栈已真实启动并通过健康检查
 - [x] Android 模拟器人工 E2E 已通过
 - [x] Android ↔ Server E2E 自动化已通过（`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`）
-  - 最近执行：2026-04-23
-  - BoxId：`01KPV5E417A7467GRBRMQXYF30`
+  - 最近执行：2026-04-27
+  - UI / demo verdict BoxId：`01KQ792YC06BAEHG4WQZH308WX`
+  - formal `/v1/verdict` BoxId：`01KQ794PAP1N9SXQVQ501B1075`
+  - canonical：`L8a5d40fa9aa6a9ebd14101ef9b62c5b`
   - Verdict：`decision=deny` / `risk=CRITICAL` / `score=100`
-  - 产物目录：`/tmp/leona-e2e-20260423-015719`
+  - 已校验：transportCanonical / verdictCanonical / support bundle canonical 对齐，formal verdict response signature 通过，formal verdict `deviceFingerprint` 存在
+  - 产物目录：`/tmp/leona-e2e-20260427-185131`
+- [x] handshake attestation 摘要专项 E2E 已通过（`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-attestation-e2e.sh`）
+  - 最近执行：2026-04-25
+  - mode：`debug_fake`
+  - BoxId：`01KQ04NPATG3KP1S1526KXX3M3`
+  - attestation：`provider=play_integrity` / `status=play_integrity/MEETS_DEVICE_INTEGRITY` / `code=PLAY_INTEGRITY_VERIFIED`
+  - 产物目录：`/tmp/leona-attestation-e2e-20260425-002000`
+  - 留档：`/Users/a/back/Game/cq/docs/attestation-record-2026-04-25.md`
 
 ### Phase 4 当前结论
 
@@ -121,11 +131,34 @@
 - [x] 第一批敏感 detector catalog / heuristics 已迁入 Android private core
 - [x] private module split 一键验收脚本已补（`/Users/a/back/Game/cq/scripts/verify-private-modules.sh`）
 - [x] public-only 构建验收记录已补（`/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-23.md`）
-- [ ] 真机留档（可选增强项）
+- [x] alpha closure 已接入 attestation E2E 开关（`RUN_ATTESTATION_E2E=1`）
+- [x] GitHub manual workflow 已接入 live attestation E2E（`run_live_attestation_e2e`）
+- [x] GitHub Actions summary 已输出 attestation provider / status / code
+- [-] 真机留档执行包已补齐，待 USB 真机执行（可选增强项）
+  - 脚本：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-attestation-e2e.sh`
+  - runbook：`/Users/a/back/Game/cq/docs/physical-attestation-runbook.md`
+  - 模板：`/Users/a/back/Game/cq/docs/device-attestation-record-template.md`
 
 ### Phase 5 当前结论
 
 **通过（真机留档为增强项）。**
+
+---
+
+### Mainland / 非 GMS 补充验收
+
+- [x] public sample 已支持 `oem_debug_fake` / `oem_bridge`
+- [x] public ingestion 已支持 `oem_attestation` -> private verifier bridge
+- [x] mainland acceptance checklist 已补（`/Users/a/back/Game/cq/docs/mainland-attestation-acceptance-checklist.md`）
+- [x] mainland risk posture 已补（`/Users/a/back/Game/cq/docs/mainland-attestation-risk-posture.md`）
+- [x] mainland sample E2E runbook 已补（`/Users/a/back/Game/cq/leona-sdk-android/docs/mainland-attestation-e2e.md`）
+- [x] mainland release gate 已补（`/Users/a/back/Game/cq/leona-sdk-android/docs/mainland-attestation-release-gate.md`）
+- [x] mainland closeout summary 已补（`/Users/a/back/Game/cq/docs/mainland-closeout-summary.md`）
+- [ ] 真 OEM provider / verifier staging 验收（private 阶段）
+
+### Mainland / 非 GMS 当前结论
+
+**通过（public 路线已收口，private 生产化仍待完成）。**
 
 ---
 
@@ -146,3 +179,4 @@
 1. 条件允许时补一轮真机留档
 2. 在真实 GitHub 仓库配置 secrets / variables 并跑一次 live emulator E2E
 3. 继续把 private runtime / private backend 真实实现收口
+4. 真机一接入后，优先执行 `run-device-attestation-e2e.sh` 补 attestation 留档

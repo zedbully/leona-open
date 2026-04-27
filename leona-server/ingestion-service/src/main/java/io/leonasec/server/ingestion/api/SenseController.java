@@ -40,6 +40,8 @@ public class SenseController {
         @RequestHeader(value = "X-Leona-Native-Risk-Tags", required = false) String nativeRiskTags,
         @RequestHeader(value = "X-Leona-Native-Finding-Ids", required = false) String nativeFindingIds,
         @RequestHeader(value = "X-Leona-Native-Highest-Severity", required = false) Integer nativeHighestSeverity,
+        @RequestHeader(value = "X-Leona-Fingerprint", required = false) String deviceFingerprint,
+        @RequestHeader(value = "X-Leona-Canonical-Device-Id", required = false) String canonicalDeviceId,
         @RequestBody byte[] body
     ) {
         if (body == null || body.length == 0) {
@@ -58,6 +60,8 @@ public class SenseController {
                 requestId,
                 timestamp,
                 nonce,
+                deviceFingerprint,
+                canonicalDeviceId,
                 io.leonasec.server.ingestion.domain.SenseRequestRiskSignals.fromHeaders(
                     nativeRiskTags,
                     nativeFindingIds,

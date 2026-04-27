@@ -209,9 +209,15 @@ Android SDK 检测核心主要在：
   - `expectedPackageName`
   - `allowedInstallerPackages`
   - `allowedSigningCertSha256`
+  - `expectedSigningCertificateLineageSha256`
+  - `expectedApkSigningBlockSha256`
+  - `expectedApkSigningBlockIdSha256`
   - `expectedApkSha256`
   - `expectedNativeLibSha256`
   - `expectedManifestEntrySha256`
+  - `expectedResourcesArscSha256`
+  - `expectedResourceInventorySha256`
+  - `expectedResourceEntrySha256`
   - `expectedDexSha256`
   - `expectedDexSectionSha256`
   - `expectedDexMethodSha256`
@@ -225,6 +231,9 @@ Android SDK 检测核心主要在：
   - `expectedConfigSplitLocaleSha256`
   - `expectedConfigSplitDensitySha256`
   - `expectedDeclaredPermissionFieldValues`
+  - `expectedComponentSignatureSha256`
+  - `expectedComponentAccessSemanticsSha256`
+  - `expectedComponentOperationalSemanticsSha256`
   - `expectedComponentFieldValues`
   - `expectedProviderUriPermissionPatternsSha256`
   - `expectedProviderPathPermissionsSha256`
@@ -240,15 +249,19 @@ Android SDK 检测核心主要在：
   - `expectedIntentFilterDataAuthoritySha256`
   - `expectedIntentFilterDataPathSha256`
   - `expectedIntentFilterDataMimeTypeSha256`
+  - `expectedIntentFilterSemanticsSha256`
   - `expectedGrantUriPermissionSha256`
+  - `expectedGrantUriPermissionSemanticsSha256`
   - `expectedUsesFeatureSha256`
   - `expectedUsesFeatureNameSha256`
   - `expectedUsesFeatureRequiredSha256`
   - `expectedUsesFeatureGlEsVersionSha256`
+  - `expectedUsesFeatureFieldValues`
   - `expectedUsesSdkSha256`
   - `expectedUsesSdkMinSha256`
   - `expectedUsesSdkTargetSha256`
   - `expectedUsesSdkMaxSha256`
+  - `expectedUsesSdkFieldValues`
   - `expectedSupportsScreensSha256`
   - `expectedSupportsScreensSmallScreensSha256`
   - `expectedSupportsScreensNormalScreensSha256`
@@ -265,17 +278,21 @@ Android SDK 检测核心主要在：
   - `expectedUsesLibrarySha256`
   - `expectedUsesLibraryNameSha256`
   - `expectedUsesLibraryRequiredSha256`
+  - `expectedUsesLibraryFieldValues`
   - `expectedUsesLibraryOnlySha256`
   - `expectedUsesLibraryOnlyNameSha256`
   - `expectedUsesLibraryOnlyRequiredSha256`
   - `expectedUsesNativeLibrarySha256`
   - `expectedUsesNativeLibraryNameSha256`
   - `expectedUsesNativeLibraryRequiredSha256`
+  - `expectedUsesNativeLibraryFieldValues`
   - `expectedQueriesSha256`
   - `expectedQueriesPackageSha256`
   - `expectedQueriesPackageNameSha256`
+  - `expectedQueriesPackageSemanticsSha256`
   - `expectedQueriesProviderSha256`
   - `expectedQueriesProviderAuthoritySha256`
+  - `expectedQueriesProviderSemanticsSha256`
   - `expectedQueriesIntentSha256`
   - `expectedQueriesIntentActionSha256`
   - `expectedQueriesIntentCategorySha256`
@@ -284,16 +301,27 @@ Android SDK 检测核心主要在：
   - `expectedQueriesIntentDataAuthoritySha256`
   - `expectedQueriesIntentDataPathSha256`
   - `expectedQueriesIntentDataMimeTypeSha256`
+  - `expectedQueriesIntentSemanticsSha256`
   - `expectedApplicationSemanticsSha256`
   - `expectedApplicationSecuritySemanticsSha256`
   - `expectedApplicationRuntimeSemanticsSha256`
   - `expectedApplicationFieldValues`
+  - `expectedMetaDataType`
+  - `expectedMetaDataValueSha256`
+  - `expectedManifestMetaDataEntrySha256`
+  - `expectedManifestMetaDataSemanticsSha256`
   - `expectedMetaData`
 - **server 下发 baseline**：
   - SDK 支持从 `/v1/handshake` 的 `tamperBaseline` 读取远端策略
   - 远端策略会与本地 Builder baseline 合并，远端标量/集合优先，map 类按 key 合并
 - **采集范围扩展**：
+  - signing certificate lineage fingerprint
+  - APK Signing Block fingerprint
+  - APK Signing Block ID value fingerprint（如 `0x7109871a`）
   - base APK 中 `AndroidManifest.xml` 条目 hash
+  - base APK 中 `resources.arsc` 条目 hash
+  - base APK 中 `resources.arsc` / `res/...` / `assets/...` 条目名集合 fingerprint
+  - base APK 中 `res/...` / `assets/...` resource entry hash
   - `classes*.dex` 条目 hash
   - DEX 内部 section hash（如 `classes.dex#code_item`）
   - DEX method code hash（如 `classes.dex#Lcom/example/MainActivity;->isTampered()Z`）
@@ -312,6 +340,8 @@ Android SDK 检测核心主要在：
   - declared permission semantics fingerprint
   - declared permission field drift（如 `permission:com.example.permission.GUARD#protectionLevel`）
   - component fingerprint（如 `activity:com.example.MainActivity`）
+  - component access semantics fingerprint（如 exported / permission）
+  - component operational semantics fingerprint（如 enabled / processName / directBootAware）
   - component field drift（如 `activity:com.example.MainActivity#exported`）
   - provider `uriPermissionPatterns` fingerprint
   - provider `pathPermissions` fingerprint
@@ -322,21 +352,30 @@ Android SDK 检测核心主要在：
   - raw manifest intent-filter fingerprint
   - raw manifest intent-filter action/category/data fingerprint
   - raw manifest intent-filter data subfield fingerprint（scheme / authority / path / mimeType）
+  - normalized manifest intent-filter semantics fingerprint
   - raw manifest `grant-uri-permission` fingerprint
+  - normalized manifest `grant-uri-permission` semantics fingerprint
   - raw manifest `uses-feature` / `uses-sdk` / `supports-screens` / `compatible-screens` / `uses-library` / `uses-native-library` / `queries` fingerprint
   - raw manifest `uses-feature` name / required / glEsVersion 子指纹
+  - raw manifest `uses-feature` field drift（如 `uses-feature:android.hardware.camera#required`）
   - raw manifest `uses-sdk` minSdkVersion / targetSdkVersion / maxSdkVersion 子指纹
+  - raw manifest `uses-sdk` field drift（如 `uses-sdk#targetSdkVersion`）
   - raw manifest `supports-screens` small/normal/large/xlarge/resizeable/anyDensity/requiresSmallestWidthDp/compatibleWidthLimitDp/largestWidthLimitDp 子指纹
   - raw manifest `compatible-screens` screenSize / screenDensity 子指纹
   - raw manifest `uses-library` / `uses-native-library` name / required 子指纹
+  - raw manifest `uses-library` field drift（如 `uses-library:org.apache.http.legacy#required`）
+  - raw manifest `uses-native-library` field drift（如 `uses-native-library:com.example.sec#required`）
   - raw manifest `queries` package/provider/intent 子指纹
   - raw manifest `queries` package name / provider authorities 子指纹
   - raw manifest `queries intent` action/category/data 及 data scheme/authority/path/mimeType 子指纹
+  - normalized manifest `queries` package/provider/intent semantics fingerprint
   - raw manifest `application` 组合语义 fingerprint
   - raw manifest `application` security semantics fingerprint（allowBackup/backupAgent/dataExtractionRules/networkSecurityConfig/usesCleartextTraffic 等）
   - raw manifest `application` runtime semantics fingerprint（name/appComponentFactory/hasCode/hardwareAccelerated/largeHeap/localeConfig/testOnly）
   - raw manifest `application` 字段漂移（如 `usesCleartextTraffic` / `networkSecurityConfig` / `extractNativeLibs` / `allowBackup` / `debuggable` / `fullBackupContent` / `dataExtractionRules` / `requestLegacyExternalStorage`）
   - provider field drift（`grantUriPermissions` / `multiprocess` / `initOrder`）
+  - raw manifest meta-data entry / semantics fingerprint
+  - 运行时 manifest meta-data 类型 / 值 hash
   - 运行时 manifest meta-data 值
 
 #### 下一步必须补齐

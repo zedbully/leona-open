@@ -13,5 +13,25 @@ public record HandshakeResponse(
     String sessionId,
     Instant expiresAt,
     Map<String, Object> tamperBaseline,
-    String deviceBindingStatus
-) {}
+    String deviceBindingStatus,
+    AttestationSummary attestation,
+    String canonicalDeviceId
+) {
+    public HandshakeResponse(
+        String serverPublicKey,
+        String sessionId,
+        Instant expiresAt,
+        Map<String, Object> tamperBaseline,
+        String deviceBindingStatus,
+        AttestationSummary attestation
+    ) {
+        this(serverPublicKey, sessionId, expiresAt, tamperBaseline, deviceBindingStatus, attestation, null);
+    }
+
+    public record AttestationSummary(
+        String provider,
+        String status,
+        String code,
+        Boolean retryable
+    ) {}
+}

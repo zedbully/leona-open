@@ -58,7 +58,7 @@ class SenseServiceTest {
                 nonce));
 
         when(sessions.load(sessionId)).thenReturn(Mono.just(sessionKey));
-        when(boxIds.store(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(boxIds.store(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
         when(kafka.publishParsed(any())).thenReturn(Mono.empty());
 
         SenseResponse response = service.ingest(sessionId, tenantId, encrypted, requestId, timestamp, nonce).block();
@@ -119,7 +119,7 @@ class SenseServiceTest {
                 nonce));
 
         when(sessions.load(sessionId)).thenReturn(Mono.just(sessionKey));
-        when(boxIds.store(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(boxIds.store(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
         when(kafka.publishParsed(any())).thenReturn(Mono.empty());
 
         service.ingest(
@@ -139,12 +139,69 @@ class SenseServiceTest {
         ArgumentCaptor<io.leonasec.server.common.api.RiskAssessment> riskCaptor =
             ArgumentCaptor.forClass(io.leonasec.server.common.api.RiskAssessment.class);
         ArgumentCaptor<String> eventsJsonCaptor = ArgumentCaptor.forClass(String.class);
-        verify(boxIds).store(any(), any(), any(), any(), riskCaptor.capture(), eventsJsonCaptor.capture());
+        verify(boxIds).store(any(), any(), any(), any(), any(), any(), riskCaptor.capture(), eventsJsonCaptor.capture());
 
         assertTrue(riskCaptor.getValue().score() >= 50);
         assertTrue(riskCaptor.getValue().reasons().contains("injection.frida.known_library"));
         assertTrue(eventsJsonCaptor.getValue().contains("injection.frida.known_library"));
         assertTrue(eventsJsonCaptor.getValue().contains("\"source\":\"request_headers\""));
+    }
+
+    @Test
+    void ingestPropagatesDeviceIdentityIntoHotPathAndKafka() throws Exception {
+        SessionStore sessions = mock(SessionStore.class);
+        BoxIdRepository boxIds = mock(BoxIdRepository.class);
+        KafkaPublisher kafka = mock(KafkaPublisher.class);
+        SenseService service = new SenseService(
+            sessions, boxIds, kafka, new ObjectMapper(), new SimpleMeterRegistry());
+
+        String sessionId = "01HSESSIONTEST00000000000000";
+        String tenantId = UUID.randomUUID().toString();
+        String requestId = "req-123";
+        long timestamp = System.currentTimeMillis();
+        String nonce = "nonce-abc";
+        byte[] sessionKey = fixedKey();
+        byte[] plain = scrambledPayloadWithSingleEvent();
+        byte[] encrypted = new AesGcmCipher().seal(
+            sessionKey,
+            plain,
+            SdkRequestCanonicalizer.aadBytes(
+                "POST",
+                "/v1/sense",
+                "application/octet-stream",
+                sessionId,
+                requestId,
+                timestamp,
+                nonce));
+
+        when(sessions.load(sessionId)).thenReturn(Mono.just(sessionKey));
+        when(boxIds.store(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(kafka.publishParsed(any())).thenReturn(Mono.empty());
+
+        service.ingest(
+            sessionId,
+            tenantId,
+            encrypted,
+            requestId,
+            timestamp,
+            nonce,
+            " fp-123 ",
+            "756bc06b9f5afc8e80548d41ce43062",
+            SenseRequestRiskSignals.EMPTY
+        ).block();
+
+        ArgumentCaptor<String> fingerprintCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> canonicalCaptor = ArgumentCaptor.forClass(String.class);
+        verify(boxIds).store(any(), any(), fingerprintCaptor.capture(), canonicalCaptor.capture(), any(), any(), any(), any());
+
+        ArgumentCaptor<io.leonasec.server.common.kafka.ParsedEventEnvelope> envelopeCaptor =
+            ArgumentCaptor.forClass(io.leonasec.server.common.kafka.ParsedEventEnvelope.class);
+        verify(kafka).publishParsed(envelopeCaptor.capture());
+
+        assertTrue("fp-123".equals(fingerprintCaptor.getValue()));
+        assertTrue("L756bc06b9f5afc8e80548d41ce43062".equals(canonicalCaptor.getValue()));
+        assertTrue("fp-123".equals(envelopeCaptor.getValue().deviceFingerprint()));
+        assertTrue("L756bc06b9f5afc8e80548d41ce43062".equals(envelopeCaptor.getValue().canonicalDeviceId()));
     }
 
     private static byte[] fixedKey() {
