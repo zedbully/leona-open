@@ -140,6 +140,27 @@ Private backend risk tuning can be supplied without changing public code:
 - `LEONA_PRIVATE_INTERNAL_OPS_ENABLED` / `leona.private.internal-ops.enabled`
   - enables private-only admin internal ops endpoints
 
+Handshake tamper baseline can also be supplied to `ingestion-service`:
+
+- `LEONA_HANDSHAKE_TAMPER_BASELINE_PATH` / `leona.handshake.tamper-baseline-path`
+  - recommended production mode
+  - points to a JSON file validated at startup against the shared handshake tamper baseline schema
+- `LEONA_HANDSHAKE_TAMPER_BASELINE_JSON` / `leona.handshake.tamper-baseline-json`
+  - intended for local / ad-hoc inline configuration
+  - validated at startup against the shared handshake tamper baseline schema
+  - intended for SDK handshake `tamperBaseline` rollout
+  - reference doc:
+    [`/Users/a/back/Game/cq/leona-server/docs/handshake-tamper-baseline.md`](/Users/a/back/Game/cq/leona-server/docs/handshake-tamper-baseline.md)
+  - reference example:
+    [`/Users/a/back/Game/cq/leona-server/docs/examples/handshake-tamper-baseline.example.json`](/Users/a/back/Game/cq/leona-server/docs/examples/handshake-tamper-baseline.example.json)
+
+When configured, `ingestion-service` also reports a sanitized summary at:
+
+- `GET /actuator/info` → `handshakeTamperBaseline`
+
+If both `..._PATH` and `..._JSON` are set at the same time, startup fails
+instead of picking one implicitly.
+
 Example private JSON file shape:
 
 ```json

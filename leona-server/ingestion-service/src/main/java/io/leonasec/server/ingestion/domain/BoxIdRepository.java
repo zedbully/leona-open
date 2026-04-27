@@ -18,6 +18,6 @@ import java.util.UUID;
  */
 public interface BoxIdRepository {
 
-    Mono<Void> store(BoxId id, UUID tenantId, Instant observedAt, Instant expiresAt,
-                     RiskAssessment risk, String eventsJson);
+    Mono<Void> store(BoxId id, UUID tenantId, String deviceFingerprint, String canonicalDeviceId,
+                     Instant observedAt, Instant expiresAt, RiskAssessment risk, String eventsJson);
 }

@@ -115,9 +115,21 @@ cd /Users/a/back/Game/cq/leona-sdk-android
 - sample app 的真实 server 参数注入
 - demo backend 最小代理逻辑
 - verdict 响应签名与 demo backend 校验
+- handshake attestation 摘要回归脚本
 - Phase 1/2/3 所需主要文档与清单
 - 一次真实模拟器演示截图与联调留档
 - Android ↔ Server 模拟器 E2E 自动化脚本与真实执行结果
+
+attestation 摘要专项回归：
+
+```bash
+LEONA_API_KEY=<appKey> \
+/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-attestation-e2e.sh
+```
+
+专项留档：
+
+- `/Users/a/back/Game/cq/docs/attestation-record-2026-04-25.md`
 
 当前仍**没有**留档完成的内容：
 

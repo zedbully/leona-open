@@ -62,15 +62,15 @@ internal class LeonaIdentityStore(
     private fun decrypt(stored: String?): String? {
         if (stored == null) return null
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return stored
+        val json = runCatching { JSONObject(stored) }.getOrNull() ?: return stored
+        if (json.optString("mode") != "keystore") return stored
         return runCatching {
-            val json = JSONObject(stored)
-            if (json.optString("mode") != "keystore") return@runCatching stored
             val iv = Base64.decode(json.getString("iv"), Base64.NO_WRAP)
             val ct = Base64.decode(json.getString("ct"), Base64.NO_WRAP)
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, keystoreKey(), GCMParameterSpec(128, iv))
             String(cipher.doFinal(ct), StandardCharsets.UTF_8)
-        }.getOrNull() ?: stored
+        }.getOrNull()
     }
 
     private fun keystoreKey(): java.security.Key {

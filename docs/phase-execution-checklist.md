@@ -1,6 +1,6 @@
 # Leona 按 Phase 执行 + 验收总清单
 
-> 更新时间: 2026-04-24
+> 更新时间: 2026-04-27
 > 用途：按顺序推进实现时，直接把这份清单当作执行入口和验收总表使用。
 
 状态说明：
@@ -130,7 +130,10 @@
 - [x] 迁移第一批敏感 detector catalog / heuristics 到 private core
 - [x] 补 private module split 一键验收脚本
 - [x] 补 public-only 构建验收记录
-- [ ] 补真机留档（可选增强项）
+- [-] 补真机留档（执行包已就绪，待 USB 真机执行）
+  - `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-attestation-e2e.sh`
+  - `/Users/a/back/Game/cq/docs/physical-attestation-runbook.md`
+  - `/Users/a/back/Game/cq/docs/device-attestation-record-template.md`
 
 ### 验收标准
 - [x] 发布准备文档已具备
@@ -175,5 +178,5 @@
 
 1. 在真实 Git 工作树里执行 `/Users/a/back/Game/cq/scripts/release-preflight.sh --strict leona-sdk-android leona-server`
 2. 如正式发布前还有改动，再补一轮 public-only 构建检查
-3. 条件允许时补真机留档
+3. 条件允许时按真机执行包补真机留档
 4. 后续新增高价值能力只继续进入 private runtime / private backend

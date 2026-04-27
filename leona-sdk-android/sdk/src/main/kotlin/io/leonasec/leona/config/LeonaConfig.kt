@@ -57,12 +57,24 @@ class LeonaConfig private constructor(
     val allowedInstallerPackages: Set<String>,
     /** Optional signing certificate allowlist; values are lower-case SHA-256 digests. */
     val allowedSigningCertSha256: Set<String>,
+    /** Optional fingerprint over the sorted signing certificate digest lineage. */
+    val expectedSigningCertificateLineageSha256: String?,
+    /** Optional APK Signing Block hash baseline for v2/v3 signing metadata drift. */
+    val expectedApkSigningBlockSha256: String?,
+    /** Optional APK Signing Block ID value hashes keyed by decimal or `0x...` ID. */
+    val expectedApkSigningBlockIdSha256: Map<String, String>,
     /** Optional APK file hash baseline; lower-case SHA-256 digest. */
     val expectedApkSha256: String?,
     /** Optional native library hash baselines keyed by filename. */
     val expectedNativeLibSha256: Map<String, String>,
     /** Optional AndroidManifest.xml entry hash baseline from the base APK zip. */
     val expectedManifestEntrySha256: String?,
+    /** Optional resources.arsc entry hash baseline from the base APK zip. */
+    val expectedResourcesArscSha256: String?,
+    /** Optional fingerprint over sorted base APK resource/asset entry names. */
+    val expectedResourceInventorySha256: String?,
+    /** Optional APK resource/asset entry hash baselines keyed by zip entry name. */
+    val expectedResourceEntrySha256: Map<String, String>,
     /** Optional classes*.dex hash baselines keyed by entry name. */
     val expectedDexSha256: Map<String, String>,
     /** Optional DEX internal section hashes keyed by `classes.dex#section_name`. */
@@ -103,6 +115,10 @@ class LeonaConfig private constructor(
     val expectedDeclaredPermissionFieldValues: Map<String, String>,
     /** Optional manifest component fingerprints keyed by `type:componentName`. */
     val expectedComponentSignatureSha256: Map<String, String>,
+    /** Optional component access semantics fingerprints keyed by `type:componentName`. */
+    val expectedComponentAccessSemanticsSha256: Map<String, String>,
+    /** Optional component operational semantics fingerprints keyed by `type:componentName`. */
+    val expectedComponentOperationalSemanticsSha256: Map<String, String>,
     /** Optional fine-grained component field baselines keyed by `type:name#field`. */
     val expectedComponentFieldValues: Map<String, String>,
     /** Optional provider uriPermissionPatterns fingerprints keyed by `provider:name`. */
@@ -133,8 +149,12 @@ class LeonaConfig private constructor(
     val expectedIntentFilterDataPathSha256: Map<String, String>,
     /** Optional raw manifest intent-filter data mimeType-set fingerprints keyed by `type:name`. */
     val expectedIntentFilterDataMimeTypeSha256: Map<String, String>,
+    /** Optional normalized manifest intent-filter semantics fingerprints keyed by `type:name`. */
+    val expectedIntentFilterSemanticsSha256: Map<String, String>,
     /** Optional raw manifest grant-uri-permission fingerprints keyed by `provider:name`. */
     val expectedGrantUriPermissionSha256: Map<String, String>,
+    /** Optional normalized manifest grant-uri-permission semantics fingerprints keyed by `provider:name`. */
+    val expectedGrantUriPermissionSemanticsSha256: Map<String, String>,
     /** Optional raw manifest uses-feature fingerprint. */
     val expectedUsesFeatureSha256: String?,
     /** Optional raw manifest uses-feature name fingerprint. */
@@ -143,6 +163,8 @@ class LeonaConfig private constructor(
     val expectedUsesFeatureRequiredSha256: String?,
     /** Optional raw manifest uses-feature glEsVersion fingerprint. */
     val expectedUsesFeatureGlEsVersionSha256: String?,
+    /** Optional raw manifest uses-feature field values keyed by `uses-feature:<name-or-glEsVersion>#field`. */
+    val expectedUsesFeatureFieldValues: Map<String, String>,
     /** Optional raw manifest uses-sdk fingerprint. */
     val expectedUsesSdkSha256: String?,
     /** Optional raw manifest uses-sdk minSdkVersion fingerprint. */
@@ -151,6 +173,8 @@ class LeonaConfig private constructor(
     val expectedUsesSdkTargetSha256: String?,
     /** Optional raw manifest uses-sdk maxSdkVersion fingerprint. */
     val expectedUsesSdkMaxSha256: String?,
+    /** Optional raw manifest uses-sdk field values keyed by `uses-sdk#field`. */
+    val expectedUsesSdkFieldValues: Map<String, String>,
     /** Optional raw manifest supports-screens fingerprint. */
     val expectedSupportsScreensSha256: String?,
     /** Optional raw manifest supports-screens smallScreens fingerprint. */
@@ -183,6 +207,8 @@ class LeonaConfig private constructor(
     val expectedUsesLibraryNameSha256: String?,
     /** Optional raw manifest uses-library / uses-native-library required fingerprint. */
     val expectedUsesLibraryRequiredSha256: String?,
+    /** Optional raw manifest uses-library field values keyed by `uses-library:<name>#field`. */
+    val expectedUsesLibraryFieldValues: Map<String, String>,
     /** Optional raw manifest uses-library fingerprint. */
     val expectedUsesLibraryOnlySha256: String?,
     /** Optional raw manifest uses-library name fingerprint. */
@@ -195,16 +221,22 @@ class LeonaConfig private constructor(
     val expectedUsesNativeLibraryNameSha256: String?,
     /** Optional raw manifest uses-native-library required fingerprint. */
     val expectedUsesNativeLibraryRequiredSha256: String?,
+    /** Optional raw manifest uses-native-library field values keyed by `uses-native-library:<name>#field`. */
+    val expectedUsesNativeLibraryFieldValues: Map<String, String>,
     /** Optional raw manifest queries fingerprint. */
     val expectedQueriesSha256: String?,
     /** Optional raw manifest queries package fingerprint. */
     val expectedQueriesPackageSha256: String?,
     /** Optional raw manifest queries package-name fingerprint. */
     val expectedQueriesPackageNameSha256: String?,
+    /** Optional normalized manifest queries package semantics fingerprint. */
+    val expectedQueriesPackageSemanticsSha256: String?,
     /** Optional raw manifest queries provider fingerprint. */
     val expectedQueriesProviderSha256: String?,
     /** Optional raw manifest queries provider-authorities fingerprint. */
     val expectedQueriesProviderAuthoritySha256: String?,
+    /** Optional normalized manifest queries provider semantics fingerprint. */
+    val expectedQueriesProviderSemanticsSha256: String?,
     /** Optional raw manifest queries intent fingerprint. */
     val expectedQueriesIntentSha256: String?,
     /** Optional raw manifest queries intent action fingerprint. */
@@ -221,6 +253,8 @@ class LeonaConfig private constructor(
     val expectedQueriesIntentDataPathSha256: String?,
     /** Optional raw manifest queries intent data mimeType fingerprint. */
     val expectedQueriesIntentDataMimeTypeSha256: String?,
+    /** Optional normalized manifest queries intent semantics fingerprint. */
+    val expectedQueriesIntentSemanticsSha256: String?,
     /** Optional raw manifest application combined semantics fingerprint. */
     val expectedApplicationSemanticsSha256: String?,
     /** Optional raw manifest application security semantics fingerprint. */
@@ -229,6 +263,14 @@ class LeonaConfig private constructor(
     val expectedApplicationRuntimeSemanticsSha256: String?,
     /** Optional raw manifest application field values keyed by `application#field`. */
     val expectedApplicationFieldValues: Map<String, String>,
+    /** Optional manifest meta-data runtime type baselines keyed by meta-data name. */
+    val expectedMetaDataType: Map<String, String>,
+    /** Optional manifest meta-data runtime value hashes keyed by meta-data name. */
+    val expectedMetaDataValueSha256: Map<String, String>,
+    /** Optional raw manifest meta-data entry hashes keyed by meta-data name. */
+    val expectedManifestMetaDataEntrySha256: Map<String, String>,
+    /** Optional manifest meta-data semantics hashes keyed by meta-data name. */
+    val expectedManifestMetaDataSemanticsSha256: Map<String, String>,
     /** Optional manifest meta-data baselines keyed by meta-data name. */
     val expectedMetaData: Map<String, String>,
 ) {
@@ -266,9 +308,15 @@ class LeonaConfig private constructor(
         private var expectedPackageName: String? = null
         private val allowedInstallerPackages = linkedSetOf<String>()
         private val allowedSigningCertSha256 = linkedSetOf<String>()
+        private var expectedSigningCertificateLineageSha256: String? = null
+        private var expectedApkSigningBlockSha256: String? = null
+        private val expectedApkSigningBlockIdSha256 = linkedMapOf<String, String>()
         private var expectedApkSha256: String? = null
         private val expectedNativeLibSha256 = linkedMapOf<String, String>()
         private var expectedManifestEntrySha256: String? = null
+        private var expectedResourcesArscSha256: String? = null
+        private var expectedResourceInventorySha256: String? = null
+        private val expectedResourceEntrySha256 = linkedMapOf<String, String>()
         private val expectedDexSha256 = linkedMapOf<String, String>()
         private val expectedDexSectionSha256 = linkedMapOf<String, String>()
         private val expectedDexMethodSha256 = linkedMapOf<String, String>()
@@ -289,6 +337,8 @@ class LeonaConfig private constructor(
         private var expectedDeclaredPermissionSemanticsSha256: String? = null
         private val expectedDeclaredPermissionFieldValues = linkedMapOf<String, String>()
         private val expectedComponentSignatureSha256 = linkedMapOf<String, String>()
+        private val expectedComponentAccessSemanticsSha256 = linkedMapOf<String, String>()
+        private val expectedComponentOperationalSemanticsSha256 = linkedMapOf<String, String>()
         private val expectedComponentFieldValues = linkedMapOf<String, String>()
         private val expectedProviderUriPermissionPatternsSha256 = linkedMapOf<String, String>()
         private val expectedProviderPathPermissionsSha256 = linkedMapOf<String, String>()
@@ -304,15 +354,19 @@ class LeonaConfig private constructor(
         private val expectedIntentFilterDataAuthoritySha256 = linkedMapOf<String, String>()
         private val expectedIntentFilterDataPathSha256 = linkedMapOf<String, String>()
         private val expectedIntentFilterDataMimeTypeSha256 = linkedMapOf<String, String>()
+        private val expectedIntentFilterSemanticsSha256 = linkedMapOf<String, String>()
         private val expectedGrantUriPermissionSha256 = linkedMapOf<String, String>()
+        private val expectedGrantUriPermissionSemanticsSha256 = linkedMapOf<String, String>()
         private var expectedUsesFeatureSha256: String? = null
         private var expectedUsesFeatureNameSha256: String? = null
         private var expectedUsesFeatureRequiredSha256: String? = null
         private var expectedUsesFeatureGlEsVersionSha256: String? = null
+        private val expectedUsesFeatureFieldValues = linkedMapOf<String, String>()
         private var expectedUsesSdkSha256: String? = null
         private var expectedUsesSdkMinSha256: String? = null
         private var expectedUsesSdkTargetSha256: String? = null
         private var expectedUsesSdkMaxSha256: String? = null
+        private val expectedUsesSdkFieldValues = linkedMapOf<String, String>()
         private var expectedSupportsScreensSha256: String? = null
         private var expectedSupportsScreensSmallScreensSha256: String? = null
         private var expectedSupportsScreensNormalScreensSha256: String? = null
@@ -329,17 +383,21 @@ class LeonaConfig private constructor(
         private var expectedUsesLibrarySha256: String? = null
         private var expectedUsesLibraryNameSha256: String? = null
         private var expectedUsesLibraryRequiredSha256: String? = null
+        private val expectedUsesLibraryFieldValues = linkedMapOf<String, String>()
         private var expectedUsesLibraryOnlySha256: String? = null
         private var expectedUsesLibraryOnlyNameSha256: String? = null
         private var expectedUsesLibraryOnlyRequiredSha256: String? = null
         private var expectedUsesNativeLibrarySha256: String? = null
         private var expectedUsesNativeLibraryNameSha256: String? = null
         private var expectedUsesNativeLibraryRequiredSha256: String? = null
+        private val expectedUsesNativeLibraryFieldValues = linkedMapOf<String, String>()
         private var expectedQueriesSha256: String? = null
         private var expectedQueriesPackageSha256: String? = null
         private var expectedQueriesPackageNameSha256: String? = null
+        private var expectedQueriesPackageSemanticsSha256: String? = null
         private var expectedQueriesProviderSha256: String? = null
         private var expectedQueriesProviderAuthoritySha256: String? = null
+        private var expectedQueriesProviderSemanticsSha256: String? = null
         private var expectedQueriesIntentSha256: String? = null
         private var expectedQueriesIntentActionSha256: String? = null
         private var expectedQueriesIntentCategorySha256: String? = null
@@ -348,10 +406,15 @@ class LeonaConfig private constructor(
         private var expectedQueriesIntentDataAuthoritySha256: String? = null
         private var expectedQueriesIntentDataPathSha256: String? = null
         private var expectedQueriesIntentDataMimeTypeSha256: String? = null
+        private var expectedQueriesIntentSemanticsSha256: String? = null
         private var expectedApplicationSemanticsSha256: String? = null
         private var expectedApplicationSecuritySemanticsSha256: String? = null
         private var expectedApplicationRuntimeSemanticsSha256: String? = null
         private val expectedApplicationFieldValues = linkedMapOf<String, String>()
+        private val expectedMetaDataType = linkedMapOf<String, String>()
+        private val expectedMetaDataValueSha256 = linkedMapOf<String, String>()
+        private val expectedManifestMetaDataEntrySha256 = linkedMapOf<String, String>()
+        private val expectedManifestMetaDataSemanticsSha256 = linkedMapOf<String, String>()
         private val expectedMetaData = linkedMapOf<String, String>()
 
         fun enableInjectionDetection(enabled: Boolean) = apply { injection = enabled }
@@ -399,6 +462,20 @@ class LeonaConfig private constructor(
         fun allowedSigningCertSha256(digests: Iterable<String>) = apply {
             allowedSigningCertSha256 += digests.mapNotNull { normalizeDigest(it) }
         }
+        fun expectedSigningCertificateLineageSha256(digest: String?) = apply {
+            expectedSigningCertificateLineageSha256 = normalizeDigest(digest)
+        }
+        fun expectedApkSigningBlockSha256(digest: String?) = apply {
+            expectedApkSigningBlockSha256 = normalizeDigest(digest)
+        }
+        fun expectedApkSigningBlockIdSha256(signingBlockId: String, digest: String?) = apply {
+            putNormalized(expectedApkSigningBlockIdSha256, signingBlockId, digest)
+        }
+        fun expectedApkSigningBlockIdSha256(values: Map<String, String>) = apply {
+            values.forEach { (signingBlockId, digest) ->
+                expectedApkSigningBlockIdSha256(signingBlockId, digest)
+            }
+        }
         fun expectedApkSha256(digest: String?) = apply {
             expectedApkSha256 = normalizeDigest(digest)
         }
@@ -414,6 +491,18 @@ class LeonaConfig private constructor(
         }
         fun expectedManifestEntrySha256(digest: String?) = apply {
             expectedManifestEntrySha256 = normalizeDigest(digest)
+        }
+        fun expectedResourcesArscSha256(digest: String?) = apply {
+            expectedResourcesArscSha256 = normalizeDigest(digest)
+        }
+        fun expectedResourceInventorySha256(digest: String?) = apply {
+            expectedResourceInventorySha256 = normalizeDigest(digest)
+        }
+        fun expectedResourceEntrySha256(entryName: String, digest: String?) = apply {
+            putNormalized(expectedResourceEntrySha256, entryName, digest)
+        }
+        fun expectedResourceEntrySha256(values: Map<String, String>) = apply {
+            values.forEach { (entryName, digest) -> expectedResourceEntrySha256(entryName, digest) }
         }
         fun expectedDexSha256(entryName: String, digest: String?) = apply {
             putNormalized(expectedDexSha256, entryName, digest)
@@ -503,6 +592,22 @@ class LeonaConfig private constructor(
         }
         fun expectedComponentSignatureSha256(values: Map<String, String>) = apply {
             values.forEach { (componentKey, digest) -> expectedComponentSignatureSha256(componentKey, digest) }
+        }
+        fun expectedComponentAccessSemanticsSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedComponentAccessSemanticsSha256, componentKey, digest)
+        }
+        fun expectedComponentAccessSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) ->
+                expectedComponentAccessSemanticsSha256(componentKey, digest)
+            }
+        }
+        fun expectedComponentOperationalSemanticsSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedComponentOperationalSemanticsSha256, componentKey, digest)
+        }
+        fun expectedComponentOperationalSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) ->
+                expectedComponentOperationalSemanticsSha256(componentKey, digest)
+            }
         }
         fun expectedComponentFieldValue(componentFieldKey: String, value: String?) = apply {
             putRawValue(expectedComponentFieldValues, componentFieldKey, value)
@@ -600,11 +705,25 @@ class LeonaConfig private constructor(
         fun expectedIntentFilterDataMimeTypeSha256(values: Map<String, String>) = apply {
             values.forEach { (componentKey, digest) -> expectedIntentFilterDataMimeTypeSha256(componentKey, digest) }
         }
+        fun expectedIntentFilterSemanticsSha256(componentKey: String, digest: String?) = apply {
+            putNormalized(expectedIntentFilterSemanticsSha256, componentKey, digest)
+        }
+        fun expectedIntentFilterSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (componentKey, digest) -> expectedIntentFilterSemanticsSha256(componentKey, digest) }
+        }
         fun expectedGrantUriPermissionSha256(providerKey: String, digest: String?) = apply {
             putNormalized(expectedGrantUriPermissionSha256, providerKey, digest)
         }
         fun expectedGrantUriPermissionSha256(values: Map<String, String>) = apply {
             values.forEach { (providerKey, digest) -> expectedGrantUriPermissionSha256(providerKey, digest) }
+        }
+        fun expectedGrantUriPermissionSemanticsSha256(providerKey: String, digest: String?) = apply {
+            putNormalized(expectedGrantUriPermissionSemanticsSha256, providerKey, digest)
+        }
+        fun expectedGrantUriPermissionSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (providerKey, digest) ->
+                expectedGrantUriPermissionSemanticsSha256(providerKey, digest)
+            }
         }
         fun expectedUsesFeatureSha256(digest: String?) = apply {
             expectedUsesFeatureSha256 = normalizeDigest(digest)
@@ -618,6 +737,14 @@ class LeonaConfig private constructor(
         fun expectedUsesFeatureGlEsVersionSha256(digest: String?) = apply {
             expectedUsesFeatureGlEsVersionSha256 = normalizeDigest(digest)
         }
+        fun expectedUsesFeatureFieldValue(featureFieldKey: String, value: String?) = apply {
+            putRawValue(expectedUsesFeatureFieldValues, featureFieldKey, value)
+        }
+        fun expectedUsesFeatureFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (featureFieldKey, value) ->
+                expectedUsesFeatureFieldValue(featureFieldKey, value)
+            }
+        }
         fun expectedUsesSdkSha256(digest: String?) = apply {
             expectedUsesSdkSha256 = normalizeDigest(digest)
         }
@@ -629,6 +756,14 @@ class LeonaConfig private constructor(
         }
         fun expectedUsesSdkMaxSha256(digest: String?) = apply {
             expectedUsesSdkMaxSha256 = normalizeDigest(digest)
+        }
+        fun expectedUsesSdkFieldValue(usesSdkFieldKey: String, value: String?) = apply {
+            putRawValue(expectedUsesSdkFieldValues, usesSdkFieldKey, value)
+        }
+        fun expectedUsesSdkFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (usesSdkFieldKey, value) ->
+                expectedUsesSdkFieldValue(usesSdkFieldKey, value)
+            }
         }
         fun expectedSupportsScreensSha256(digest: String?) = apply {
             expectedSupportsScreensSha256 = normalizeDigest(digest)
@@ -678,6 +813,14 @@ class LeonaConfig private constructor(
         fun expectedUsesLibraryRequiredSha256(digest: String?) = apply {
             expectedUsesLibraryRequiredSha256 = normalizeDigest(digest)
         }
+        fun expectedUsesLibraryFieldValue(libraryFieldKey: String, value: String?) = apply {
+            putRawValue(expectedUsesLibraryFieldValues, libraryFieldKey, value)
+        }
+        fun expectedUsesLibraryFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (libraryFieldKey, value) ->
+                expectedUsesLibraryFieldValue(libraryFieldKey, value)
+            }
+        }
         fun expectedUsesLibraryOnlySha256(digest: String?) = apply {
             expectedUsesLibraryOnlySha256 = normalizeDigest(digest)
         }
@@ -696,6 +839,14 @@ class LeonaConfig private constructor(
         fun expectedUsesNativeLibraryRequiredSha256(digest: String?) = apply {
             expectedUsesNativeLibraryRequiredSha256 = normalizeDigest(digest)
         }
+        fun expectedUsesNativeLibraryFieldValue(nativeLibraryFieldKey: String, value: String?) = apply {
+            putRawValue(expectedUsesNativeLibraryFieldValues, nativeLibraryFieldKey, value)
+        }
+        fun expectedUsesNativeLibraryFieldValues(values: Map<String, String>) = apply {
+            values.forEach { (nativeLibraryFieldKey, value) ->
+                expectedUsesNativeLibraryFieldValue(nativeLibraryFieldKey, value)
+            }
+        }
         fun expectedQueriesSha256(digest: String?) = apply {
             expectedQueriesSha256 = normalizeDigest(digest)
         }
@@ -705,11 +856,17 @@ class LeonaConfig private constructor(
         fun expectedQueriesPackageNameSha256(digest: String?) = apply {
             expectedQueriesPackageNameSha256 = normalizeDigest(digest)
         }
+        fun expectedQueriesPackageSemanticsSha256(digest: String?) = apply {
+            expectedQueriesPackageSemanticsSha256 = normalizeDigest(digest)
+        }
         fun expectedQueriesProviderSha256(digest: String?) = apply {
             expectedQueriesProviderSha256 = normalizeDigest(digest)
         }
         fun expectedQueriesProviderAuthoritySha256(digest: String?) = apply {
             expectedQueriesProviderAuthoritySha256 = normalizeDigest(digest)
+        }
+        fun expectedQueriesProviderSemanticsSha256(digest: String?) = apply {
+            expectedQueriesProviderSemanticsSha256 = normalizeDigest(digest)
         }
         fun expectedQueriesIntentSha256(digest: String?) = apply {
             expectedQueriesIntentSha256 = normalizeDigest(digest)
@@ -735,6 +892,9 @@ class LeonaConfig private constructor(
         fun expectedQueriesIntentDataMimeTypeSha256(digest: String?) = apply {
             expectedQueriesIntentDataMimeTypeSha256 = normalizeDigest(digest)
         }
+        fun expectedQueriesIntentSemanticsSha256(digest: String?) = apply {
+            expectedQueriesIntentSemanticsSha256 = normalizeDigest(digest)
+        }
         fun expectedApplicationSemanticsSha256(digest: String?) = apply {
             expectedApplicationSemanticsSha256 = normalizeDigest(digest)
         }
@@ -751,6 +911,46 @@ class LeonaConfig private constructor(
             values.forEach { (applicationFieldKey, value) ->
                 expectedApplicationFieldValue(applicationFieldKey, value)
             }
+        }
+        fun expectedMetaDataType(name: String, type: String?) = apply {
+            val normalizedName = name.trim()
+            val normalizedType = type?.trim()?.lowercase()?.ifEmpty { null }
+            if (normalizedName.isNotEmpty() && normalizedType != null) {
+                expectedMetaDataType[normalizedName] = normalizedType
+            }
+        }
+        fun expectedMetaDataType(values: Map<String, String>) = apply {
+            values.forEach { (name, type) -> expectedMetaDataType(name, type) }
+        }
+        fun expectedMetaDataValueSha256(name: String, digest: String?) = apply {
+            val normalizedName = name.trim()
+            val normalizedDigest = normalizeDigest(digest)
+            if (normalizedName.isNotEmpty() && normalizedDigest != null) {
+                expectedMetaDataValueSha256[normalizedName] = normalizedDigest
+            }
+        }
+        fun expectedMetaDataValueSha256(values: Map<String, String>) = apply {
+            values.forEach { (name, digest) -> expectedMetaDataValueSha256(name, digest) }
+        }
+        fun expectedManifestMetaDataEntrySha256(name: String, digest: String?) = apply {
+            val normalizedName = name.trim()
+            val normalizedDigest = normalizeDigest(digest)
+            if (normalizedName.isNotEmpty() && normalizedDigest != null) {
+                expectedManifestMetaDataEntrySha256[normalizedName] = normalizedDigest
+            }
+        }
+        fun expectedManifestMetaDataEntrySha256(values: Map<String, String>) = apply {
+            values.forEach { (name, digest) -> expectedManifestMetaDataEntrySha256(name, digest) }
+        }
+        fun expectedManifestMetaDataSemanticsSha256(name: String, digest: String?) = apply {
+            val normalizedName = name.trim()
+            val normalizedDigest = normalizeDigest(digest)
+            if (normalizedName.isNotEmpty() && normalizedDigest != null) {
+                expectedManifestMetaDataSemanticsSha256[normalizedName] = normalizedDigest
+            }
+        }
+        fun expectedManifestMetaDataSemanticsSha256(values: Map<String, String>) = apply {
+            values.forEach { (name, digest) -> expectedManifestMetaDataSemanticsSha256(name, digest) }
         }
         fun expectedMetaData(name: String, value: String?) = apply {
             val normalizedName = name.trim()
@@ -788,9 +988,15 @@ class LeonaConfig private constructor(
             expectedPackageName = expectedPackageName,
             allowedInstallerPackages = allowedInstallerPackages.toSet(),
             allowedSigningCertSha256 = allowedSigningCertSha256.toSet(),
+            expectedSigningCertificateLineageSha256 = expectedSigningCertificateLineageSha256,
+            expectedApkSigningBlockSha256 = expectedApkSigningBlockSha256,
+            expectedApkSigningBlockIdSha256 = expectedApkSigningBlockIdSha256.toMap(),
             expectedApkSha256 = expectedApkSha256,
             expectedNativeLibSha256 = expectedNativeLibSha256.toMap(),
             expectedManifestEntrySha256 = expectedManifestEntrySha256,
+            expectedResourcesArscSha256 = expectedResourcesArscSha256,
+            expectedResourceInventorySha256 = expectedResourceInventorySha256,
+            expectedResourceEntrySha256 = expectedResourceEntrySha256.toMap(),
             expectedDexSha256 = expectedDexSha256.toMap(),
             expectedDexSectionSha256 = expectedDexSectionSha256.toMap(),
             expectedDexMethodSha256 = expectedDexMethodSha256.toMap(),
@@ -811,6 +1017,9 @@ class LeonaConfig private constructor(
             expectedDeclaredPermissionSemanticsSha256 = expectedDeclaredPermissionSemanticsSha256,
             expectedDeclaredPermissionFieldValues = expectedDeclaredPermissionFieldValues.toMap(),
             expectedComponentSignatureSha256 = expectedComponentSignatureSha256.toMap(),
+            expectedComponentAccessSemanticsSha256 = expectedComponentAccessSemanticsSha256.toMap(),
+            expectedComponentOperationalSemanticsSha256 =
+                expectedComponentOperationalSemanticsSha256.toMap(),
             expectedComponentFieldValues = expectedComponentFieldValues.toMap(),
             expectedProviderUriPermissionPatternsSha256 = expectedProviderUriPermissionPatternsSha256.toMap(),
             expectedProviderPathPermissionsSha256 = expectedProviderPathPermissionsSha256.toMap(),
@@ -827,15 +1036,20 @@ class LeonaConfig private constructor(
             expectedIntentFilterDataAuthoritySha256 = expectedIntentFilterDataAuthoritySha256.toMap(),
             expectedIntentFilterDataPathSha256 = expectedIntentFilterDataPathSha256.toMap(),
             expectedIntentFilterDataMimeTypeSha256 = expectedIntentFilterDataMimeTypeSha256.toMap(),
+            expectedIntentFilterSemanticsSha256 = expectedIntentFilterSemanticsSha256.toMap(),
             expectedGrantUriPermissionSha256 = expectedGrantUriPermissionSha256.toMap(),
+            expectedGrantUriPermissionSemanticsSha256 =
+                expectedGrantUriPermissionSemanticsSha256.toMap(),
             expectedUsesFeatureSha256 = expectedUsesFeatureSha256,
             expectedUsesFeatureNameSha256 = expectedUsesFeatureNameSha256,
             expectedUsesFeatureRequiredSha256 = expectedUsesFeatureRequiredSha256,
             expectedUsesFeatureGlEsVersionSha256 = expectedUsesFeatureGlEsVersionSha256,
+            expectedUsesFeatureFieldValues = expectedUsesFeatureFieldValues.toMap(),
             expectedUsesSdkSha256 = expectedUsesSdkSha256,
             expectedUsesSdkMinSha256 = expectedUsesSdkMinSha256,
             expectedUsesSdkTargetSha256 = expectedUsesSdkTargetSha256,
             expectedUsesSdkMaxSha256 = expectedUsesSdkMaxSha256,
+            expectedUsesSdkFieldValues = expectedUsesSdkFieldValues.toMap(),
             expectedSupportsScreensSha256 = expectedSupportsScreensSha256,
             expectedSupportsScreensSmallScreensSha256 = expectedSupportsScreensSmallScreensSha256,
             expectedSupportsScreensNormalScreensSha256 = expectedSupportsScreensNormalScreensSha256,
@@ -855,17 +1069,21 @@ class LeonaConfig private constructor(
             expectedUsesLibrarySha256 = expectedUsesLibrarySha256,
             expectedUsesLibraryNameSha256 = expectedUsesLibraryNameSha256,
             expectedUsesLibraryRequiredSha256 = expectedUsesLibraryRequiredSha256,
+            expectedUsesLibraryFieldValues = expectedUsesLibraryFieldValues.toMap(),
             expectedUsesLibraryOnlySha256 = expectedUsesLibraryOnlySha256,
             expectedUsesLibraryOnlyNameSha256 = expectedUsesLibraryOnlyNameSha256,
             expectedUsesLibraryOnlyRequiredSha256 = expectedUsesLibraryOnlyRequiredSha256,
             expectedUsesNativeLibrarySha256 = expectedUsesNativeLibrarySha256,
             expectedUsesNativeLibraryNameSha256 = expectedUsesNativeLibraryNameSha256,
             expectedUsesNativeLibraryRequiredSha256 = expectedUsesNativeLibraryRequiredSha256,
+            expectedUsesNativeLibraryFieldValues = expectedUsesNativeLibraryFieldValues.toMap(),
             expectedQueriesSha256 = expectedQueriesSha256,
             expectedQueriesPackageSha256 = expectedQueriesPackageSha256,
             expectedQueriesPackageNameSha256 = expectedQueriesPackageNameSha256,
+            expectedQueriesPackageSemanticsSha256 = expectedQueriesPackageSemanticsSha256,
             expectedQueriesProviderSha256 = expectedQueriesProviderSha256,
             expectedQueriesProviderAuthoritySha256 = expectedQueriesProviderAuthoritySha256,
+            expectedQueriesProviderSemanticsSha256 = expectedQueriesProviderSemanticsSha256,
             expectedQueriesIntentSha256 = expectedQueriesIntentSha256,
             expectedQueriesIntentActionSha256 = expectedQueriesIntentActionSha256,
             expectedQueriesIntentCategorySha256 = expectedQueriesIntentCategorySha256,
@@ -874,10 +1092,15 @@ class LeonaConfig private constructor(
             expectedQueriesIntentDataAuthoritySha256 = expectedQueriesIntentDataAuthoritySha256,
             expectedQueriesIntentDataPathSha256 = expectedQueriesIntentDataPathSha256,
             expectedQueriesIntentDataMimeTypeSha256 = expectedQueriesIntentDataMimeTypeSha256,
+            expectedQueriesIntentSemanticsSha256 = expectedQueriesIntentSemanticsSha256,
             expectedApplicationSemanticsSha256 = expectedApplicationSemanticsSha256,
             expectedApplicationSecuritySemanticsSha256 = expectedApplicationSecuritySemanticsSha256,
             expectedApplicationRuntimeSemanticsSha256 = expectedApplicationRuntimeSemanticsSha256,
             expectedApplicationFieldValues = expectedApplicationFieldValues.toMap(),
+            expectedMetaDataType = expectedMetaDataType.toMap(),
+            expectedMetaDataValueSha256 = expectedMetaDataValueSha256.toMap(),
+            expectedManifestMetaDataEntrySha256 = expectedManifestMetaDataEntrySha256.toMap(),
+            expectedManifestMetaDataSemanticsSha256 = expectedManifestMetaDataSemanticsSha256.toMap(),
             expectedMetaData = expectedMetaData.toMap(),
         )
 

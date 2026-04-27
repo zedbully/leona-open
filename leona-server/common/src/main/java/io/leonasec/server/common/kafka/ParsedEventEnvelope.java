@@ -19,7 +19,13 @@ import java.util.UUID;
 public record ParsedEventEnvelope(
     BoxId boxId,
     UUID tenantId,
+    String deviceFingerprint,
+    String canonicalDeviceId,
     Instant observedAt,
     Instant expiresAt,
     List<DetectionEvent> events
-) {}
+) {
+    public ParsedEventEnvelope(BoxId boxId, UUID tenantId, Instant observedAt, Instant expiresAt, List<DetectionEvent> events) {
+        this(boxId, tenantId, null, null, observedAt, expiresAt, events);
+    }
+}

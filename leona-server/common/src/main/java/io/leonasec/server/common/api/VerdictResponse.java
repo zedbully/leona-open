@@ -15,11 +15,23 @@ import java.util.Set;
 public record VerdictResponse(
     BoxId boxId,
     String deviceFingerprint,
+    String canonicalDeviceId,
     RiskAssessment risk,
     List<DetectionEvent> events,
     Instant observedAt,
     Instant usedAt
 ) {
+    public VerdictResponse(
+        BoxId boxId,
+        String deviceFingerprint,
+        RiskAssessment risk,
+        List<DetectionEvent> events,
+        Instant observedAt,
+        Instant usedAt
+    ) {
+        this(boxId, deviceFingerprint, null, risk, events, observedAt, usedAt);
+    }
+
     public VerdictResponse {
         Objects.requireNonNull(boxId, "boxId");
         Objects.requireNonNull(risk, "risk");

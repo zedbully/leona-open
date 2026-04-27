@@ -133,6 +133,8 @@ paths:
         - $ref: "#/components/parameters/XLeonaNonce"
         - $ref: "#/components/parameters/XLeonaSessionId"
         - $ref: "#/components/parameters/XLeonaSignature"
+        - $ref: "#/components/parameters/XLeonaFingerprint"
+        - $ref: "#/components/parameters/XLeonaCanonicalDeviceId"
       requestBody:
         required: true
         content:
@@ -484,6 +486,18 @@ components:
       required: true
       description: Base64url HMAC-SHA256 (see securitySchemes.signatureHeader).
       schema: { type: string }
+    XLeonaFingerprint:
+      name: X-Leona-Fingerprint
+      in: header
+      required: false
+      description: SDK-computed app-scoped fingerprint hash propagated into the verdict record.
+      schema: { type: string, maxLength: 128 }
+    XLeonaCanonicalDeviceId:
+      name: X-Leona-Canonical-Device-Id
+      in: header
+      required: false
+      description: Server-issued or server-normalized stable app-scoped Leona device id (`L...`).
+      schema: { type: string, maxLength: 128 }
 
   # ---------------------------------------------------------------------
   # Reusable response headers
@@ -561,6 +575,10 @@ components:
         sdkVersion:
           type: string
           example: "0.1.0-alpha.1"
+        deviceBinding:
+          $ref: "#/components/schemas/DeviceBinding"
+        deviceIdentity:
+          $ref: "#/components/schemas/DeviceIdentity"
 
     HandshakeResponse:
       type: object
@@ -580,26 +598,105 @@ components:
           type: object
           description: |
             Optional server-provisioned tamper baseline merged by the SDK with
-            any local Builder baselines before collection. Intended for package,
-            installer, signing cert, APK/lib, manifest, dex entry/section/method,
+            any local Builder baselines before collection. Server configuration
+            is validated at startup against the SDK-supported allowlist and JSON
+            value shapes. Intended for package,
+            installer, signing cert, signing certificate lineage, APK Signing Block,
+            APK Signing Block ID, APK/lib, manifest, resources.arsc,
+            resource inventory, resource entry, dex entry/section/method,
             split APK,
             split inventory, dynamic feature raw-name drift, config split raw-name drift, dynamic feature/config split drift, config ABI/locale/density drift, native export graph, permission semantics,
-            declared permission field drift, component field drift, provider
+            declared permission field drift, component signature/access/operational/field drift, provider
             uriPermissionPatterns/pathPermissions/combined/access/operational semantics drift, raw intent-filter
             action/category/data drift, raw data scheme/authority/path/mimeType
-            drift, provider authority-set drift, raw grant-uri-permission
-            drift, raw uses-feature/uses-sdk/supports-screens/
+            drift, intent-filter semantics drift, provider authority-set drift, raw grant-uri-permission
+            and grant-uri-permission semantics drift,
+            raw uses-feature/uses-sdk/supports-screens/
             compatible-screens/uses-library/uses-native-library/queries drift, split queries
-            uses-feature name/required/glEsVersion drift, uses-sdk min/target/max drift,
+            uses-feature name/required/glEsVersion drift, uses-feature field drift,
+            uses-sdk min/target/max drift, uses-sdk field drift,
             supports-screens small/normal/large/xlarge/resizeable/anyDensity/width-limit drift,
             compatible-screens size/density drift,
             uses-library / uses-native-library name/required drift,
+            uses-library / uses-native-library field drift,
             application security/runtime semantics drift,
-            package/provider/intent drift, queries package-name/provider-authorities drift,
+            package/provider/intent drift, queries package-name/provider-authorities/package-provider-intent semantics drift,
             queries intent action/category/data drift,
-            queries intent data scheme/authority/path/mimeType drift, application semantics drift, application field drift, and
-            manifest meta-data integrity checks.
+            queries intent data scheme/authority/path/mimeType/intent semantics drift, application semantics drift, application field drift, and
+            manifest meta-data entry/semantics/type/value-hash/value integrity checks.
           additionalProperties: true
+        deviceBindingStatus:
+          type: string
+          description: Server-side binding outcome summary.
+          example: bound-hardware/play_integrity-meets_device_integrity
+        attestation:
+          $ref: "#/components/schemas/HandshakeAttestationSummary"
+        canonicalDeviceId:
+          type: string
+          nullable: true
+          description: Server-normalized stable app-scoped Leona device id (`L...`) derived from deviceIdentity.
+
+    DeviceBinding:
+      type: object
+      properties:
+        keyAlgorithm:
+          type: string
+          example: EC_P256
+        publicKey:
+          type: string
+          description: Base64url-encoded Android Keystore public key.
+        signatureAlgorithm:
+          type: string
+          example: SHA256withECDSA
+        signature:
+          type: string
+          description: Base64url signature over the canonical binding payload.
+        hardwareBacked:
+          type: boolean
+        attestationFormat:
+          type: string
+          nullable: true
+          example: play_integrity
+        attestationToken:
+          type: string
+          nullable: true
+          description: Provider-specific attestation token or debug OEM attestation payload.
+
+    DeviceIdentity:
+      type: object
+      description: SDK identity snapshot used to converge temporary `T...` ids to stable app-scoped `L...` ids.
+      properties:
+        installId:
+          type: string
+          nullable: true
+        resolvedDeviceId:
+          type: string
+          nullable: true
+        canonicalDeviceId:
+          type: string
+          nullable: true
+        fingerprintHash:
+          type: string
+          nullable: true
+
+    HandshakeAttestationSummary:
+      type: object
+      properties:
+        provider:
+          type: string
+          nullable: true
+          example: play_integrity
+        status:
+          type: string
+          nullable: true
+          example: play_integrity/meets_device_integrity
+        code:
+          type: string
+          nullable: true
+          example: PLAY_INTEGRITY_VERIFIED
+        retryable:
+          type: boolean
+          nullable: true
 
     SenseResponse:
       type: object
@@ -632,6 +729,10 @@ components:
           description: |
             Leona Fingerprint identifier (v0.4+). May be null in alpha if
             the fingerprinting module has not yet classified this device.
+          nullable: true
+        canonicalDeviceId:
+          type: string
+          description: Stable app-scoped Leona device id (`L...`) when the SDK/server identity chain has converged.
           nullable: true
         risk:
           $ref: "#/components/schemas/Risk"

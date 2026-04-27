@@ -4,9 +4,11 @@ plugins {
 }
 
 val leonaApiKey = providers.gradleProperty("LEONA_API_KEY").orElse("").get()
+val leonaTenantId = providers.gradleProperty("LEONA_TENANT_ID").orElse("sample").get()
 val leonaReportingEndpoint = providers.gradleProperty("LEONA_REPORTING_ENDPOINT").orElse("").get()
 val leonaCloudConfigEndpoint = providers.gradleProperty("LEONA_CLOUD_CONFIG_ENDPOINT").orElse("").get()
 val leonaDemoBackendBaseUrl = providers.gradleProperty("LEONA_DEMO_BACKEND_BASE_URL").orElse("").get()
+val leonaDemoVerdictSecretKey = providers.gradleProperty("LEONA_DEMO_VERDICT_SECRET_KEY").orElse("").get()
 val leonaSampleAttestationMode = providers.gradleProperty("LEONA_SAMPLE_ATTESTATION_MODE").orElse("off").get()
 val leonaSamplePlayIntegrityCloudProjectNumber =
     providers.gradleProperty("LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER").orElse("").get()
@@ -24,9 +26,11 @@ android {
         versionCode = 1
         versionName = "0.1.0-alpha.1"
         buildConfigField("String", "LEONA_API_KEY", "\"$leonaApiKey\"")
+        buildConfigField("String", "LEONA_TENANT_ID", "\"$leonaTenantId\"")
         buildConfigField("String", "LEONA_REPORTING_ENDPOINT", "\"$leonaReportingEndpoint\"")
         buildConfigField("String", "LEONA_CLOUD_CONFIG_ENDPOINT", "\"$leonaCloudConfigEndpoint\"")
         buildConfigField("String", "LEONA_DEMO_BACKEND_BASE_URL", "\"$leonaDemoBackendBaseUrl\"")
+        buildConfigField("String", "LEONA_DEMO_VERDICT_SECRET_KEY", "\"$leonaDemoVerdictSecretKey\"")
         buildConfigField("String", "LEONA_SAMPLE_ATTESTATION_MODE", "\"$leonaSampleAttestationMode\"")
         buildConfigField(
             "String",

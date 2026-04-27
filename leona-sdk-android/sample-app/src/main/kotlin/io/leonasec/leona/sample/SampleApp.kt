@@ -9,6 +9,9 @@ import io.leonasec.leona.Leona
 import io.leonasec.leona.config.LeonaConfig
 
 class SampleApp : Application() {
+    private val tenantId: String
+        get() = BuildConfig.LEONA_TENANT_ID.ifBlank { "sample" }
+
     override fun onCreate() {
         super.onCreate()
         val endpoint = BuildConfig.LEONA_REPORTING_ENDPOINT.ifBlank { null }
@@ -29,7 +32,7 @@ class SampleApp : Application() {
             this,
             LeonaConfig.Builder()
                 .apiKey(apiKey)
-                .tenantId("sample")
+                .tenantId(tenantId)
                 .appId("sample-app")
                 .reportingEndpoint(endpoint)
                 .cloudConfigEndpoint(cloudConfigEndpoint)
@@ -42,6 +45,7 @@ class SampleApp : Application() {
                 .build(),
         )
     }
+
 
     private fun resolveSampleAttestationProvider() =
         SampleMainlandAttestation.createProvider(this)

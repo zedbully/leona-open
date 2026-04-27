@@ -63,12 +63,29 @@ data class LeonaSecureSessionSnapshot(
     val expiresAtMillis: Long?,
     val hasServerTamperPolicy: Boolean,
     val canonicalDeviceId: String?,
+    val deviceBindingStatus: String? = null,
+    val serverAttestation: LeonaServerAttestationSnapshot? = null,
 ) {
     fun toJsonObject(): JSONObject = JSONObject()
         .put("sessionIdHint", sessionIdHint)
         .put("expiresAtMillis", expiresAtMillis)
         .put("hasServerTamperPolicy", hasServerTamperPolicy)
         .put("canonicalDeviceId", canonicalDeviceId)
+        .put("deviceBindingStatus", deviceBindingStatus)
+        .put("serverAttestation", serverAttestation?.toJsonObject())
+}
+
+data class LeonaServerAttestationSnapshot(
+    val provider: String? = null,
+    val status: String? = null,
+    val code: String? = null,
+    val retryable: Boolean? = null,
+) {
+    fun toJsonObject(): JSONObject = JSONObject()
+        .put("provider", provider)
+        .put("status", status)
+        .put("code", code)
+        .put("retryable", retryable)
 }
 
 data class LeonaAttestationSnapshot(

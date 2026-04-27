@@ -5,3 +5,6 @@ databaseChangeLog:
   - include:
       file: changes/002-box-id-varchar.sql
       relativeToChangelogFile: true
+  - include:
+      file: changes/003-box-canonical-device-id.sql
+      relativeToChangelogFile: true

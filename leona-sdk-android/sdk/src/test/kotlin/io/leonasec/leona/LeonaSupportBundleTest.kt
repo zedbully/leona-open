@@ -67,6 +67,13 @@ class LeonaSupportBundleTest {
                 expiresAtMillis = 789L,
                 hasServerTamperPolicy = true,
                 canonicalDeviceId = "Lcanon",
+                deviceBindingStatus = "verified",
+                serverAttestation = LeonaServerAttestationSnapshot(
+                    provider = "play_integrity",
+                    status = "verified",
+                    code = "PLAY_INTEGRITY_VERIFIED",
+                    retryable = false,
+                ),
             ),
             lastAttestation = LeonaAttestationSnapshot(
                 format = "play_integrity",
@@ -136,6 +143,19 @@ class LeonaSupportBundleTest {
             obj.getJSONObject("secureTransport")
                 .getJSONObject("lastAttestation")
                 .getString("format"),
+        )
+        assertEquals(
+            "verified",
+            obj.getJSONObject("secureTransport")
+                .getJSONObject("session")
+                .getString("deviceBindingStatus"),
+        )
+        assertEquals(
+            "PLAY_INTEGRITY_VERIFIED",
+            obj.getJSONObject("secureTransport")
+                .getJSONObject("session")
+                .getJSONObject("serverAttestation")
+                .getString("code"),
         )
         assertTrue(json.contains("\n"))
     }

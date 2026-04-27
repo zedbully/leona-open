@@ -1,13 +1,13 @@
 # Leona 当前总体验收总结
 
-> 更新时间: 2026-04-24
+> 更新时间: 2026-04-27
 > 适用范围：当前仓库 `/Users/a/back/Game/cq`
 
 ---
 
 ## 1. 一句话结论
 
-> **Leona 已真实跑通 Android SDK + server + demo-backend 在模拟器上的完整闭环，并已补齐本地可回归执行的 E2E 自动化脚本、alpha release notes、admin 真实联调留档、最小 observability 收口、GitHub manual E2E workflow scaffold，以及 private module split 脚手架与第一批敏感检测规则迁移；当前剩余工作主要收敛为“发布前清理 + 真机留档增强 + 首次 CI 跑验 + 私有实现继续迁移”。**
+> **Leona 已真实跑通 Android SDK + server + demo-backend 在模拟器上的完整闭环，并已补齐本地可回归执行的 E2E 自动化脚本、handshake attestation 摘要专项回归、alpha release notes、admin 真实联调留档、最小 observability 收口、GitHub manual E2E workflow scaffold，以及 private module split 脚手架与第一批敏感检测规则迁移；当前剩余工作主要收敛为“发布前清理 + 真机留档增强 + 首次 CI 跑验 + 私有实现继续迁移”。**
 
 ---
 
@@ -80,6 +80,17 @@
     - `risk=CRITICAL`
     - `score=100`
   - 自动化产物目录：`/tmp/leona-e2e-20260423-015719`
+- handshake attestation 摘要自动化已跑通：
+  - 脚本：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-attestation-e2e.sh`
+  - 本地执行时间：2026-04-25
+  - mode：`debug_fake`
+  - 本次自动化产出 BoxId：`01KQ04NPATG3KP1S1526KXX3M3`
+  - 本次自动化 attestation：
+    - `provider=play_integrity`
+    - `status=play_integrity/MEETS_DEVICE_INTEGRITY`
+    - `code=PLAY_INTEGRITY_VERIFIED`
+  - 自动化产物目录：`/tmp/leona-attestation-e2e-20260425-002000`
+  - 专项留档：`/Users/a/back/Game/cq/docs/attestation-record-2026-04-25.md`
 
 ### Phase 5
 
@@ -94,9 +105,18 @@
 - 模拟器真实联调留档已完成
 - alpha release notes 已定稿：
   - `/Users/a/back/Game/cq/docs/alpha-release-notes.md`
-- GitHub manual live emulator E2E workflow scaffold 已补：
+- GitHub manual live emulator E2E / attestation summary E2E workflow 已补：
   - `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
   - `/Users/a/back/Game/cq/docs/ci-e2e-setup.md`
+  - workflow_dispatch 输入：
+    - `run_live_e2e`
+    - `run_live_attestation_e2e`
+  - Actions summary 已支持直接显示：
+    - `deviceBindingStatus`
+    - `provider`
+    - `status`
+    - `code`
+    - `retryable`
 - private module split 脚手架已补：
   - `/Users/a/back/Game/cq/docs/private-module-split.md`
   - public-only 构建验收留档：
@@ -156,6 +176,39 @@
 
 ---
 
+## 2.1 Mainland / 非 GMS 收口状态
+
+结论：**public 路线通过，private 生产化待完成**
+
+已完成：
+
+- public `AttestationProvider` 可插拔接口已落地
+- public ingestion 已支持 `oem_attestation` 路由到 private verifier
+- sample 已支持：
+  - `oem_debug_fake`
+  - `oem_bridge`
+- mainland 风险分层已固化为：
+  - `gms_attested`
+  - `oem_attested`
+  - `no_attestation`
+  - `attestation_failed`
+- 文档链路已补齐：
+  - `/Users/a/back/Game/cq/docs/mainland-closeout-summary.md`
+  - `/Users/a/back/Game/cq/docs/mainland-attestation-record-2026-04-25.md`
+  - `/Users/a/back/Game/cq/docs/mainland-attestation-risk-posture.md`
+  - `/Users/a/back/Game/cq/docs/mainland-attestation-acceptance-checklist.md`
+  - `/Users/a/back/Game/cq/leona-sdk-android/docs/mainland-attestation-e2e.md`
+  - `/Users/a/back/Game/cq/leona-sdk-android/docs/mainland-attestation-release-gate.md`
+
+仍缺：
+
+- 真 OEM Android provider 接入
+- 真 OEM server verifier / trust anchor / allowlist 生产配置
+- 至少 1 条真实 mainland OEM staging E2E 留档
+- posture bucket 仪表盘与运营量化
+
+---
+
 ## 3. 当前最关键的剩余项
 
 ### 收口剩余项
@@ -164,10 +217,12 @@
 
 - 模拟器人工闭环留档
 - 模拟器自动化 E2E 脚本与真实执行结果
+- handshake attestation 摘要专项自动化脚本与真实执行结果
+- attestation 摘要专项留档
 - query / verdict 主链路真实验收
 - admin create / create-key / rotate / revoke 真实联调留档
 - 最小 observability dashboard / alerting 已完成
-- GitHub manual E2E workflow scaffold 已完成
+- GitHub manual E2E / attestation workflow scaffold 已完成
 - private module split 脚手架已完成
 - 开源版 / 私有版最终边界矩阵已完成
 - 最终收口策略已完成
@@ -178,6 +233,7 @@
 - GitHub secrets / variables 配置与首次 live emulator E2E 跑验
 - 发布前 Git 工作树清理与误提交流程检查
 - 私有模块继续深化，但不再扩大 public 面
+- 真机 attestation 执行包已具备，待现场 USB 真机执行留档
 
 ---
 
@@ -186,11 +242,11 @@
 1. 在真实 Git 工作树里执行 `/Users/a/back/Game/cq/scripts/release-preflight.sh --strict leona-sdk-android leona-server`
 2. 如正式发布前还有改动，再补一轮 public-only 构建检查
 3. 如果条件允许，再补一轮真机留档
-4. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E
+4. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E / live attestation E2E
 5. 后续新增高价值能力只继续进入 private 模块
 
 ---
 
 ## 5. 当前可对外使用的口径
 
-> Leona 已完成 Android runtime security alpha 的本地工程闭环：Android SDK、sample app、server-side BoxId verdict pipeline 与 demo backend 已在 Android 模拟器上完成真实联调验收，并已有本地可回归执行的 E2E 自动化脚本、正式 alpha release notes、admin 真实联调留档、最小 observability 收口、GitHub manual E2E workflow scaffold，以及已固化的 private module split、open-source shell、private core、private backend 边界。当前工作重点是发布前清理、真机/CI 增强项补充，以及只在 private 模块继续深化高价值能力。
+> Leona 已完成 Android runtime security alpha 的本地工程闭环：Android SDK、sample app、server-side BoxId verdict pipeline 与 demo backend 已在 Android 模拟器上完成真实联调验收，并已有本地可回归执行的 E2E 自动化脚本、handshake attestation 摘要专项回归、正式 alpha release notes、admin 真实联调留档、最小 observability 收口、GitHub manual E2E / attestation workflow scaffold，以及已固化的 private module split、open-source shell、private core、private backend 边界。当前工作重点是发布前清理、真机/CI 增强项补充，以及只在 private 模块继续深化高价值能力。

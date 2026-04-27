@@ -188,6 +188,80 @@ void check_allowed_signing_certs(const Snapshot& snapshot, const Snapshot& polic
     });
 }
 
+void check_expected_signing_certificate_lineage(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedSigningCertificateLineageSha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "signingCertificateLineageSha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.signing_certificate_lineage.missing"
+            : "tamper.signing_certificate_lineage.mismatch",
+        Severity::CRITICAL,
+        actual.empty()
+            ? "Signing certificate lineage fingerprint could not be collected"
+            : "Signing certificate lineage fingerprint does not match configured baseline",
+        ev.build(),
+    });
+}
+
+void check_expected_apk_signing_block_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedApkSigningBlockSha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "apkSigningBlockSha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.apk_signing_block_hash.missing"
+            : "tamper.apk_signing_block_hash.mismatch",
+        Severity::CRITICAL,
+        actual.empty()
+            ? "APK Signing Block hash could not be collected"
+            : "APK Signing Block hash does not match configured baseline",
+        ev.build(),
+    });
+}
+
+void check_expected_apk_signing_block_id_hashes(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedApkSigningBlockIdSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string signing_block_id = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual =
+            get_or(snapshot, ("apkSigningBlockIdSha256." + signing_block_id).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("signing_block_id", signing_block_id);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.apk_signing_block_id_hash.missing"
+                : "tamper.apk_signing_block_id_hash.mismatch",
+            Severity::CRITICAL,
+            actual.empty()
+                ? "APK Signing Block ID value hash could not be collected"
+                : "APK Signing Block ID value hash does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
 void check_expected_apk_hash(const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedApkSha256");
     if (expected.empty()) return;
@@ -226,6 +300,79 @@ void check_expected_manifest_hash(const Snapshot& snapshot, const Snapshot& poli
             : "AndroidManifest.xml hash does not match configured baseline",
         ev.build(),
     });
+}
+
+void check_expected_resources_arsc_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedResourcesArscSha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "resourcesArscSha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.resources_arsc_hash.missing"
+            : "tamper.resources_arsc_hash.mismatch",
+        Severity::HIGH,
+        actual.empty()
+            ? "resources.arsc hash could not be collected"
+            : "resources.arsc hash does not match configured baseline",
+        ev.build(),
+    });
+}
+
+void check_expected_resource_inventory_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedResourceInventorySha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "resourceInventorySha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.resource_inventory_hash.missing"
+            : "tamper.resource_inventory_hash.mismatch",
+        Severity::HIGH,
+        actual.empty()
+            ? "APK resource inventory fingerprint could not be collected"
+            : "APK resource inventory fingerprint does not match configured baseline",
+        ev.build(),
+    });
+}
+
+void check_expected_resource_entry_hashes(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedResourceEntrySha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string entry_name = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("resourceEntrySha256." + entry_name).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("entry", entry_name);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.resource_entry_hash.missing"
+                : "tamper.resource_entry_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "APK resource entry hash could not be collected"
+                : "APK resource entry hash does not match configured baseline",
+            ev.build(),
+        });
+    }
 }
 
 void check_expected_lib_hashes(const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
@@ -750,6 +897,61 @@ void check_expected_component_fields(const Snapshot& snapshot, const Snapshot& p
     }
 }
 
+void check_expected_component_access_semantics(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedComponentAccessSemanticsSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string component_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("componentAccessSemanticsSha256." + component_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("component", component_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.component_access_semantics_hash.missing"
+                : "tamper.component_access_semantics_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest component access semantics fingerprint could not be collected"
+                : "Manifest component access semantics fingerprint does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
+void check_expected_component_operational_semantics(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedComponentOperationalSemanticsSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string component_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual =
+            get_or(snapshot, ("componentOperationalSemanticsSha256." + component_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("component", component_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.component_operational_semantics_hash.missing"
+                : "tamper.component_operational_semantics_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest component operational semantics fingerprint could not be collected"
+                : "Manifest component operational semantics fingerprint does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
 void check_expected_provider_uri_permission_patterns(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     static constexpr char kPrefix[] = "expectedProviderUriPermissionPatternsSha256.";
@@ -1074,6 +1276,33 @@ void check_expected_intent_filter_data_mime_type_hashes(
     }
 }
 
+void check_expected_intent_filter_semantics_hashes(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedIntentFilterSemanticsSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string component_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("intentFilterSemanticsSha256." + component_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("component", component_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.intent_filter_semantics_hash.missing"
+                : "tamper.intent_filter_semantics_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest intent-filter semantics fingerprint could not be collected"
+                : "Manifest intent-filter semantics fingerprint does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
 void check_expected_grant_uri_permission_hashes(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     static constexpr char kPrefix[] = "expectedGrantUriPermissionSha256.";
@@ -1096,6 +1325,34 @@ void check_expected_grant_uri_permission_hashes(
             actual.empty()
                 ? "Manifest grant-uri-permission fingerprint could not be collected"
                 : "Manifest grant-uri-permission fingerprint does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
+void check_expected_grant_uri_permission_semantics_hashes(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedGrantUriPermissionSemanticsSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string provider_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual =
+            get_or(snapshot, ("grantUriPermissionSemanticsSha256." + provider_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("provider", provider_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.grant_uri_permission_semantics_hash.missing"
+                : "tamper.grant_uri_permission_semantics_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest grant-uri-permission semantics fingerprint could not be collected"
+                : "Manifest grant-uri-permission semantics fingerprint does not match configured baseline",
             ev.build(),
         });
     }
@@ -1193,6 +1450,33 @@ void check_expected_uses_feature_gles_version_hash(
     });
 }
 
+void check_expected_uses_feature_field_values(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedUsesFeatureField.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string field_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("usesFeatureField." + field_key).c_str());
+        if (actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("uses_feature_field", field_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.uses_feature_field.missing"
+                : "tamper.uses_feature_field.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest uses-feature field could not be collected"
+                : "Manifest uses-feature field does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
 void check_expected_uses_sdk_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedUsesSdkSha256");
@@ -1283,6 +1567,33 @@ void check_expected_uses_sdk_max_hash(
             : "Manifest uses-sdk maxSdkVersion fingerprint does not match configured baseline",
         ev.build(),
     });
+}
+
+void check_expected_uses_sdk_field_values(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedUsesSdkField.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string field_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("usesSdkField." + field_key).c_str());
+        if (actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("uses_sdk_field", field_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.uses_sdk_field.missing"
+                : "tamper.uses_sdk_field.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest uses-sdk field could not be collected"
+                : "Manifest uses-sdk field does not match configured baseline",
+            ev.build(),
+        });
+    }
 }
 
 void check_expected_supports_screens_hash(
@@ -1536,6 +1847,33 @@ void check_expected_uses_library_required_hash(
         out);
 }
 
+void check_expected_uses_library_field_values(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedUsesLibraryField.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string field_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("usesLibraryField." + field_key).c_str());
+        if (actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("uses_library_field", field_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.uses_library_field.missing"
+                : "tamper.uses_library_field.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest uses-library field could not be collected"
+                : "Manifest uses-library field does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
 void check_expected_uses_library_only_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedUsesLibraryOnlySha256");
@@ -1638,6 +1976,34 @@ void check_expected_uses_native_library_required_hash(
         out);
 }
 
+void check_expected_uses_native_library_field_values(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedUsesNativeLibraryField.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string field_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual =
+            get_or(snapshot, ("usesNativeLibraryField." + field_key).c_str());
+        if (actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("uses_native_library_field", field_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.uses_native_library_field.missing"
+                : "tamper.uses_native_library_field.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest uses-native-library field could not be collected"
+                : "Manifest uses-native-library field does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
 void check_expected_queries_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedQueriesSha256");
@@ -1707,6 +2073,29 @@ void check_expected_queries_package_name_hash(
     });
 }
 
+void check_expected_queries_package_semantics_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedQueriesPackageSemanticsSha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "queriesPackageSemanticsSha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.queries_package_semantics_hash.missing"
+            : "tamper.queries_package_semantics_hash.mismatch",
+        Severity::HIGH,
+        actual.empty()
+            ? "Manifest queries package semantics fingerprint could not be collected"
+            : "Manifest queries package semantics fingerprint does not match configured baseline",
+        ev.build(),
+    });
+}
+
 void check_expected_queries_provider_hash(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     const std::string expected = get_or(policy, "expectedQueriesProviderSha256");
@@ -1749,6 +2138,29 @@ void check_expected_queries_provider_authority_hash(
         actual.empty()
             ? "Manifest queries provider-authority fingerprint could not be collected"
             : "Manifest queries provider-authority fingerprint does not match configured baseline",
+        ev.build(),
+    });
+}
+
+void check_expected_queries_provider_semantics_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedQueriesProviderSemanticsSha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "queriesProviderSemanticsSha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.queries_provider_semantics_hash.missing"
+            : "tamper.queries_provider_semantics_hash.mismatch",
+        Severity::HIGH,
+        actual.empty()
+            ? "Manifest queries provider semantics fingerprint could not be collected"
+            : "Manifest queries provider semantics fingerprint does not match configured baseline",
         ev.build(),
     });
 }
@@ -1937,6 +2349,29 @@ void check_expected_queries_intent_data_mime_type_hash(
     });
 }
 
+void check_expected_queries_intent_semantics_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    const std::string expected = get_or(policy, "expectedQueriesIntentSemanticsSha256");
+    if (expected.empty()) return;
+
+    const std::string actual = get_or(snapshot, "queriesIntentSemanticsSha256");
+    if (!actual.empty() && actual == expected) return;
+
+    EvidenceBuilder ev;
+    ev.add("expected", expected);
+    ev.add("actual", actual);
+    out.push_back({
+        actual.empty()
+            ? "tamper.queries_intent_semantics_hash.missing"
+            : "tamper.queries_intent_semantics_hash.mismatch",
+        Severity::HIGH,
+        actual.empty()
+            ? "Manifest queries intent semantics fingerprint could not be collected"
+            : "Manifest queries intent semantics fingerprint does not match configured baseline",
+        ev.build(),
+    });
+}
+
 void check_expected_application_fields(
     const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
     static constexpr char kPrefix[] = "expectedApplicationField.";
@@ -2006,6 +2441,109 @@ void check_expected_metadata(const Snapshot& snapshot, const Snapshot& policy, E
             actual.empty()
                 ? "Manifest meta-data value is missing"
                 : "Manifest meta-data value does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
+void check_expected_metadata_type(const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedMetaDataType.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string meta_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("metaDataType." + meta_key).c_str());
+        if (actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("meta_key", meta_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty() ? "tamper.metadata_type.missing" : "tamper.metadata_type.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest meta-data type is missing"
+                : "Manifest meta-data type does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
+void check_expected_metadata_value_hash(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedMetaDataValueSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+
+        const std::string meta_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("metaDataValueSha256." + meta_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("meta_key", meta_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.metadata_value_hash.missing"
+                : "tamper.metadata_value_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest meta-data value hash is missing"
+                : "Manifest meta-data value hash does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
+void check_expected_manifest_metadata_entry_hashes(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedManifestMetaDataEntrySha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+        const std::string meta_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("manifestMetaDataEntrySha256." + meta_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("meta_key", meta_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.manifest_metadata_entry_hash.missing"
+                : "tamper.manifest_metadata_entry_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest meta-data entry fingerprint could not be collected"
+                : "Manifest meta-data entry fingerprint does not match configured baseline",
+            ev.build(),
+        });
+    }
+}
+
+void check_expected_manifest_metadata_semantics_hashes(
+    const Snapshot& snapshot, const Snapshot& policy, EventList& out) {
+    static constexpr char kPrefix[] = "expectedManifestMetaDataSemanticsSha256.";
+    for (const auto& [key, expected] : policy) {
+        if (key.rfind(kPrefix, 0) != 0) continue;
+        const std::string meta_key = key.substr(sizeof(kPrefix) - 1);
+        const std::string actual = get_or(snapshot, ("manifestMetaDataSemanticsSha256." + meta_key).c_str());
+        if (!actual.empty() && actual == expected) continue;
+
+        EvidenceBuilder ev;
+        ev.add("meta_key", meta_key);
+        ev.add("expected", expected);
+        ev.add("actual", actual);
+        out.push_back({
+            actual.empty()
+                ? "tamper.manifest_metadata_semantics_hash.missing"
+                : "tamper.manifest_metadata_semantics_hash.mismatch",
+            Severity::HIGH,
+            actual.empty()
+                ? "Manifest meta-data semantics fingerprint could not be collected"
+                : "Manifest meta-data semantics fingerprint does not match configured baseline",
             ev.build(),
         });
     }
@@ -2092,8 +2630,26 @@ EventList scan_tamper() {
     if (catalog.expected_package) check_expected_package(snapshot, policy, events);
     if (catalog.allowed_installers) check_allowed_installers(snapshot, policy, events);
     if (catalog.allowed_signing_certs) check_allowed_signing_certs(snapshot, policy, events);
+    if (catalog.expected_signing_certificate_lineage) {
+        check_expected_signing_certificate_lineage(snapshot, policy, events);
+    }
+    if (catalog.expected_apk_signing_block_hash) {
+        check_expected_apk_signing_block_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_apk_signing_block_id_hashes) {
+        check_expected_apk_signing_block_id_hashes(snapshot, policy, events);
+    }
     if (catalog.expected_apk_hash) check_expected_apk_hash(snapshot, policy, events);
     if (catalog.expected_manifest_hash) check_expected_manifest_hash(snapshot, policy, events);
+    if (catalog.expected_resources_arsc_hash) {
+        check_expected_resources_arsc_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_resource_inventory_hash) {
+        check_expected_resource_inventory_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_resource_entry_hashes) {
+        check_expected_resource_entry_hashes(snapshot, policy, events);
+    }
     if (catalog.expected_lib_hashes) check_expected_lib_hashes(snapshot, policy, events);
     if (catalog.expected_dex_hashes) check_expected_dex_hashes(snapshot, policy, events);
     if (catalog.expected_dex_section_hashes) check_expected_dex_section_hashes(snapshot, policy, events);
@@ -2135,6 +2691,12 @@ EventList scan_tamper() {
         check_expected_declared_permission_fields(snapshot, policy, events);
     }
     if (catalog.expected_component_signatures) check_expected_component_signatures(snapshot, policy, events);
+    if (catalog.expected_component_access_semantics) {
+        check_expected_component_access_semantics(snapshot, policy, events);
+    }
+    if (catalog.expected_component_operational_semantics) {
+        check_expected_component_operational_semantics(snapshot, policy, events);
+    }
     if (catalog.expected_component_fields) check_expected_component_fields(snapshot, policy, events);
     if (catalog.expected_provider_uri_permission_patterns) {
         check_expected_provider_uri_permission_patterns(snapshot, policy, events);
@@ -2170,8 +2732,14 @@ EventList scan_tamper() {
     if (catalog.expected_intent_filter_data_mime_type_hashes) {
         check_expected_intent_filter_data_mime_type_hashes(snapshot, policy, events);
     }
+    if (catalog.expected_intent_filter_semantics_hashes) {
+        check_expected_intent_filter_semantics_hashes(snapshot, policy, events);
+    }
     if (catalog.expected_grant_uri_permission_hashes) {
         check_expected_grant_uri_permission_hashes(snapshot, policy, events);
+    }
+    if (catalog.expected_grant_uri_permission_semantics_hashes) {
+        check_expected_grant_uri_permission_semantics_hashes(snapshot, policy, events);
     }
     if (catalog.expected_uses_feature_hash) {
         check_expected_uses_feature_hash(snapshot, policy, events);
@@ -2185,6 +2753,9 @@ EventList scan_tamper() {
     if (catalog.expected_uses_feature_gles_version_hash) {
         check_expected_uses_feature_gles_version_hash(snapshot, policy, events);
     }
+    if (catalog.expected_uses_feature_field_values) {
+        check_expected_uses_feature_field_values(snapshot, policy, events);
+    }
     if (catalog.expected_uses_sdk_hash) {
         check_expected_uses_sdk_hash(snapshot, policy, events);
     }
@@ -2196,6 +2767,9 @@ EventList scan_tamper() {
     }
     if (catalog.expected_uses_sdk_max_hash) {
         check_expected_uses_sdk_max_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_uses_sdk_field_values) {
+        check_expected_uses_sdk_field_values(snapshot, policy, events);
     }
     if (catalog.expected_supports_screens_hash) {
         check_expected_supports_screens_hash(snapshot, policy, events);
@@ -2245,6 +2819,9 @@ EventList scan_tamper() {
     if (catalog.expected_uses_library_required_hash) {
         check_expected_uses_library_required_hash(snapshot, policy, events);
     }
+    if (catalog.expected_uses_library_field_values) {
+        check_expected_uses_library_field_values(snapshot, policy, events);
+    }
     if (catalog.expected_uses_library_only_hash) {
         check_expected_uses_library_only_hash(snapshot, policy, events);
     }
@@ -2263,6 +2840,9 @@ EventList scan_tamper() {
     if (catalog.expected_uses_native_library_required_hash) {
         check_expected_uses_native_library_required_hash(snapshot, policy, events);
     }
+    if (catalog.expected_uses_native_library_field_values) {
+        check_expected_uses_native_library_field_values(snapshot, policy, events);
+    }
     if (catalog.expected_queries_hash) {
         check_expected_queries_hash(snapshot, policy, events);
     }
@@ -2272,11 +2852,17 @@ EventList scan_tamper() {
     if (catalog.expected_queries_package_name_hash) {
         check_expected_queries_package_name_hash(snapshot, policy, events);
     }
+    if (catalog.expected_queries_package_semantics_hash) {
+        check_expected_queries_package_semantics_hash(snapshot, policy, events);
+    }
     if (catalog.expected_queries_provider_hash) {
         check_expected_queries_provider_hash(snapshot, policy, events);
     }
     if (catalog.expected_queries_provider_authority_hash) {
         check_expected_queries_provider_authority_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_queries_provider_semantics_hash) {
+        check_expected_queries_provider_semantics_hash(snapshot, policy, events);
     }
     if (catalog.expected_queries_intent_hash) {
         check_expected_queries_intent_hash(snapshot, policy, events);
@@ -2302,11 +2888,26 @@ EventList scan_tamper() {
     if (catalog.expected_queries_intent_data_mime_type_hash) {
         check_expected_queries_intent_data_mime_type_hash(snapshot, policy, events);
     }
+    if (catalog.expected_queries_intent_semantics_hash) {
+        check_expected_queries_intent_semantics_hash(snapshot, policy, events);
+    }
     if (catalog.expected_application_semantics) {
         check_expected_application_semantics(snapshot, policy, events);
     }
     if (catalog.expected_application_fields) {
         check_expected_application_fields(snapshot, policy, events);
+    }
+    if (catalog.expected_metadata_type) {
+        check_expected_metadata_type(snapshot, policy, events);
+    }
+    if (catalog.expected_metadata_value_hash) {
+        check_expected_metadata_value_hash(snapshot, policy, events);
+    }
+    if (catalog.expected_manifest_metadata_entry_hashes) {
+        check_expected_manifest_metadata_entry_hashes(snapshot, policy, events);
+    }
+    if (catalog.expected_manifest_metadata_semantics_hashes) {
+        check_expected_manifest_metadata_semantics_hashes(snapshot, policy, events);
     }
     if (catalog.expected_metadata) check_expected_metadata(snapshot, policy, events);
 

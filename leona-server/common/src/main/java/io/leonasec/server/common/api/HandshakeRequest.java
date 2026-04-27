@@ -15,8 +15,12 @@ public record HandshakeRequest(
     String clientPublicKey,
     String installId,
     String sdkVersion,
-    DeviceBinding deviceBinding
+    DeviceBinding deviceBinding,
+    DeviceIdentity deviceIdentity
 ) {
+    public HandshakeRequest(String clientPublicKey, String installId, String sdkVersion, DeviceBinding deviceBinding) {
+        this(clientPublicKey, installId, sdkVersion, deviceBinding, null);
+    }
 
     public record DeviceBinding(
         String keyAlgorithm,
@@ -26,5 +30,12 @@ public record HandshakeRequest(
         boolean hardwareBacked,
         String attestationFormat,
         String attestationToken
+    ) {}
+
+    public record DeviceIdentity(
+        String installId,
+        String resolvedDeviceId,
+        String canonicalDeviceId,
+        String fingerprintHash
     ) {}
 }

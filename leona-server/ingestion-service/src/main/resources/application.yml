@@ -50,3 +50,8 @@ logging:
     root: INFO
     io.leonasec: DEBUG
     org.springframework.web: INFO
+
+leona:
+  handshake:
+    tamper-baseline-path: ${LEONA_HANDSHAKE_TAMPER_BASELINE_PATH:}
+    tamper-baseline-json: ${LEONA_HANDSHAKE_TAMPER_BASELINE_JSON:}

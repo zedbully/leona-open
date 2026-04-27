@@ -19,7 +19,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleLeona(LeonaException ex) {
         return ResponseEntity
             .status(ex.code().status())
-            .body(new ErrorResponse(ex.code(), ex.getMessage(), RequestIds.newId()));
+            .body(new ErrorResponse(ex.code(), ex.getMessage(), RequestIds.newId(), ex.details()));
     }
 
     @ExceptionHandler(Exception.class)
