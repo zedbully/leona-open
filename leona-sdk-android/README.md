@@ -253,6 +253,7 @@ You can generate the APK-side baseline fields from a built APK:
   --package-name io.leonasec.leona.sample \
   --resource-entry res/raw/leona.bin \
   --dex-section classes.dex#code_item \
+  --split-dir /path/to/bundletool/splits \
   > tamper-baseline.json
 ```
 
@@ -261,7 +262,10 @@ Use `--all-resource-entries` only when you intentionally want every
 inventory hash plus a few high-value entries is easier to operate. Use
 `--dex-section ENTRY#SECTION` for high-value DEX regions such as
 `classes.dex#code_item` or `classes.dex#class_defs`; `--all-dex-sections`
-is available for stricter release baselines.
+is available for stricter release baselines. Use `--split-apk` or
+`--split-dir` for bundletool/dynamic-feature/config split outputs; the
+generator keys split hashes by filename so channel packages can keep separate
+server baselines without rebuilding client code.
 
 ```kotlin
 // At a sensitive moment (login, payment, high-value API call):
@@ -534,10 +538,11 @@ LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
 ```
 
-That flow checks `T... -> L...` convergence, support-bundle cloud-config
-evidence, cross-surface canonical consistency, direct formal `/v1/verdict`
-response-signature verification, formal `deviceFingerprint`, and reinstall
-stability.
+That flow checks pre-`sense()` device-id state (`T...` on a fresh install or a
+previously restored `L...` canonical), `L...` convergence, support-bundle
+cloud-config evidence, cross-surface canonical consistency, direct formal
+`/v1/verdict` response-signature verification, formal `deviceFingerprint`, and
+reinstall stability.
 The script automatically configures `adb reverse` for ports `8080` and
 `8090`, and writes `report.json` / `report.md` under `/tmp/leona-device-e2e-*`.
 

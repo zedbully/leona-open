@@ -221,7 +221,7 @@ LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 
 That script validates:
 
-- fresh install shows temporary `T...` device id before `sense()`
+- fresh install shows temporary `T...`, or repeated installs can restore the same canonical `L...`, before `sense()`
 - `sense()` + cloud-config converge device id to canonical `L...`
 - support bundle reflects cloud-config application
 - diagnostic / transport / verdict / support-bundle canonical values align

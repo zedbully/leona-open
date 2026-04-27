@@ -379,8 +379,8 @@ run_cycle() {
 
   local pre_device_line
   pre_device_line="$(read_view_with_scroll "$prefix-home-device" "$APP_ID:id/deviceId" 1)"
-  if [[ "$pre_device_line" != DeviceId:\ T* ]]; then
-    echo "Expected temporary device id before sense(), got: $pre_device_line" >&2
+  if [[ "$pre_device_line" != DeviceId:\ T* && "$pre_device_line" != DeviceId:\ L* ]]; then
+    echo "Expected temporary or restored canonical device id before sense(), got: $pre_device_line" >&2
     exit 1
   fi
 
@@ -421,6 +421,10 @@ run_cycle() {
   require_contains "$final_consistency_text" "bundle=$canonical_id" "$prefix consistencySummary"
   require_contains "$final_consistency_text" 'aligned=true' "$prefix consistencySummary"
   require_contains "$verdict_text" "canonical=$canonical_id" "$prefix verdictResult"
+  if [[ "$pre_device_line" == DeviceId:\ L* && "$pre_device_line" != "DeviceId: $canonical_id" ]]; then
+    echo "Restored pre-sense canonical changed after sense(): $pre_device_line != DeviceId: $canonical_id" >&2
+    exit 1
+  fi
 
   local diagnostic_json_path consistency_json_path transport_json_path support_bundle_json_path verdict_json_path
   diagnostic_json_path="$(capture_json_section "$prefix-diagnostic" "$APP_ID:id/buttonToggleDiagnosticJson" "$APP_ID:id/diagnosticJson")"
@@ -550,6 +554,7 @@ require(not clean_expected or not clean_hits, f"{prefix}: clean-device regressio
 payload = {
     "cycle": prefix,
     "preDevice": os.environ["PRE_DEVICE_LINE"],
+    "preSenseDeviceKind": "canonical" if os.environ["PRE_DEVICE_LINE"].startswith("DeviceId: L") else "temporary",
     "boxId": os.environ["BOX_LINE"].removeprefix("BoxId: "),
     "formalVerdictBoxId": os.environ["FORMAL_BOX_ID"],
     "canonicalDeviceId": canonical,
@@ -579,6 +584,8 @@ payload = {
         "effectiveDisabledSignals": support_bundle.get("effectiveDisabledSignals", []),
         "cleanDeviceExpected": clean_expected,
         "cleanDeviceSuspiciousHits": clean_hits,
+        "preSenseDeviceAccepted": os.environ["PRE_DEVICE_LINE"].startswith(("DeviceId: T", "DeviceId: L")),
+        "preSenseCanonicalRestored": os.environ["PRE_DEVICE_LINE"].startswith("DeviceId: L"),
     },
 }
 path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -639,6 +646,8 @@ combined = {
     "canonicalStableAcrossReinstall": canonical,
     "passes": {
         "temporaryBeforeSense": first["preDevice"].startswith("DeviceId: T") and second["preDevice"].startswith("DeviceId: T"),
+        "preSenseDeviceAccepted": first["jsonChecks"]["preSenseDeviceAccepted"] and second["jsonChecks"]["preSenseDeviceAccepted"],
+        "preSenseCanonicalRestored": first["jsonChecks"]["preSenseCanonicalRestored"] or second["jsonChecks"]["preSenseCanonicalRestored"],
         "canonicalAfterSense": first["canonicalDeviceId"].startswith("L") and second["canonicalDeviceId"].startswith("L"),
         "consistencyAligned": bool(first["consistencyJson"]["aligned"]) and bool(second["consistencyJson"]["aligned"]),
         "jsonSurfaceAligned": all(
@@ -685,6 +694,8 @@ combined = {
             f"- deviceSerial: `{serial}`",
             f"- canonicalStableAcrossReinstall: `{canonical}`",
             f"- temporaryBeforeSense: `{combined['passes']['temporaryBeforeSense']}`",
+            f"- preSenseDeviceAccepted: `{combined['passes']['preSenseDeviceAccepted']}`",
+            f"- preSenseCanonicalRestored: `{combined['passes']['preSenseCanonicalRestored']}`",
             f"- canonicalAfterSense: `{combined['passes']['canonicalAfterSense']}`",
             f"- consistencyAligned: `{combined['passes']['consistencyAligned']}`",
             f"- jsonSurfaceAligned: `{combined['passes']['jsonSurfaceAligned']}`",
@@ -701,6 +712,7 @@ combined = {
                     [
                         f"### {cycle['cycle']}",
                         f"- preDevice: `{cycle['preDevice']}`",
+                        f"- preSenseDeviceKind: `{cycle['preSenseDeviceKind']}`",
                         f"- boxId: `{cycle['boxId']}`",
                         f"- formalVerdictBoxId: `{cycle['formalVerdictBoxId']}`",
                         f"- canonicalDeviceId: `{cycle['canonicalDeviceId']}`",

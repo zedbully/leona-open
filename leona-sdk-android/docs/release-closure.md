@@ -173,7 +173,7 @@ Artifacts:
 
 Required result:
 
-- before `sense()`, device id is `T...`
+- before `sense()`, device id is either fresh temporary `T...` or a previously restored canonical `L...`
 - after `sense()`, device id is `L...`
 - consistency report says `aligned=true`
 - diagnostic / transport / support-bundle / verdict raw JSON all converge to the same canonical device id

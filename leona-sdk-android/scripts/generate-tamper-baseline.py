@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import struct
 import sys
 import zipfile
@@ -52,10 +53,29 @@ DEX_SECTION_NAMES = {
     0x2006: "annotations_directory_item",
     0xF000: "hiddenapi_class_data_item",
 }
+KNOWN_CONFIG_SPLIT_ABI_AXES = {
+    "armeabi",
+    "armeabi_v7a",
+    "arm64_v8a",
+    "x86",
+    "x86_64",
+    "mips",
+    "mips64",
+    "riscv64",
+}
+CONFIG_SPLIT_DENSITY_RE = re.compile(
+    r"^(?:ldpi|mdpi|tvdpi|hdpi|xhdpi|xxhdpi|xxxhdpi|nodpi|anydpi|[0-9]{3,4}dpi)$",
+)
+CONFIG_SPLIT_LOCALE_RE = re.compile(r"^[a-z]{2,3}(?:-r[A-Z]{2})?$")
+CONFIG_SPLIT_BCP47_LOCALE_RE = re.compile(r"^b\+[A-Za-z0-9_+]+$")
 
 
 def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def sha256_text(lines: Iterable[str]) -> str:
+    return sha256_hex("\n".join(sorted(lines)).encode("utf-8"))
 
 
 def sha256_file(path: Path) -> str:
@@ -64,6 +84,96 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def collect_split_apks(paths: Iterable[str], dirs: Iterable[str]) -> list[Path]:
+    splits: list[Path] = []
+    for raw_path in paths:
+        path = Path(raw_path).expanduser().resolve()
+        if not path.is_file():
+            raise SystemExit(f"Split APK does not exist: {path}")
+        splits.append(path)
+    for raw_dir in dirs:
+        directory = Path(raw_dir).expanduser().resolve()
+        if not directory.is_dir():
+            raise SystemExit(f"Split APK directory does not exist: {directory}")
+        splits.extend(sorted(path for path in directory.glob("*.apk") if path.is_file()))
+    return sorted({path: path for path in splits}.values(), key=lambda path: path.name)
+
+
+def split_file_name(path: Path) -> str:
+    return path.name
+
+
+def normalize_config_split_axis(file_name: str) -> str | None:
+    stem = file_name.removesuffix(".apk")
+    if stem.startswith("config."):
+        return stem.removeprefix("config.") or None
+    if stem.startswith("split_config."):
+        return stem.removeprefix("split_config.") or None
+    return None
+
+
+def normalize_dynamic_feature_split_name(file_name: str) -> str | None:
+    stem = file_name.removesuffix(".apk")
+    if not stem or stem == "base" or normalize_config_split_axis(file_name) is not None:
+        return None
+    normalized = stem.removeprefix("split_").removeprefix("feature_")
+    return normalized or None
+
+
+def is_dynamic_feature_split_file_name(file_name: str) -> bool:
+    stem = file_name.removesuffix(".apk")
+    return bool(stem and stem != "base" and normalize_config_split_axis(file_name) is None)
+
+
+def normalize_config_split_abi_axis(axis: str) -> str | None:
+    return axis if axis in KNOWN_CONFIG_SPLIT_ABI_AXES else None
+
+
+def normalize_config_split_locale_axis(axis: str) -> str | None:
+    return axis if CONFIG_SPLIT_LOCALE_RE.match(axis) or CONFIG_SPLIT_BCP47_LOCALE_RE.match(axis) else None
+
+
+def normalize_config_split_density_axis(axis: str) -> str | None:
+    return axis if CONFIG_SPLIT_DENSITY_RE.match(axis) else None
+
+
+def split_baseline(paths: list[Path]) -> dict[str, object]:
+    if not paths:
+        return {}
+
+    names = [split_file_name(path) for path in paths]
+    axes = [axis for name in names if (axis := normalize_config_split_axis(name))]
+    payload: dict[str, object] = {
+        "expectedSplitApkSha256": {
+            split_file_name(path): sha256_file(path)
+            for path in paths
+        },
+        "expectedSplitInventorySha256": sha256_text(names),
+        "expectedDynamicFeatureSplitSha256": sha256_text(
+            name
+            for file_name in names
+            if (name := normalize_dynamic_feature_split_name(file_name))
+        ),
+        "expectedDynamicFeatureSplitNameSha256": sha256_text(
+            name for name in names if is_dynamic_feature_split_file_name(name)
+        ),
+        "expectedConfigSplitAxisSha256": sha256_text(axes),
+        "expectedConfigSplitNameSha256": sha256_text(
+            name for name in names if normalize_config_split_axis(name) is not None
+        ),
+        "expectedConfigSplitAbiSha256": sha256_text(
+            axis for axis in axes if normalize_config_split_abi_axis(axis)
+        ),
+        "expectedConfigSplitLocaleSha256": sha256_text(
+            axis for axis in axes if normalize_config_split_locale_axis(axis)
+        ),
+        "expectedConfigSplitDensitySha256": sha256_text(
+            axis for axis in axes if normalize_config_split_density_axis(axis)
+        ),
+    }
+    return payload
 
 
 def dex_section_name(section_type: int) -> str:
@@ -244,6 +354,7 @@ def collect_baseline(args: argparse.Namespace) -> dict[str, object]:
         baseline["expectedPackageName"] = args.package_name.strip()
 
     baseline["expectedApkSha256"] = sha256_file(apk)
+    baseline.update(split_baseline(collect_split_apks(args.split_apk, args.split_dir)))
 
     signing_block = read_apk_signing_block(apk)
     if signing_block is not None:
@@ -358,6 +469,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--all-dex-sections",
         action="store_true",
         help="Include hashes for every section listed in every classes*.dex map.",
+    )
+    parser.add_argument(
+        "--split-apk",
+        action="append",
+        default=[],
+        help="Path to an installed/build split APK to include. May be repeated.",
+    )
+    parser.add_argument(
+        "--split-dir",
+        action="append",
+        default=[],
+        help="Directory containing split APK files to include. May be repeated.",
     )
     parser.add_argument(
         "--compact",

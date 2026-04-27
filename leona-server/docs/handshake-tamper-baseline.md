@@ -55,6 +55,7 @@ APK-side fields can be generated from a built Android artifact:
   --package-name com.example.app \
   --resource-entry res/raw/leona.bin \
   --dex-section classes.dex#code_item \
+  --split-dir /path/to/bundletool/splits \
   > /etc/leona/handshake-tamper-baseline.json
 ```
 
@@ -62,6 +63,9 @@ APK-side fields can be generated from a built Android artifact:
 SDK also verifies at runtime, for example `classes.dex#code_item` or
 `classes.dex#class_defs`. Use `--all-dex-sections` only for strict release
 pipelines where every section drift should be treated as a baseline update.
+`--split-apk` and `--split-dir` add split APK hashes and inventory/category
+fingerprints keyed by split filename, which is the recommended shape for
+channel-specific server baselines.
 
 Load it into the service, for example:
 
