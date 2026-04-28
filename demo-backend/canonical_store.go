@@ -261,8 +261,8 @@ func (s *canonicalStore) persistLocked() {
 func canonicalLookupKeys(tenantID string, appID string, fingerprint string, deviceID string, installID string) []canonicalLookup {
 	lookups := make([]canonicalLookup, 0, 3)
 	for _, lookup := range []canonicalLookup{
-		{TenantID: tenantID, AppID: appID, Kind: "fp", Value: fingerprint},
-		{TenantID: tenantID, AppID: appID, Kind: "dev", Value: deviceID},
+		{Kind: "fp", Value: fingerprint},
+		{Kind: "dev", Value: deviceID},
 		{TenantID: tenantID, AppID: appID, Kind: "install", Value: installID},
 	} {
 		if lookup.valid() {
@@ -274,8 +274,8 @@ func canonicalLookupKeys(tenantID string, appID string, fingerprint string, devi
 
 func canonicalFallbackSeed(tenantID string, appID string, fingerprint string, deviceID string, installID string, remoteAddr string) string {
 	return firstNonBlank(
-		canonicalSeedPart(tenantID, appID, fingerprint),
-		canonicalSeedPart(tenantID, appID, deviceID),
+		strings.TrimSpace(fingerprint),
+		strings.TrimSpace(deviceID),
 		canonicalSeedPart(tenantID, appID, installID),
 		canonicalSeedPart(tenantID, appID, remoteAddr),
 	)
@@ -303,11 +303,13 @@ func canonicalRecordFromLegacyEntry(key string, canonical string) (canonicalReco
 		return canonicalRecord{}, false
 	}
 	record := canonicalRecord{
-		AppID:             strings.TrimSpace(parts[1]),
 		LookupKind:        strings.TrimSpace(parts[0]),
 		LookupValue:       strings.TrimSpace(parts[2]),
 		CanonicalDeviceID: normalizeCanonical(canonical),
 		Source:            "legacy_migration",
+	}
+	if record.LookupKind == "install" {
+		record.AppID = strings.TrimSpace(parts[1])
 	}
 	record = normalizeRecord(record)
 	return record, record.LookupKind != "" && record.LookupValue != "" && record.CanonicalDeviceID != ""

@@ -69,10 +69,10 @@ func TestCanonicalLookupKeysPrefersFingerprintThenDeviceThenInstall(t *testing.T
 	if len(lookups) != 3 {
 		t.Fatalf("unexpected lookup count: %d", len(lookups))
 	}
-	if got := lookups[0].key(); got != canonicalRecordKey("tenant-a", "sample-app", "fp", "fp-1") {
+	if got := lookups[0].key(); got != canonicalRecordKey("", "", "fp", "fp-1") {
 		t.Fatalf("unexpected fingerprint key: %q", got)
 	}
-	if got := lookups[1].key(); got != canonicalRecordKey("tenant-a", "sample-app", "dev", "Tdevice") {
+	if got := lookups[1].key(); got != canonicalRecordKey("", "", "dev", "Tdevice") {
 		t.Fatalf("unexpected device key: %q", got)
 	}
 	if got := lookups[2].key(); got != canonicalRecordKey("tenant-a", "sample-app", "install", "install-1") {
@@ -109,7 +109,7 @@ func TestResolveCanonicalDeviceIDBackfillsProvidedCanonicalAcrossIdentifiers(t *
 	}
 }
 
-func TestResolveCanonicalDeviceIDIsolatedByTenantAndApp(t *testing.T) {
+func TestResolveCanonicalDeviceIDStableAcrossTenantAndApp(t *testing.T) {
 	previous := cloudCanonicalStore
 	cloudCanonicalStore = newCanonicalStore(filepath.Join(t.TempDir(), "canonical-store.json"))
 	defer func() { cloudCanonicalStore = previous }()
@@ -128,11 +128,11 @@ func TestResolveCanonicalDeviceIDIsolatedByTenantAndApp(t *testing.T) {
 	tenantB := resolveCanonicalFromBody(t, base("tenant-b", "sample-app").Body.Bytes())
 	appB := resolveCanonicalFromBody(t, base("tenant-a", "sample-app-b").Body.Bytes())
 
-	if tenantA == tenantB {
-		t.Fatalf("expected tenant isolation, got %q", tenantA)
+	if tenantA != tenantB {
+		t.Fatalf("expected tenant-independent canonical, got %q != %q", tenantA, tenantB)
 	}
-	if tenantA == appB {
-		t.Fatalf("expected app isolation, got %q", tenantA)
+	if tenantA != appB {
+		t.Fatalf("expected app-independent canonical, got %q != %q", tenantA, appB)
 	}
 }
 

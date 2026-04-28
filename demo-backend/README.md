@@ -100,12 +100,12 @@ curl http://localhost:8090/v1/mobile-config \
 - 若设置 `DEMO_CLOUD_CANONICAL_DEVICE_ID`，直接固定返回该 canonical id
 - 若请求已带 `X-Leona-Canonical-Device-Id`，优先接受，并回填到本地 store 的全部命中维度
 - 否则按优先级查本地 store：
-  1. `tenant + appId + fingerprint`
-  2. `tenant + appId + deviceId`
+  1. `fingerprint`
+  2. `deviceId`
   3. `tenant + appId + installId`
 - 一旦任一维度命中，会把 canonical 回填到其它可用维度，保证后续降级请求仍稳定
 - 若 store 没命中，则基于上述字段派生一个 `L...`，并持久化到本地 store
-- tenant 与 app 彼此隔离，不共享 canonical 映射
+- fingerprint 与 deviceId 是设备级映射，跨 tenant/app 共享；installId 仍按 tenant/app 隔离
 
 默认 store 路径：
 

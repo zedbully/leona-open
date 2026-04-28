@@ -47,8 +47,10 @@ internal class DeviceIdentityManager(
         val installId = store.loadInstallId() ?: UUID.randomUUID().toString().also(store::persistInstallId)
         val canonicalDeviceId = persistedCanonicalDeviceId
         val packageInfo = packageInfo()
-        val androidId = if ("androidId" in policy.disabledSignals) null else loadAndroidId()
-        val signingCerts = if ("signingCert" in policy.disabledSignals) emptyList() else loadSigningCertDigests()
+        val localAndroidId = loadAndroidId()
+        val androidId = if ("androidId" in policy.disabledSignals) null else localAndroidId
+        val localSigningCerts = loadSigningCertDigests()
+        val signingCerts = if ("signingCert" in policy.disabledSignals) emptyList() else localSigningCerts
         val installerPackage = if ("installer" in policy.disabledSignals) null else loadInstallerPackage()
         val riskSignals = collectRiskSignals(
             policy = policy,
@@ -64,33 +66,21 @@ internal class DeviceIdentityManager(
         }.getOrNull()
 
         val fingerprintSeed = linkedMapOf(
-            "tenantId" to config.tenantId.orEmpty(),
-            "appId" to config.appId,
-            "packageName" to appContext.packageName,
-            "identityAnchor" to buildIdentityAnchor(androidId, installId),
-            "signingCerts" to signingCerts.joinToString(","),
-            "installerPackage" to installerPackage.orEmpty(),
+            "version" to "2",
+            "identityAnchor" to buildIdentityAnchor(localAndroidId),
+            "buildFingerprint" to Build.FINGERPRINT.orEmpty(),
+            "device" to Build.DEVICE.orEmpty(),
+            "product" to Build.PRODUCT.orEmpty(),
+            "hardware" to Build.HARDWARE.orEmpty(),
             "brand" to Build.BRAND.orEmpty(),
             "model" to Build.MODEL.orEmpty(),
             "manufacturer" to Build.MANUFACTURER.orEmpty(),
             "sdkInt" to Build.VERSION.SDK_INT.toString(),
             "abis" to Build.SUPPORTED_ABIS.joinToString(","),
-            "locale" to localeTag,
-            "timezone" to timeZoneId,
-            "riskSignals" to riskSignals.toList().sorted().joinToString(","),
-            "extraInfo" to (config.extraInfo ?: ""),
         )
         val fingerprintHash = sha256Hex(canonicalizeMap(fingerprintSeed).toByteArray())
         val resolvedDeviceId = canonicalDeviceId?.let(::normalizeCanonicalId)
-            ?: buildTemporaryDeviceId(
-                tenantId = config.tenantId,
-                appId = config.appId,
-                packageName = appContext.packageName,
-                signingCerts = signingCerts,
-                androidId = androidId,
-                installId = installId,
-                fingerprintHash = fingerprintHash,
-            )
+            ?: buildTemporaryDeviceId(fingerprintHash = fingerprintHash)
 
         val snapshot = DeviceFingerprintSnapshot(
             generatedAtMillis = System.currentTimeMillis(),
@@ -125,28 +115,17 @@ internal class DeviceIdentityManager(
         store.persistCanonicalDeviceId(normalizeCanonicalId(normalized))
     }
 
-    private fun buildIdentityAnchor(androidId: String?, installId: String): String =
+    private fun buildIdentityAnchor(androidId: String?): String =
         when {
             !androidId.isNullOrBlank() -> "android:$androidId"
-            else -> "install:$installId"
+            else -> "device-profile"
         }
 
     private fun buildTemporaryDeviceId(
-        tenantId: String?,
-        appId: String,
-        packageName: String,
-        signingCerts: List<String>,
-        androidId: String?,
-        installId: String,
         fingerprintHash: String,
     ): String {
         val seed = linkedMapOf(
-            "tenantId" to tenantId.orEmpty(),
-            "appId" to appId,
-            "packageName" to packageName,
-            "signingCerts" to signingCerts.joinToString(","),
-            "androidId" to androidId.orEmpty(),
-            "installId" to installId,
+            "version" to "2",
             "fingerprintHash" to fingerprintHash,
         )
         return "T" + base64UrlNoPadding(sha256(canonicalizeMap(seed).toByteArray()))
