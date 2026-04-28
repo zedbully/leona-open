@@ -5,7 +5,7 @@
 
 ---
 
-## 1. 现在继续项目，先看这 6 份
+## 1. 现在继续项目，先看这 7 份
 
 1. `/Users/a/back/Game/cq/docs/closeout-strategy.md`
 2. `/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
@@ -13,6 +13,7 @@
 4. `/Users/a/back/Game/cq/docs/final-acceptance-summary.md`
 5. `/Users/a/back/Game/cq/docs/alpha-development-plan.md`
 6. `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+7. `/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
 
 ---
 
@@ -21,6 +22,7 @@
 - 当前状态：`/Users/a/back/Game/cq/docs/current-status.md`
 - Alpha 开发计划：`/Users/a/back/Game/cq/docs/alpha-development-plan.md`
 - Alpha 执行记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+- Alpha 模拟器验证记录：`/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
 - 最终收口策略：`/Users/a/back/Game/cq/docs/closeout-strategy.md`
 - 开源版 / 私有版最终边界矩阵：`/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
 - 私有模块拆分：`/Users/a/back/Game/cq/docs/private-module-split.md`

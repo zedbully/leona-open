@@ -83,6 +83,8 @@
 - 一轮 USB 物理真机联调记录，用于对外 alpha 更有说服力
 - 2026-04-29 已使用 `run-device-e2e.sh` 在 `emulator-5554` 上验证本地闭环和两轮 reinstall canonical 稳定性；由于当前 ADB 未发现 USB 物理真机，此结果不记作物理真机留档。
 - 执行记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+- 2026-04-29 已继续使用 `emulator-5554` 跑通 alpha closure 总入口、`oem_debug_fake` 与 `debug_fake` attestation 路线。
+- 模拟器验证记录：`/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
 
 ---
 
@@ -97,6 +99,7 @@
 - **自动化回归：本地脚本已具备**
 - **对外 release material：已具备**
 - **release preflight / public-only / private split：已完成 2026-04-29 复验**
+- **模拟器继续验证：已完成 2026-04-29 alpha closure / OEM fake / Play Integrity fake 复验**
 
 所以当前建议口径是：
 

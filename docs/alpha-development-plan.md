@@ -58,6 +58,8 @@ Alpha 阶段不再扩大 public API 和 public detector 面。完成标准是：
 
 2. **大陆 / 非 GMS 真 OEM 路线最小留档**
    - 当前 `oem_debug_fake` 已可用
+   - 状态：模拟器 `oem_debug_fake` 已于 2026-04-29 再次通过；真实 OEM bridge / staging verifier 仍待接入
+   - 记录：`/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
    - 下一步接 1 个真实 OEM bridge 或 staging verifier dry run
    - 验收：形成一份真实 OEM 或 staging 记录，明确 trust tier 和 fallback 策略
 
@@ -121,6 +123,7 @@ Alpha 阶段不再扩大 public API 和 public detector 面。完成标准是：
 
 - GitHub manual E2E 首跑
 - OEM / mainland staging 留档
+- 已补模拟器 `oem_debug_fake` 与 `debug_fake` 双 attestation 路线复验
 - private risk explain / false-positive matrix
 - 不阻塞 alpha tag；作为 alpha 后续 patch 或 beta 前置项
 

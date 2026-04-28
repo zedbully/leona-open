@@ -93,4 +93,25 @@ echo "[Leona] BuildConfig: $BUILD_CONFIG"
 echo "[Leona] APK:         $APK_PATH"
 echo "[Leona] AAR:         $AAR_PATH"
 
-grep -E 'LEONA_(API_KEY|TENANT_ID|REPORTING_ENDPOINT|CLOUD_CONFIG_ENDPOINT|DEMO_BACKEND_BASE_URL|DEMO_VERDICT_SECRET_KEY|SAMPLE_ATTESTATION_MODE|SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER)' "$BUILD_CONFIG" || true
+python3 - "$BUILD_CONFIG" <<'PY' || true
+import re
+import sys
+
+path = sys.argv[1]
+secret_keys = {"LEONA_API_KEY", "LEONA_DEMO_VERDICT_SECRET_KEY"}
+pattern = re.compile(
+    r'public static final String '
+    r'(LEONA_(?:API_KEY|TENANT_ID|REPORTING_ENDPOINT|CLOUD_CONFIG_ENDPOINT|DEMO_BACKEND_BASE_URL|'
+    r'DEMO_VERDICT_SECRET_KEY|SAMPLE_ATTESTATION_MODE|SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER))'
+    r' = "(.*)";'
+)
+
+for line in open(path, "r", encoding="utf-8"):
+    match = pattern.search(line)
+    if not match:
+        continue
+    key, value = match.groups()
+    if key in secret_keys and value:
+        value = "<redacted>"
+    print(f"public static final String {key} = \"{value}\";")
+PY

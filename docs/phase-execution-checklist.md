@@ -153,6 +153,7 @@
 - [x] 更新 docs 首页与发布清单
 - [x] 再跑一轮最终验收脚本并补最新结果（`/Users/a/back/Game/cq/docs/private-module-verify-record-2026-04-24.md`）
 - [x] 2026-04-29 再跑 release preflight strict、public-only 构建复验、private split 复验并补执行记录（`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`）
+- [x] 2026-04-29 继续使用模拟器跑 alpha closure、`oem_debug_fake`、`debug_fake` 并补记录（`/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`）
 
 ### 验收标准
 - [x] public / private 边界已有最终文档口径

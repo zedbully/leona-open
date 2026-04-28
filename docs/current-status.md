@@ -99,6 +99,13 @@ Leona 当前执行范围已经收敛为：
   - Server public-only 构建通过
   - private module split 一键复验通过
   - `run-device-e2e.sh` 已在 `emulator-5554` 上完成本地闭环验证
+- 2026-04-29 Alpha 模拟器继续验证已完成：
+  - `/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
+  - `run-alpha-closure.sh` 总入口通过
+  - `oem_debug_fake` attestation 路线通过
+  - `debug_fake` attestation 路线通过
+  - E2E 日志敏感字段脱敏
+  - attestation E2E 跨模式 session 隔离问题已修复
 - 私有模块拆分脚手架已补：
   - `/Users/a/back/Game/cq/docs/private-module-split.md`
   - Android public SDK 已增加 `NativeRuntime` 私有替换边界

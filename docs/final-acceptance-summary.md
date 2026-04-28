@@ -231,6 +231,10 @@
 - 最终收口策略已完成
 - 2026-04-29 Alpha P0 执行记录已完成：
   - `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+- 2026-04-29 Alpha 模拟器继续验证已完成：
+  - `/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
+  - alpha closure 总入口、`oem_debug_fake`、`debug_fake` 均已通过
+  - E2E 日志脱敏与 attestation 跨模式 session 隔离问题已修复
 
 当前仍建议保留为收口项：
 

@@ -462,6 +462,7 @@ attestation_expectations
 wait_for_device
 init_screen_metrics
 verify_server_handshake_surface
+adb -s "$ADB_SERIAL" uninstall "$APP_ID" >/dev/null 2>&1 || true
 install_sample
 launch_sample
 validate_android_surface
