@@ -1,6 +1,6 @@
 # Leona Alpha 发布准备清单
 
-> 更新时间: 2026-04-27
+> 更新时间: 2026-04-29
 > 目标：把当前工程状态收口成一次可内测的 Android alpha 发布准备文档
 
 ---
@@ -80,13 +80,15 @@
 
 建议补充：
 
-- 一轮真机联调记录，用于对外 alpha 更有说服力
+- 一轮 USB 物理真机联调记录，用于对外 alpha 更有说服力
+- 2026-04-29 已使用 `run-device-e2e.sh` 在 `emulator-5554` 上验证本地闭环和两轮 reinstall canonical 稳定性；由于当前 ADB 未发现 USB 物理真机，此结果不记作物理真机留档。
+- 执行记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 ---
 
 ## 4. 当前发布判断
 
-截至 2026-04-23：
+截至 2026-04-29：
 
 - **文档收口：较好**
 - **服务端协议与 MVP 收口：较好**
@@ -94,7 +96,8 @@
 - **模拟器真实联调：已通过**
 - **自动化回归：本地脚本已具备**
 - **对外 release material：已具备**
+- **release preflight / public-only / private split：已完成 2026-04-29 复验**
 
 所以当前建议口径是：
 
-> **Leona 已进入 alpha 发布准备的最后阶段；本地真实联调、模拟器 E2E 自动化、alpha release notes、admin 真实联调留档、最小 observability 收口与 GitHub manual E2E workflow scaffold 已完成，剩余主要是真机留档与首次 CI 跑验。**
+> **Leona 已进入 alpha 发布准备的最后阶段；本地真实联调、模拟器 E2E 自动化、device E2E 脚本本地闭环、alpha release notes、admin 真实联调留档、最小 observability 收口、GitHub manual E2E workflow scaffold、release preflight strict、public-only 构建复验与 private split 复验已完成，剩余主要是 USB 物理真机留档与首次 CI 跑验。**

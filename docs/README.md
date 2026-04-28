@@ -5,13 +5,14 @@
 
 ---
 
-## 1. 现在继续项目，先看这 4 份
+## 1. 现在继续项目，先看这 6 份
 
 1. `/Users/a/back/Game/cq/docs/closeout-strategy.md`
 2. `/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
 3. `/Users/a/back/Game/cq/docs/phase-execution-checklist.md`
 4. `/Users/a/back/Game/cq/docs/final-acceptance-summary.md`
 5. `/Users/a/back/Game/cq/docs/alpha-development-plan.md`
+6. `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 ---
 
@@ -19,6 +20,7 @@
 
 - 当前状态：`/Users/a/back/Game/cq/docs/current-status.md`
 - Alpha 开发计划：`/Users/a/back/Game/cq/docs/alpha-development-plan.md`
+- Alpha 执行记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 - 最终收口策略：`/Users/a/back/Game/cq/docs/closeout-strategy.md`
 - 开源版 / 私有版最终边界矩阵：`/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
 - 私有模块拆分：`/Users/a/back/Game/cq/docs/private-module-split.md`
@@ -71,9 +73,8 @@
 
 ## 4. 当前剩余项（按收口优先级）
 
-1. 在真实 Git 工作树里执行最后一轮 `git status` / `git diff --cached` 检查
-2. 条件允许时补真机留档
-3. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E
-4. 如需继续补 attestation 侧留档，优先补真机记录 / 真 OEM 记录
-5. 如正式发布前有改动，再补一轮 public-only 构建检查
-6. 后续新增能力只进入 private 模块
+1. 条件允许时补 USB 物理真机留档
+2. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E
+3. 如需继续补 attestation 侧留档，优先补真机记录 / 真 OEM 记录
+4. 如正式发布前有改动，再补一轮 release preflight / public-only / private split 检查
+5. 后续新增能力只进入 private 模块

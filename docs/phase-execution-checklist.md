@@ -1,6 +1,6 @@
 # Leona 按 Phase 执行 + 验收总清单
 
-> 更新时间: 2026-04-27
+> 更新时间: 2026-04-29
 > 用途：按顺序推进实现时，直接把这份清单当作执行入口和验收总表使用。
 
 状态说明：
@@ -152,7 +152,7 @@
 - [x] 固化最终收口策略与冻结规则
 - [x] 更新 docs 首页与发布清单
 - [x] 再跑一轮最终验收脚本并补最新结果（`/Users/a/back/Game/cq/docs/private-module-verify-record-2026-04-24.md`）
-- [-] 真正公开发布前再做一轮 GitHub 清理检查（当前环境非 Git 工作树，已先完成可执行清理项）
+- [x] 2026-04-29 再跑 release preflight strict、public-only 构建复验、private split 复验并补执行记录（`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`）
 
 ### 验收标准
 - [x] public / private 边界已有最终文档口径
@@ -171,13 +171,13 @@
 - Phase 3
 - Phase 4
 - Phase 5（真机留档为增强项）
-- Phase 6（发布前 GitHub 清理仍需最后一轮执行）
+- Phase 6
 
 ---
 
 ## 接下来自动优先级
 
-1. 在真实 Git 工作树里执行 `/Users/a/back/Game/cq/scripts/release-preflight.sh --strict leona-sdk-android leona-server`
-2. 如正式发布前还有改动，再补一轮 public-only 构建检查
-3. 条件允许时按真机执行包补真机留档
+1. 条件允许时按真机执行包补 USB 物理真机留档
+2. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E / live attestation E2E
+3. 如正式发布前还有改动，再补一轮 release preflight / public-only / private split 检查
 4. 后续新增高价值能力只继续进入 private runtime / private backend

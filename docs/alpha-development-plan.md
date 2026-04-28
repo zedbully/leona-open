@@ -24,24 +24,29 @@ Alpha 阶段不再扩大 public API 和 public detector 面。完成标准是：
 ### P0：Alpha 发布阻塞项
 
 1. **提交并冻结当前工作区**
-   - 状态：进行中
-   - 输出：一次 clean commit，提交 E2E 脚本修正、文档修正、本计划
+   - 状态：已完成
+   - 输出：已提交 E2E 脚本修正、文档修正、本计划
 
 2. **跑最终 release preflight**
    - 命令：`/Users/a/back/Game/cq/scripts/release-preflight.sh --strict leona-sdk-android leona-server`
-   - 验收：脚本通过；失败则只修复阻塞项，不扩大功能面
+   - 状态：已完成，2026-04-29 strict 通过
+   - 记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 3. **补真机 E2E 留档**
    - 脚本：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh`
    - 推荐参数：使用 `LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1`
-   - 验收：产出 `report.json` / `report.md`，记录 canonical device id 两轮 reinstall 稳定性、formal verdict signature、deviceFingerprint
+   - 状态：blocked，当前 ADB 只发现 `emulator-5554`，未发现 USB 物理真机
+   - 已完成：使用同一脚本在 emulator 上验证 auto-create app key、本地闭环、两轮 reinstall canonical 稳定性
+   - 记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 4. **最终 public-only 构建复验**
    - 动作：临时移走或禁用 `private/` 后跑 Android SDK / server public-only 构建
-   - 验收：公开仓库独立构建通过；公开 README 不宣称需要 private 才能构建
+   - 状态：已完成，2026-04-29 Android / Server public-only 均通过
+   - 记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 5. **文档一致性收口**
    - 核对：README、`docs/current-status.md`、`docs/final-acceptance-summary.md`、`docs/phase-execution-checklist.md`、OpenAPI
+   - 状态：进行中，已补 2026-04-29 执行记录并更新总览入口
    - 验收：不再把 private-only 能力写成 public-only 已完整启用能力
 
 ### P1：Alpha 强烈建议项
@@ -82,6 +87,10 @@ Alpha 阶段不再扩大 public API 和 public detector 面。完成标准是：
 - 提交当前 E2E 脚本和文档改动
 - 新增本开发计划
 - 确认 `git status` clean
+- 已执行 release preflight strict
+- 已执行 public-only Android / Server 构建复验
+- 已执行 private module split 一键复验
+- 已执行 device E2E 脚本本地闭环验证；物理真机因当前环境无 USB 真机暂记 blocked
 
 ### 2026-04-30：最终本地验收
 

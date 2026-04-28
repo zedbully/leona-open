@@ -1,6 +1,6 @@
 # Leona 当前总体验收总结
 
-> 更新时间: 2026-04-27
+> 更新时间: 2026-04-29
 > 适用范围：当前仓库 `/Users/a/back/Game/cq`
 
 ---
@@ -229,12 +229,13 @@
 - private module split 脚手架已完成
 - 开源版 / 私有版最终边界矩阵已完成
 - 最终收口策略已完成
+- 2026-04-29 Alpha P0 执行记录已完成：
+  - `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 当前仍建议保留为收口项：
 
-- 真机留档（增强项）
+- USB 物理真机留档（增强项；当前环境只发现 `emulator-5554`）
 - GitHub secrets / variables 配置与首次 live emulator E2E 跑验
-- 发布前 Git 工作树清理与误提交流程检查
 - 私有模块继续深化，但不再扩大 public 面
 - 真机 attestation 执行包已具备，待现场 USB 真机执行留档
 
@@ -242,11 +243,10 @@
 
 ## 4. 当前推荐执行顺序
 
-1. 在真实 Git 工作树里执行 `/Users/a/back/Game/cq/scripts/release-preflight.sh --strict leona-sdk-android leona-server`
-2. 如正式发布前还有改动，再补一轮 public-only 构建检查
-3. 如果条件允许，再补一轮真机留档
-4. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E / live attestation E2E
-5. 后续新增高价值能力只继续进入 private 模块
+1. 如果条件允许，接入 USB 物理真机并按 device E2E / attestation 执行包补留档
+2. 在真实 GitHub 仓库配置 secrets / variables 并跑首次 live emulator E2E / live attestation E2E
+3. 如正式发布前还有改动，再补一轮 release preflight / public-only / private split 检查
+4. 后续新增高价值能力只继续进入 private 模块
 
 ---
 

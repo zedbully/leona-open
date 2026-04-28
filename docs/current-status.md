@@ -1,6 +1,6 @@
 # Leona 当前项目状态
 
-> 更新时间: 2026-04-27
+> 更新时间: 2026-04-29
 > 适用范围: `/Users/a/back/Game/cq`
 
 ---
@@ -92,6 +92,13 @@ Leona 当前执行范围已经收敛为：
 - public-only 构建验收已完成：
   - `/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-23.md`
   - `/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-24.md`
+- 2026-04-29 Alpha P0 复验已完成：
+  - `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+  - release preflight strict 通过
+  - Android public-only 构建通过
+  - Server public-only 构建通过
+  - private module split 一键复验通过
+  - `run-device-e2e.sh` 已在 `emulator-5554` 上完成本地闭环验证
 - 私有模块拆分脚手架已补：
   - `/Users/a/back/Game/cq/docs/private-module-split.md`
   - Android public SDK 已增加 `NativeRuntime` 私有替换边界
@@ -119,7 +126,7 @@ Leona 当前执行范围已经收敛为：
 - 真实联调中暴露的 X25519 / cleartext / Kafka / category 映射问题已修复
 - alpha release notes 正式文档已补：
   - `/Users/a/back/Game/cq/docs/alpha-release-notes.md`
-- 真机留档仍待补齐
+- USB 物理真机留档仍待补齐；当前执行环境 ADB 只发现 `emulator-5554`
 - 误报/漏报验证还不完整
 - 公开 API 已进入冻结口径，后续不再继续扩大 public 面
 - 大陆 / 非 GMS 文档链路已补齐：design / acceptance / risk posture / sample E2E / release gate
@@ -132,7 +139,7 @@ Leona 当前执行范围已经收敛为：
 
 结论：
 
-- **这是当前完成度最高的部分，且已经具备模拟器真实联调能力。**
+- **这是当前完成度最高的部分，且已经具备模拟器真实联调和本地可回归 device E2E 能力。**
 
 ---
 

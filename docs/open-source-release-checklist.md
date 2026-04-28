@@ -1,6 +1,6 @@
 # Leona 开源发布前清理清单
 
-> 更新时间: 2026-04-24
+> 更新时间: 2026-04-29
 > 用途：在把仓库整理成真正公开可发 GitHub 版本前，逐项执行与验收。
 
 ---
@@ -95,10 +95,10 @@
 
 ### Git 边界
 
-- [ ] `leona-sdk-android/private/` 不进入公开仓库
-- [ ] `leona-server/private/` 不进入公开仓库
+- [-] `leona-sdk-android/private/` 不进入公开仓库（2026-04-29 release preflight strict 未发现 tracked / staged private 文件；公开发布前仍需在目标仓库最终确认）
+- [-] `leona-server/private/` 不进入公开仓库（2026-04-29 release preflight strict 未发现 tracked / staged private 文件；公开发布前仍需在目标仓库最终确认）
 - [x] Android / Server 子仓库 `.gitignore` 已覆盖 private 目录
-- [-] 无临时调试文件 / 本地密钥 / 本地配置残留（已清理 `.DS_Store`，`application-local.yml` 已改为 example；仍需在真实 Git 工作树复查）
+- [x] 无临时调试文件 / 本地密钥 / 本地配置残留（2026-04-29 release preflight strict 通过；正式公开发布前如有新增改动再复查）
 
 ### Android 敏感内容
 
@@ -135,6 +135,11 @@ cd /Users/a/back/Game/cq/leona-sdk-android
 ./gradlew :sdk:assembleDebug :sample-app:assembleDebug --no-daemon --no-configuration-cache
 ```
 
+最近复验：
+
+- 2026-04-29：PASS
+- 记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+
 ### Server public-only 验收
 
 - [x] 去掉 `private/api-backend` 后，server 仍可构建
@@ -147,6 +152,11 @@ cd /Users/a/back/Game/cq/leona-sdk-android
 cd /Users/a/back/Game/cq/leona-server
 ./scripts/gradlew-java21.sh :common:classes :ingestion-service:classes :worker-event-persister:classes --no-daemon --no-configuration-cache
 ```
+
+最近复验：
+
+- 2026-04-29：PASS
+- 记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
 
 ---
 
@@ -164,6 +174,7 @@ cd /Users/a/back/Game/cq/leona-server
 - [x] sample-app 合并打包 `libleona.so` + `libleona_private.so`
 - [x] private backend jar 真实产出
 - [x] private module split verification passed
+- [x] 2026-04-29 private module split verification passed
 
 ---
 
