@@ -38,7 +38,6 @@ class SampleApp : Application() {
                 .cloudConfigEndpoint(cloudConfigEndpoint)
                 .enableCloudConfig(endpoint != null || cloudConfigEndpoint != null)
                 .channel("sample")
-                .firstPartyMode(true)
                 .attestationProvider(resolveSampleAttestationProvider())
                 .verboseNativeLogging(true)        // verbose logcat for the demo
                 .enableInjectionDetection(true)
