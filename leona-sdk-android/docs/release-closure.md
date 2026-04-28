@@ -183,6 +183,10 @@ Required result:
 - support bundle raw JSON contains cloud-config evidence (`cloudConfigFetchedAtMillis`, `cloudConfigRaw`, `effectiveDisabledSignals`)
 - uninstall + reinstall still converge to the same canonical device id
 
+When `LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1` is used, the script creates one
+local tenant/app key up front and reuses it across both reinstall cycles so the
+app-scoped canonical stability check is meaningful.
+
 Optional clean-retail regression gate:
 
 ```bash

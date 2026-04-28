@@ -211,7 +211,8 @@ For a connected real device / USB device closure pass, use:
 
 ```bash
 ADB_SERIAL=<device-serial> \
-LEONA_API_KEY=<appKey> \
+LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1 \
+LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083 \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
 LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
@@ -219,6 +220,11 @@ LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 LEONA_SAMPLE_ATTESTATION_MODE=oem_debug_fake \
 /Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
 ```
+
+When using an existing `LEONA_API_KEY`, pass its matching
+`LEONA_SERVER_SECRET_KEY` as well. The device E2E reuses one tenant/app key
+across both reinstall cycles so the app-scoped canonical ID stability check is
+meaningful.
 
 That script validates:
 

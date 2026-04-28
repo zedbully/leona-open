@@ -109,6 +109,25 @@ require_contains() {
   fi
 }
 
+prepare_app_key() {
+  if [[ -z "${LEONA_API_KEY:-}" && "$LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY" == "1" ]]; then
+    eval "$(LEONA_ADMIN_BASE_URL="$LEONA_ADMIN_BASE_URL" bash "$ROOT_DIR/scripts/resolve-local-leona-server-app-key.sh")"
+    if [[ -n "${LEONA_API_KEY:-}" ]]; then
+      echo "[Leona device E2E] auto-created local server app key from $LEONA_ADMIN_BASE_URL for tenant ${LEONA_SERVER_TENANT_ID:-unknown}" >&2
+    fi
+  fi
+
+  if [[ -z "${LEONA_API_KEY:-}" ]]; then
+    echo "LEONA_API_KEY is required. Pass LEONA_API_KEY or set LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1." >&2
+    exit 1
+  fi
+
+  if [[ -z "${LEONA_SERVER_SECRET_KEY:-}" ]]; then
+    echo "LEONA_SERVER_SECRET_KEY is required for direct formal /v1/verdict verification." >&2
+    exit 1
+  fi
+}
+
 init_screen_metrics() {
   read -r SCREEN_WIDTH SCREEN_HEIGHT < <(
     adb -s "$ADB_SERIAL" shell wm size 2>/dev/null | \
@@ -176,7 +195,9 @@ read_view_with_scroll() {
   local id="$2"
   local reset_to_top="${3:-1}"
   local xml
-  xml="$(locate_view_xml "$name" "$id" "$reset_to_top")"
+  if ! xml="$(locate_view_xml "$name" "$id" "$reset_to_top")"; then
+    return 1
+  fi
   ui_value "$xml" "$id"
 }
 
@@ -185,7 +206,9 @@ tap_view_with_scroll() {
   local id="$2"
   local reset_to_top="${3:-1}"
   local xml
-  xml="$(locate_view_xml "$name" "$id" "$reset_to_top")"
+  if ! xml="$(locate_view_xml "$name" "$id" "$reset_to_top")"; then
+    return 1
+  fi
   ui_tap "$xml" "$id"
   sleep 1
 }
@@ -207,6 +230,7 @@ capture_json_section() {
     exit 1
   fi
   printf '%s\n' "$value" > "$output_path"
+  tap_view_with_scroll "$base-collapse" "$toggle_id" 1 || true
   printf '%s\n' "$output_path"
 }
 
@@ -655,6 +679,7 @@ echo "[Leona device E2E] output dir: $OUTPUT_DIR"
 wait_for_device
 init_screen_metrics
 setup_port_reverse
+prepare_app_key
 
 canonical_first="$(run_cycle first)"
 canonical_second="$(run_cycle second)"

@@ -84,4 +84,4 @@ if [[ -n "${REMOTE_REDIS_HOST:-}" ]]; then
 fi
 echo
 
-exec ssh -N "${SSH_ARGS[@]}" "${FORWARDS[@]}" "$SSH_TARGET"
+exec ssh -N ${SSH_ARGS:+${SSH_ARGS[@]}} "${FORWARDS[@]}" "$SSH_TARGET"

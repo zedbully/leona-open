@@ -530,7 +530,8 @@ For a locally connected physical Android device, use:
 
 ```bash
 ADB_SERIAL=<device-serial> \
-LEONA_API_KEY=<appKey> \
+LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1 \
+LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083 \
 LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
 LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
 LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
@@ -544,6 +545,9 @@ previously restored `L...` canonical), `L...` convergence, support-bundle
 cloud-config evidence, cross-surface canonical consistency, direct formal
 `/v1/verdict` response-signature verification, formal `deviceFingerprint`, and
 reinstall stability.
+If you pass an existing `LEONA_API_KEY` instead of auto-creating one, also pass
+the matching `LEONA_SERVER_SECRET_KEY` so the direct formal verdict check can
+sign and verify the request.
 The script automatically configures `adb reverse` for ports `8080` and
 `8090`, and writes `report.json` / `report.md` under `/tmp/leona-device-e2e-*`.
 

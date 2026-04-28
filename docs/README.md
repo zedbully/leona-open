@@ -1,6 +1,6 @@
 # Leona Docs Index
 
-> 更新时间: 2026-04-27
+> 更新时间: 2026-04-29
 > 用途：作为当前项目的文档入口，按“先收口、再验收、再发布”的顺序阅读。
 
 ---
@@ -11,12 +11,14 @@
 2. `/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
 3. `/Users/a/back/Game/cq/docs/phase-execution-checklist.md`
 4. `/Users/a/back/Game/cq/docs/final-acceptance-summary.md`
+5. `/Users/a/back/Game/cq/docs/alpha-development-plan.md`
 
 ---
 
 ## 2. 当前最关键文档
 
 - 当前状态：`/Users/a/back/Game/cq/docs/current-status.md`
+- Alpha 开发计划：`/Users/a/back/Game/cq/docs/alpha-development-plan.md`
 - 最终收口策略：`/Users/a/back/Game/cq/docs/closeout-strategy.md`
 - 开源版 / 私有版最终边界矩阵：`/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
 - 私有模块拆分：`/Users/a/back/Game/cq/docs/private-module-split.md`
