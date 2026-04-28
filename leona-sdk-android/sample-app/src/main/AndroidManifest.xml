@@ -7,7 +7,7 @@
         android:name=".SampleApp"
         android:allowBackup="false"
         android:icon="@android:drawable/ic_menu_info_details"
-        android:label="Leona Sample"
+        android:label="@string/app_name"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">
@@ -15,7 +15,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Leona Sample">
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -375,6 +375,14 @@ require_contains() {
   fi
 }
 
+is_temp_device_line() {
+  [[ "$1" == DeviceId:\ T* || "$1" == 设备\ ID:\ T* ]]
+}
+
+is_canonical_device_line() {
+  [[ "$1" == DeviceId:\ L* || "$1" == 设备\ ID:\ L* ]]
+}
+
 echo "[Leona E2E] output dir: $OUTPUT_DIR"
 wait_for_device
 init_screen_metrics
@@ -398,11 +406,11 @@ sleep 3
 
 pre_device_line="$(read_view_with_scroll pre-device "$APP_ID:id/deviceId" 1)"
 if [[ -n "$LEONA_CLOUD_CONFIG_ENDPOINT" ]]; then
-  if [[ "$pre_device_line" != DeviceId:\ T* && "$pre_device_line" != DeviceId:\ L* ]]; then
+  if ! is_temp_device_line "$pre_device_line" && ! is_canonical_device_line "$pre_device_line"; then
     echo "Expected device id before sense() to be temporary or canonical, got: $pre_device_line" >&2
     exit 1
   fi
-elif [[ "$pre_device_line" != DeviceId:\ T* ]]; then
+elif ! is_temp_device_line "$pre_device_line"; then
   echo "Expected temporary device id before sense(), got: $pre_device_line" >&2
   exit 1
 fi
@@ -571,7 +579,7 @@ transport_summary = "\n".join([
 ])
 
 print(f"export CANONICAL_ID={shlex.quote(canonical)}")
-print(f"export FINAL_DEVICE_LINE={shlex.quote('DeviceId: ' + canonical)}")
+print(f"export FINAL_DEVICE_LINE={shlex.quote('设备 ID: ' + canonical)}")
 print(f"export FINAL_SUPPORT_BUNDLE_TEXT={shlex.quote(support_summary)}")
 print(f"export FINAL_TRANSPORT_TEXT={shlex.quote(transport_summary)}")
 PY

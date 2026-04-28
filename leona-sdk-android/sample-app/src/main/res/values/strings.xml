@@ -1,73 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Leona Sample</string>
-    <string name="sdk_version_fmt">SDK version: %1$s</string>
-    <string name="server_mode_fmt">Server mode: %1$s</string>
-    <string name="server_mode_stub">stub (no backend)</string>
+    <string name="app_name">Leona 检测示例</string>
+    <string name="sdk_version_fmt">SDK 版本：%1$s</string>
+    <string name="server_mode_fmt">服务模式：%1$s</string>
+    <string name="server_mode_stub">本地模式（未配置后端）</string>
 
-    <string name="sense_header">BoxId via sense()</string>
-    <string name="sense_help">Collects the opaque detection payload and returns a BoxId token. In production you send this BoxId to your backend; your backend queries Leona server-side for the verdict.</string>
-    <string name="device_id_placeholder">DeviceId: (resolving…)</string>
-    <string name="device_id_fmt">DeviceId: %1$s</string>
-    <string name="device_id_error_fmt">DeviceId error: %1$s</string>
-    <string name="diagnostic_placeholder">Diagnostics: (resolving…)</string>
-    <string name="diagnostic_json_placeholder">Diagnostic JSON: (resolving…)</string>
-    <string name="copy_diagnostic_json">Copy JSON</string>
-    <string name="share_diagnostic_json">Share JSON</string>
-    <string name="show_diagnostic_json">Show Diagnostic JSON</string>
-    <string name="hide_diagnostic_json">Hide Diagnostic JSON</string>
-    <string name="copied_to_clipboard">Diagnostic JSON copied</string>
-    <string name="share_diagnostic_title">Share Leona diagnostics</string>
-    <string name="transport_placeholder">Secure transport: (resolving…)</string>
-    <string name="transport_json_placeholder">Secure transport JSON: (resolving…)</string>
-    <string name="copy_transport_json">Copy Transport</string>
-    <string name="share_transport_json">Share Transport</string>
-    <string name="show_transport_json">Show Secure Transport JSON</string>
-    <string name="hide_transport_json">Hide Secure Transport JSON</string>
-    <string name="copied_transport_to_clipboard">Secure transport JSON copied</string>
-    <string name="share_transport_title">Share Leona secure transport</string>
-    <string name="copy_support_bundle">Copy Bundle</string>
-    <string name="share_support_bundle">Share Bundle</string>
-    <string name="show_support_bundle">Show Support Bundle</string>
-    <string name="hide_support_bundle">Hide Support Bundle</string>
-    <string name="copied_support_bundle">Support bundle copied</string>
-    <string name="share_support_bundle_title">Share Leona support bundle</string>
-    <string name="support_bundle_placeholder">Support bundle JSON: (resolving…)</string>
-    <string name="support_bundle_summary_placeholder">Support bundle: (resolving…)</string>
-    <string name="consistency_summary_placeholder">Consistency: (resolving…)</string>
-    <string name="consistency_json_placeholder">Consistency JSON: (resolving…)</string>
-    <string name="copy_consistency_json">Copy Consistency</string>
-    <string name="share_consistency_json">Share Consistency</string>
-    <string name="show_consistency_json">Show Consistency JSON</string>
-    <string name="hide_consistency_json">Hide Consistency JSON</string>
-    <string name="copied_consistency_to_clipboard">Consistency JSON copied</string>
-    <string name="share_consistency_title">Share Leona consistency report</string>
-    <string name="copy_verdict_json">Copy Verdict</string>
-    <string name="share_verdict_json">Share Verdict</string>
-    <string name="show_verdict_json">Show Verdict JSON</string>
-    <string name="hide_verdict_json">Hide Verdict JSON</string>
-    <string name="copied_verdict_to_clipboard">Server verdict JSON copied</string>
-    <string name="share_verdict_title">Share Leona verdict</string>
-    <string name="verdict_json_placeholder">Server verdict JSON: (not yet available)</string>
-    <string name="run_sense">Run sense()</string>
-    <string name="query_demo_verdict">Query demo verdict</string>
-    <string name="box_id_placeholder">BoxId: (not yet run)</string>
+    <string name="sense_header">通过 sense() 生成 BoxId</string>
+    <string name="sense_help">采集不透明的环境检测载荷并返回 BoxId。生产环境中，App 将 BoxId 交给业务后端，由业务后端向 Leona 服务端查询判定结果。</string>
+    <string name="device_id_placeholder">设备 ID:（解析中…）</string>
+    <string name="device_id_fmt">设备 ID: %1$s</string>
+    <string name="device_id_error_fmt">设备 ID 错误：%1$s</string>
+    <string name="diagnostic_placeholder">诊断信息：（解析中…）</string>
+    <string name="diagnostic_json_placeholder">诊断 JSON：（解析中…）</string>
+    <string name="copy_diagnostic_json">复制 JSON</string>
+    <string name="share_diagnostic_json">分享 JSON</string>
+    <string name="show_diagnostic_json">显示诊断 JSON</string>
+    <string name="hide_diagnostic_json">收起诊断 JSON</string>
+    <string name="copied_to_clipboard">诊断 JSON 已复制</string>
+    <string name="share_diagnostic_title">分享 Leona 诊断信息</string>
+    <string name="transport_placeholder">安全传输：（解析中…）</string>
+    <string name="transport_json_placeholder">安全传输 JSON：（解析中…）</string>
+    <string name="copy_transport_json">复制传输信息</string>
+    <string name="share_transport_json">分享传输信息</string>
+    <string name="show_transport_json">显示安全传输 JSON</string>
+    <string name="hide_transport_json">收起安全传输 JSON</string>
+    <string name="copied_transport_to_clipboard">安全传输 JSON 已复制</string>
+    <string name="share_transport_title">分享 Leona 安全传输信息</string>
+    <string name="copy_support_bundle">复制支持包</string>
+    <string name="share_support_bundle">分享支持包</string>
+    <string name="show_support_bundle">显示支持包</string>
+    <string name="hide_support_bundle">收起支持包</string>
+    <string name="copied_support_bundle">支持包已复制</string>
+    <string name="share_support_bundle_title">分享 Leona 支持包</string>
+    <string name="support_bundle_placeholder">支持包 JSON：（解析中…）</string>
+    <string name="support_bundle_summary_placeholder">支持包：（解析中…）</string>
+    <string name="consistency_summary_placeholder">一致性检查：（解析中…）</string>
+    <string name="consistency_json_placeholder">一致性 JSON：（解析中…）</string>
+    <string name="copy_consistency_json">复制一致性</string>
+    <string name="share_consistency_json">分享一致性</string>
+    <string name="show_consistency_json">显示一致性 JSON</string>
+    <string name="hide_consistency_json">收起一致性 JSON</string>
+    <string name="copied_consistency_to_clipboard">一致性 JSON 已复制</string>
+    <string name="share_consistency_title">分享 Leona 一致性报告</string>
+    <string name="copy_verdict_json">复制判定结果</string>
+    <string name="share_verdict_json">分享判定结果</string>
+    <string name="show_verdict_json">显示判定 JSON</string>
+    <string name="hide_verdict_json">收起判定 JSON</string>
+    <string name="copied_verdict_to_clipboard">服务端判定 JSON 已复制</string>
+    <string name="share_verdict_title">分享 Leona 判定结果</string>
+    <string name="verdict_json_placeholder">服务端判定 JSON：（尚未获取）</string>
+    <string name="run_sense">运行 sense()</string>
+    <string name="query_demo_verdict">查询演示判定</string>
+    <string name="box_id_placeholder">BoxId:（尚未运行）</string>
     <string name="box_id_fmt">BoxId: %1$s</string>
-    <string name="box_id_error_fmt">BoxId error: %1$s</string>
-    <string name="verdict_need_box_id">Run sense() first to mint a BoxId.</string>
-    <string name="verdict_backend_not_configured">Demo backend URL not configured in BuildConfig.</string>
-    <string name="verdict_result_fmt">decision=%1$s\nrisk=%2$s\nscore=%3$d</string>
-    <string name="verdict_result_v2_fmt">decision=%1$s\naction=%2$s\nrisk=%3$s\nscore=%4$d\ntags=%5$s\ncanonical=%6$s</string>
-    <string name="verdict_error_fmt">Verdict error: %1$s</string>
+    <string name="box_id_error_fmt">BoxId 错误：%1$s</string>
+    <string name="verdict_need_box_id">请先运行 sense() 生成 BoxId。</string>
+    <string name="verdict_backend_not_configured">BuildConfig 中未配置演示后端地址。</string>
+    <string name="verdict_result_fmt">判定=%1$s\n风险=%2$s\n评分=%3$d</string>
+    <string name="verdict_result_v2_fmt">判定=%1$s\n动作=%2$s\n风险=%3$s\n评分=%4$d\n标签=%5$s\ncanonical=%6$s</string>
+    <string name="verdict_error_fmt">判定错误：%1$s</string>
 
-    <string name="decoy_header">Decoy: quickCheck()</string>
-    <string name="decoy_help">Deprecated by design — exists so reverse engineers find a decision surface, patch it, and feel they won. Its value is NOT authoritative.</string>
-    <string name="run_decoy">Call quickCheck()</string>
-    <string name="decoy_result_fmt">quickCheck returned %1$s</string>
+    <string name="decoy_header">诱饵接口：quickCheck()</string>
+    <string name="decoy_help">这是有意保留的废弃接口，用来吸引逆向分析者修改一个假的判定面。它的返回值不具备权威性。</string>
+    <string name="run_decoy">调用 quickCheck()</string>
+    <string name="decoy_result_fmt">quickCheck 返回 %1$s</string>
 
-    <string name="honeypot_header">Honeypot primitives</string>
-    <string name="honeypot_help">When the backend classifies a session as hostile, return believable-but-useless data instead of real values. The SDK only supplies the material; never use honeypot results without a backend signal.</string>
-    <string name="generate_honeypot">Generate fake user</string>
+    <string name="honeypot_header">蜜罐数据原语</string>
+    <string name="honeypot_help">当后端判定会话存在风险时，可返回看似真实但无价值的数据替代真实值。SDK 只提供材料，必须结合后端信号使用。</string>
+    <string name="generate_honeypot">生成虚假用户</string>
     <string name="honeypot_result_fmt">id=%1$s\nemail=%2$s\nname=%3$s</string>
     <string name="diagnostic_fmt">deviceId=%1$s\ninstallId=%2$s\ncanonical=%3$s\nfingerprint=%4$s\nlocalRisk=%5$s\nnativeRisk=%6$s\nnativeSeverity=%7$s\nnativeFindings=%8$s\nserverDecision=%9$s\nserverAction=%10$s\nserverRiskLevel=%11$s\nserverRiskScore=%12$s\nserverRiskTags=%13$s\nlastBoxId=%14$s</string>
     <string name="transport_fmt">engineAvailable=%1$s\nbindingPresent=%2$s\nbindingHardwareBacked=%3$s\nbindingPubKeySha256=%4$s\nsessionIdHint=%5$s\nsessionExpiresAt=%6$s\nsessionCanonical=%7$s\nsessionBindingStatus=%8$s\nserverAttestationProvider=%9$s\nserverAttestationStatus=%10$s\nserverAttestationCode=%11$s\nserverAttestationRetryable=%12$s\nattestationFormat=%13$s\nattestationTokenSha256=%14$s\nlastHandshakeError=%15$s\nlastHandshakeCode=%16$s\nlastHandshakeProvider=%17$s\nlastHandshakeRetryable=%18$s</string>

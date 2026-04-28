@@ -109,6 +109,25 @@ require_contains() {
   fi
 }
 
+is_temp_device_line() {
+  [[ "$1" == DeviceId:\ T* || "$1" == 设备\ ID:\ T* ]]
+}
+
+is_canonical_device_line() {
+  [[ "$1" == DeviceId:\ L* || "$1" == 设备\ ID:\ L* ]]
+}
+
+device_id_from_line() {
+  local line="$1"
+  if [[ "$line" == DeviceId:\ * ]]; then
+    printf '%s\n' "${line#DeviceId: }"
+  elif [[ "$line" == 设备\ ID:\ * ]]; then
+    printf '%s\n' "${line#设备 ID: }"
+  else
+    printf '%s\n' "$line"
+  fi
+}
+
 prepare_app_key() {
   if [[ -z "${LEONA_API_KEY:-}" && "$LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY" == "1" ]]; then
     eval "$(LEONA_ADMIN_BASE_URL="$LEONA_ADMIN_BASE_URL" bash "$ROOT_DIR/scripts/resolve-local-leona-server-app-key.sh")"
@@ -409,7 +428,7 @@ run_cycle() {
   if ! pre_device_line="$(read_view_with_scroll "$prefix-home-device" "$APP_ID:id/deviceId" 1)"; then
     exit 1
   fi
-  if [[ "$pre_device_line" != DeviceId:\ T* && "$pre_device_line" != DeviceId:\ L* ]]; then
+  if ! is_temp_device_line "$pre_device_line" && ! is_canonical_device_line "$pre_device_line"; then
     echo "Expected temporary or restored canonical device id before sense(), got: $pre_device_line" >&2
     exit 1
   fi
@@ -431,7 +450,7 @@ run_cycle() {
     exit 1
   fi
 
-  if [[ "$post_device_line" != DeviceId:\ L* ]]; then
+  if ! is_canonical_device_line "$post_device_line"; then
     echo "Expected canonical device id after sense(), got: $post_device_line" >&2
     exit 1
   fi
@@ -458,7 +477,8 @@ run_cycle() {
   if ! final_diagnostic_text="$(read_view_with_scroll "$prefix-final-diagnostic-summary" "$APP_ID:id/diagnosticSummary" 1)"; then
     exit 1
   fi
-  local canonical_id="${final_device_line#DeviceId: }"
+  local canonical_id
+  canonical_id="$(device_id_from_line "$final_device_line")"
 
   require_contains "$final_support_bundle_text" "canonical=$canonical_id" "$prefix supportBundleSummary"
   require_contains "$final_support_bundle_text" "verdictCanonical=$canonical_id" "$prefix supportBundleSummary"
@@ -469,8 +489,8 @@ run_cycle() {
   require_contains "$final_consistency_text" "bundle=$canonical_id" "$prefix consistencySummary"
   require_contains "$final_consistency_text" 'aligned=true' "$prefix consistencySummary"
   require_contains "$verdict_text" "canonical=$canonical_id" "$prefix verdictResult"
-  if [[ "$pre_device_line" == DeviceId:\ L* && "$pre_device_line" != "DeviceId: $canonical_id" ]]; then
-    echo "Restored pre-sense canonical changed after sense(): $pre_device_line != DeviceId: $canonical_id" >&2
+  if is_canonical_device_line "$pre_device_line" && [[ "$(device_id_from_line "$pre_device_line")" != "$canonical_id" ]]; then
+    echo "Restored pre-sense canonical changed after sense(): $pre_device_line != $canonical_id" >&2
     exit 1
   fi
 
@@ -612,11 +632,14 @@ clean_hits = suspicious_hits(
 )
 clean_expected = os.environ.get("EXPECT_CLEAN_DEVICE") == "1"
 require(not clean_expected or not clean_hits, f"{prefix}: clean-device regression detected: {', '.join(clean_hits)}")
+pre_device_line = os.environ["PRE_DEVICE_LINE"]
+pre_is_temporary = pre_device_line.startswith(("DeviceId: T", "设备 ID: T"))
+pre_is_canonical = pre_device_line.startswith(("DeviceId: L", "设备 ID: L"))
 
 payload = {
     "cycle": prefix,
-    "preDevice": os.environ["PRE_DEVICE_LINE"],
-    "preSenseDeviceKind": "canonical" if os.environ["PRE_DEVICE_LINE"].startswith("DeviceId: L") else "temporary",
+    "preDevice": pre_device_line,
+    "preSenseDeviceKind": "canonical" if pre_is_canonical else "temporary",
     "boxId": os.environ["BOX_LINE"].removeprefix("BoxId: "),
     "formalVerdictBoxId": os.environ["FORMAL_BOX_ID"],
     "canonicalDeviceId": canonical,
@@ -646,8 +669,8 @@ payload = {
         "effectiveDisabledSignals": support_bundle.get("effectiveDisabledSignals", []),
         "cleanDeviceExpected": clean_expected,
         "cleanDeviceSuspiciousHits": clean_hits,
-        "preSenseDeviceAccepted": os.environ["PRE_DEVICE_LINE"].startswith(("DeviceId: T", "DeviceId: L")),
-        "preSenseCanonicalRestored": os.environ["PRE_DEVICE_LINE"].startswith("DeviceId: L"),
+        "preSenseDeviceAccepted": pre_is_temporary or pre_is_canonical,
+        "preSenseCanonicalRestored": pre_is_canonical,
     },
 }
 path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -708,7 +731,7 @@ combined = {
     "deviceSerial": serial,
     "canonicalStableAcrossReinstall": canonical,
     "passes": {
-        "temporaryBeforeSense": first["preDevice"].startswith("DeviceId: T") and second["preDevice"].startswith("DeviceId: T"),
+        "temporaryBeforeSense": first["preDevice"].startswith(("DeviceId: T", "设备 ID: T")) and second["preDevice"].startswith(("DeviceId: T", "设备 ID: T")),
         "preSenseDeviceAccepted": first["jsonChecks"]["preSenseDeviceAccepted"] and second["jsonChecks"]["preSenseDeviceAccepted"],
         "preSenseCanonicalRestored": first["jsonChecks"]["preSenseCanonicalRestored"] or second["jsonChecks"]["preSenseCanonicalRestored"],
         "canonicalAfterSense": first["canonicalDeviceId"].startswith("L") and second["canonicalDeviceId"].startswith("L"),

@@ -303,7 +303,7 @@ class MainActivity : AppCompatActivity() {
         }
         val cloudConfig = BuildConfig.LEONA_CLOUD_CONFIG_ENDPOINT.ifBlank { "-" }
         val demoBackend = BuildConfig.LEONA_DEMO_BACKEND_BASE_URL.ifBlank { "-" }
-        return "reporting=$reporting\ncloudConfig=$cloudConfig\ndemoBackend=$demoBackend"
+        return "上报端点=$reporting\n云配置=$cloudConfig\n演示后端=$demoBackend"
     }
 
     private fun renderDiagnostics(snapshot: LeonaDiagnosticSnapshot): String =
