@@ -458,7 +458,7 @@ class MainActivity : AppCompatActivity() {
     private fun copyVerdictJson() {
         val json = runCatching { Leona.getLastServerVerdictJson() }.getOrNull() ?: return
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("leona-server-verdict-json", json))
+        clipboard.setPrimaryClip(ClipData.newPlainText("leona-verdict-json", json))
         Toast.makeText(this, R.string.copied_verdict_to_clipboard, Toast.LENGTH_SHORT).show()
     }
 

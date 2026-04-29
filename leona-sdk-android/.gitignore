@@ -31,5 +31,8 @@ Thumbs.db
 # Kotlin
 .kotlin/
 
-# Closed-source modules kept out of the public repo
-private/
+# Closed-source modules kept out of the public repo.
+# Keep the placeholder README public so the directory explains the boundary.
+private/**
+!private/
+!private/README.md

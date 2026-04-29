@@ -48,8 +48,9 @@ We reject PRs that violate these:
 4. **Every new detection is independently bypassable.** Do not design a
    check that, once patched, disables other checks.
 
-See [docs/architecture.md](../leona-server/docs/architecture.md) for the
-rationale.
+See the repository-level
+[open source policy](../docs/open-source-policy.md) for the public/private
+boundary.
 
 ## PR checklist
 

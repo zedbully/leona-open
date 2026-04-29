@@ -24,17 +24,19 @@ third-party apps.
 
 ```bash
 cd leona-sdk-android
-./gradlew :sample-app:installDebug
+LEONA_API_KEY=<appKey> \
+LEONA_REPORTING_ENDPOINT=https://<leona-api> \
+./scripts/run-live-sample.sh
 adb shell am start -n io.leonasec.leona.sample/.MainActivity
 ```
 
-Tap **Run sense()**. You should see a UUID appear next to **BoxId**. A fresh
-BoxId confirms:
+Tap **Run sense()**. You should see a BoxId appear. A successful result
+confirms:
 
 - `libleona.so` loaded
 - JNI boundary works
 - Native detectors ran without crashing
-- `SecureChannel` upload stub returned a token
+- the SDK uploaded to the configured Leona API/backend
 
 ---
 
@@ -117,7 +119,7 @@ A stock rooted device (no Magisk Hide) must produce at least:
 
 With Magisk Hide + Shamiko enabled, most file-based checks will be empty —
 this is expected. Real defense against a hiding Magisk setup lives in
-Leona's backend via behavioural signals; this SDK is only responsible for
+Leona's hosted backend via behavioural signals; this SDK is only responsible for
 the path-level breadcrumbs.
 
 ### 5.2 LSPosed

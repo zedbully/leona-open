@@ -21,8 +21,56 @@ Thumbs.db
 **/.cxx/
 **/.externalNativeBuild/
 
-# Optional/closed-source modules kept out of public release
-**/private/
+# Optional/closed-source modules kept out of public release.
+# Keep README placeholders public so the directory shape explains why code is absent.
+**/private/**
+!**/private/
+!**/private/**/
+!**/private/README.md
+!**/private/**/README.md
+
+# Closed-source implementation directories retained locally but not published.
+/demo-backend/**
+!/demo-backend/
+!/demo-backend/README.md
+
+/leona-server/**
+!/leona-server/
+!/leona-server/README.md
+!/leona-server/private/
+!/leona-server/private/README.md
+
+/leona/**
+!/leona/
+!/leona/README.md
+
+/scripts/**
+!/scripts/
+!/scripts/README.md
+
+# Internal/local E2E scripts depend on closed-source backend paths.
+/leona-sdk-android/scripts/resolve-local-leona-server-app-key.sh
+/leona-sdk-android/scripts/run-alpha-closure.sh
+/leona-sdk-android/scripts/run-device-attestation-e2e.sh
+/leona-sdk-android/scripts/run-device-e2e.sh
+/leona-sdk-android/scripts/run-emulator-attestation-e2e.sh
+/leona-sdk-android/scripts/run-emulator-e2e.sh
+/leona-sdk-android/scripts/verify-demo-cloud-config.sh
+/leona-sdk-android/scripts/verify-closure.sh
+/leona-sdk-android/docs/closed-source-secure-reporting.md
+/leona-sdk-android/docs/mainland-attestation-e2e.md
+/leona-sdk-android/docs/mainland-attestation-release-gate.md
+/leona-sdk-android/docs/release-closure.md
+
+# Internal planning and release records are not part of the public SDK repo.
+/AGENTS.md
+/roadmap.md
+/.env.local-sync.example
+/docs/**
+!/docs/
+!/docs/README.md
+!/docs/open-source-policy.md
+!/docs/open-vs-private-final-matrix.md
 
 # Unused local side folders
 sm/

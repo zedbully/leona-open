@@ -325,61 +325,25 @@ your reporting endpoint does. The public surface remains intentionally small.
 
 - The SDK already contains the native detection path, JNI bridge, payload
   format, and the Kotlin-side secure upload implementation.
-- The **sample app still defaults to local stub mode** (`reportingEndpoint = null`)
-  so developers can exercise the API without a running backend.
-- The current focus is to finish the **SDK ↔ server end-to-end loop** and
-  stabilize the alpha integration path.
+- The public sample app is intended to run with a Leona-issued API key and
+  Leona hosted endpoints.
+- Authoritative verdicts, policy, tenant settings, and data interpretation
+  are handled by the Leona API/backend. The Android client collects and
+  reports signals; it does not make the final allow/deny decision.
 
-## Public SDK vs private core
+## Public SDK vs closed-source runtime
 
-The public Android repo can remain open while the most sensitive runtime
-detection logic is shipped as a separate private module.
+This repository publishes the Android public integration SDK only. Customers
+can integrate the SDK into their APK and use it in production, but the open
+source checkout must be configured with Leona API/backend access to obtain
+authoritative verdicts.
 
-Current boundary:
+For security reasons, this public repository does not include:
 
-- public SDK API stays in this repo
-- default OSS runtime lives in `sdk`
-- sensitive Frida machine-code signatures and detector catalogs can live in the private core
-- a private Android library can provide
-  `io.leonasec.leona.privatecore.PrivateNativeRuntime`
-
-If present, the SDK loads that runtime first; otherwise it falls back to the
-OSS runtime.
-
-The current private runtime scaffold also supports a private native library
-loading path:
-
-- try `libleona_private.so` first
-- if unavailable, fall back to the OSS `libleona.so`
-
-The build now also supports this split at artifact level:
-
-- `sdk` builds the public OSS native core as `libleona.so`
-- `sdk-private-core` builds the private native core as `libleona_private.so`
-- internal sample-app builds can package both, while runtime loading prefers
-  the private library first
-- `PrivateNativeRuntime` now uses its own private JNI entrypoints instead of
-  reusing the OSS runtime's JNI class binding
-
-Already split to private-header loading:
-
-- tamper baseline policy toggles
-- injection scan exclusions / Frida library needles
-- Frida signature catalog
-- environment / emulator catalog
-- root indicator catalog
-- Xposed-family catalog
-- Unidbg heuristics
-
-The public repo keeps weak / empty fallback catalogs so the open-source build
-remains usable without shipping the most sensitive rules.
-
-For internal local builds, the repo also supports an optional module path:
-
-- `/Users/a/back/Game/cq/leona-sdk-android/private/sdk-private-core`
-
-When that directory exists, Gradle includes `:sdk-private-core` and the
-sample app packages it automatically.
+- Leona hosted API/backend implementation
+- private detector catalogs and native runtime internals
+- risk scoring weights and tenant policy execution
+- internal operations, deployment, and release automation
 
 ## What v0.1.0-alpha.1 detects
 
@@ -409,8 +373,8 @@ sample app packages it automatically.
 
 **v0.3.0+**:
 - Separate build-time tools: `leona-so-protector`, `leona-dex-packer`
-- `leona-server`: the backend side of the BoxId exchange
-- Commercial: persistent device fingerprint, VM virtualization, private deployment
+- Hosted Leona API/backend integration hardening
+- Commercial/private: persistent device fingerprint, VM virtualization, private deployment
 
 ## Architecture
 
@@ -482,74 +446,31 @@ io.leonasec.leona
 
 Requirements: JDK 17+, Android Gradle Plugin 8.5+, NDK r26+ (Gradle auto-installs).
 
-For a repo-wide snapshot of what is implemented today, see
-[`/Users/a/back/Game/cq/docs/current-status.md`](/Users/a/back/Game/cq/docs/current-status.md).
+For the public/open-source boundary, see
+[`../docs/open-source-policy.md`](../docs/open-source-policy.md).
 
-For execution / demo / release docs, start from
-[`/Users/a/back/Game/cq/docs/README.md`](/Users/a/back/Game/cq/docs/README.md).
-
-For mainland / non-GMS rollout docs, start from
-[`/Users/a/back/Game/cq/docs/mainland-closeout-summary.md`](/Users/a/back/Game/cq/docs/mainland-closeout-summary.md).
-
-For a one-command local alpha closure pass, run:
-
-```bash
-/Users/a/back/Game/cq/leona-sdk-android/scripts/run-alpha-closure.sh
-```
-
-## CI / Emulator E2E
+## CI
 
 This repo includes:
 
-- regular Android CI in `/Users/a/back/Game/cq/.github/workflows/android.yml`
-- a manual `workflow_dispatch` job for **alpha closure**
-- a manual `workflow_dispatch` job for **live emulator E2E**
+- regular Android public SDK CI in `../.github/workflows/android.yml`
+- nightly public SDK checks for unit tests, AAR assembly, and native source sanity
 
-The live E2E job is intended for a hosted Leona staging environment and
-expects:
+Public CI does not include Leona hosted backend implementation, demo backend,
+private detector modules, private risk policy, or internal release flows.
+Those are closed-source for security reasons.
 
-- GitHub secret: `LEONA_E2E_API_KEY`
-- GitHub secret: `LEONA_E2E_SECRET_KEY`
-- GitHub repository variable: `LEONA_E2E_REPORTING_ENDPOINT`
-- GitHub repository variable: `LEONA_E2E_FORMAL_VERDICT_BASE_URL`
-- GitHub repository variable: `LEONA_E2E_CLOUD_CONFIG_ENDPOINT`
-- GitHub repository variable: `LEONA_E2E_DEMO_BACKEND_BASE_URL`
-
-The alpha-closure workflow_dispatch path does not need remote Leona staging.
-It runs the local build gate plus local demo-backend / cloud-config smoke
-inside GitHub Actions and uploads the generated closure reports.
-
-It runs `/Users/a/back/Game/cq/leona-sdk-android/scripts/run-emulator-e2e.sh`
-inside an Android API 34 emulator and uploads screenshots / XML artifacts.
-The local/live E2E now checks both the sample demo verdict path and a direct
-formal `/v1/verdict` call, including response-signature verification,
-`canonicalDeviceId`, `deviceFingerprint`, and cross-surface canonical
-consistency.
-
-For a locally connected physical Android device, use:
+To build or install the sample app against Leona hosted endpoints:
 
 ```bash
-ADB_SERIAL=<device-serial> \
-LEONA_AUTO_CREATE_LOCAL_SERVER_APP_KEY=1 \
-LEONA_ADMIN_BASE_URL=http://127.0.0.1:8083 \
-LEONA_REPORTING_ENDPOINT=http://127.0.0.1:8080 \
-LEONA_FORMAL_VERDICT_BASE_URL=http://127.0.0.1:8080 \
-LEONA_CLOUD_CONFIG_ENDPOINT=http://127.0.0.1:8090/v1/mobile-config \
-LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
-LEONA_SAMPLE_ATTESTATION_MODE=oem_debug_fake \
-/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh
+LEONA_API_KEY=<appKey> \
+LEONA_REPORTING_ENDPOINT=https://<leona-api> \
+LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
+./scripts/run-live-sample.sh
 ```
 
-That flow checks pre-`sense()` device-id state (`T...` on a fresh install or a
-previously restored `L...` canonical), `L...` convergence, support-bundle
-cloud-config evidence, cross-surface canonical consistency, direct formal
-`/v1/verdict` response-signature verification, formal `deviceFingerprint`, and
-reinstall stability.
-If you pass an existing `LEONA_API_KEY` instead of auto-creating one, also pass
-the matching `LEONA_SERVER_SECRET_KEY` so the direct formal verdict check can
-sign and verify the request.
-The script automatically configures `adb reverse` for ports `8080` and
-`8090`, and writes `report.json` / `report.md` under `/tmp/leona-device-e2e-*`.
+The public SDK requires Leona hosted API/backend access for authoritative
+verdicts. It does not ship a self-hosted production backend.
 
 ## Contributing
 
