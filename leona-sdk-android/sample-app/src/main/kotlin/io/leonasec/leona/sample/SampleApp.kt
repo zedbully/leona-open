@@ -39,7 +39,7 @@ class SampleApp : Application() {
                 .enableCloudConfig(endpoint != null || cloudConfigEndpoint != null)
                 .channel("sample")
                 .attestationProvider(resolveSampleAttestationProvider())
-                .verboseNativeLogging(true)        // verbose logcat for the demo
+                .verboseNativeLogging(BuildConfig.LEONA_VERBOSE_NATIVE_LOGGING)
                 .enableInjectionDetection(true)
                 .enableEnvironmentDetection(true)
                 .build(),

@@ -44,10 +44,13 @@ object SamplePlayIntegrity {
             .toLongOrNull()
         return when (mode) {
             MODE_OFF -> null
-            MODE_DEBUG_FAKE -> PlayIntegrityAttestationProvider(
-                tokenProvider = PlayIntegrityTokenProvider(::buildDebugToken),
-                cloudProjectNumber = cloudProjectNumber,
-            )
+            MODE_DEBUG_FAKE -> {
+                check(BuildConfig.DEBUG) { "debug_fake attestation is only available in debug builds." }
+                PlayIntegrityAttestationProvider(
+                    tokenProvider = PlayIntegrityTokenProvider(::buildDebugToken),
+                    cloudProjectNumber = cloudProjectNumber,
+                )
+            }
 
             MODE_BRIDGE -> bridge?.let { installed ->
                 PlayIntegrityAttestationProvider(

@@ -40,6 +40,9 @@ backend.
 The sample app's logcat automation is a debug-only field-test helper. It only
 runs when the debug APK is built with `LEONA_E2E_TOKEN` and the launch intent
 provides the same token; release builds and normal launches ignore that path.
+The sample release build also rejects debug/test-only Gradle properties such as
+`LEONA_API_KEY`, `LEONA_E2E_TOKEN`, and fake attestation modes so those values
+cannot be embedded into a distributable APK by accident.
 
 To validate an already-installed debug sample without reinstalling it or reading
 the UI, run the installed-sample logcat smoke test:

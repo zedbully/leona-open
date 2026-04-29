@@ -52,7 +52,10 @@ object SampleMainlandAttestation {
     fun createProvider(context: Context): AttestationProvider? {
         val mode = BuildConfig.LEONA_SAMPLE_ATTESTATION_MODE.trim().lowercase()
         return when (mode) {
-            MODE_OEM_DEBUG_FAKE -> debugProvider(context)
+            MODE_OEM_DEBUG_FAKE -> {
+                check(BuildConfig.DEBUG) { "oem_debug_fake attestation is only available in debug builds." }
+                debugProvider(context)
+            }
             MODE_OEM_BRIDGE -> bridgeProvider(context)
             else -> null
         }
