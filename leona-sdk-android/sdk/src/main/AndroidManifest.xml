@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!--
-      The SDK itself needs no permissions. Consumers add what their
-      integration requires (typically INTERNET for event reporting).
+      ACCESS_NETWORK_STATE is a normal permission used only for passive
+      network/VPN evidence. Consumers add transport permissions such as
+      INTERNET when their integration reports events directly.
     -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

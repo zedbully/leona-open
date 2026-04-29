@@ -72,7 +72,7 @@ Alpha 阶段目标：
 
 - [ ] **GitHub advisory 检查债务收敛**
   - 当前：root workflow 已启用，但 Android lint 和 native clang-format 暂作为 advisory，不阻塞 unit/build。
-  - 已知项：SDK lint 中有 API guard / hidden API / device id / hardcoded path 警告；native C++ 历史代码不符合 `clang-format --style=Google`。
+  - 已知项：SDK lint 中有 API guard / hidden API / device id / hardcoded path 警告；当前首个 lint 错误是 `AppIntegrity.kt` 的 `ComponentInfo#directBootAware` API 24 guard；native C++ 历史代码不符合 `clang-format --style=Google`。
   - 验收：引入 lint baseline 或逐项修复，并明确 native format 风格后再恢复 blocking gate。
 
 ---
@@ -134,5 +134,8 @@ Alpha 阶段目标：
 - 2026-04-29：已同步 `main` 到 GitHub `origin/main`；远端 fetch 后无新提交需要合并，首次 push 将远端从 `200cb18` 推进到 `9547be8`。
 - 2026-04-29：发现 GitHub workflow 放在 `leona-sdk-android/.github/workflows/`，真实仓库不会识别；已移动到 `.github/workflows/android.yml` 并调整运行路径。
 - 2026-04-29：首次触发 root workflow 时发现 job-level `runner.temp` 上下文解析失败；已改为固定 `/tmp/leona-*` 输出目录。
-- 2026-04-29：GitHub `run_alpha_closure` 已能创建 run；后续失败点定位为 public checkout 缺少 private core、历史 C++ clang-format gate、SDK lint 缺少 VPN 权限保护，正在修复。
+- 2026-04-29：GitHub `run_alpha_closure` 已能创建 run；后续失败点定位为 public checkout 缺少 private core、历史 C++ clang-format gate、SDK lint 缺少 VPN 权限保护。
 - 2026-04-29：CI lint / clang-format 先改为 advisory；`verify-closure.sh` 已适配 public-only checkout 缺少 `:sdk-private-core` 的情况。
+- 2026-04-29：GitHub run `25085752269` 失败点收敛为 `TamperCatalogParityTest` 在 public checkout 缺少 `private/sdk-private-core/src/main/cpp/private_tamper_catalog.h`；已改为 public catalog 与 detector 必测，private catalog 存在时再检查 public/private parity。
+- 2026-04-29：SDK manifest 已声明普通权限 `ACCESS_NETWORK_STATE`，用于被动 VPN/network evidence，lint 的 VPN 权限阻塞点已消除。
+- 2026-04-29：本地验证通过：`:sdk:testDebugUnitTest`、`scripts/verify-closure.sh`、public-only 临时 checkout 的 clean/no-build-cache `:sdk:testDebugUnitTest`。

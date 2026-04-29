@@ -5,6 +5,7 @@
 package io.leonasec.leona.internal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
@@ -19,11 +20,16 @@ class TamperCatalogParityTest {
         val detector = repoRoot.resolve("sdk/src/main/cpp/detection/tamper_detector.cpp")
 
         val publicFields = extractCatalogFields(publicCatalog)
-        val privateFields = extractPrivateOverrideFields(privateCatalog)
         val detectorFields = extractDetectorFields(detector)
 
-        assertEquals("public/private tamper catalogs diverged", publicFields, privateFields)
         assertEquals("detector references fields missing from catalog", publicFields, detectorFields)
+
+        assumeTrue(
+            "private tamper catalog not present; skipping public/private parity check",
+            Files.exists(privateCatalog),
+        )
+        val privateFields = extractPrivateOverrideFields(privateCatalog)
+        assertEquals("public/private tamper catalogs diverged", publicFields, privateFields)
     }
 
     private fun resolveRepoRoot(): Path {
