@@ -106,6 +106,8 @@ verdict paths should be expected to work.
 
 Use devices and tooling that you own or are explicitly allowed to test.
 
+- For a repeatable field-testing template and a matrix you can fill in as you
+  validate multiple emulator vendors, see `docs/emulator-matrix.md`.
 - Android Studio emulator, MuMu, LDPlayer, Nox, BlueStacks, and Genymotion
   should produce emulator-related signals for server-side evaluation.
 - Frida, Xposed/LSPosed, Magisk/KernelSU, and Unidbg tests should produce
