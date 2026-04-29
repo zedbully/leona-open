@@ -236,20 +236,144 @@ internal class DeviceIdentityManager(
         val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
         val hardware = Build.HARDWARE.orEmpty().lowercase()
         val product = Build.PRODUCT.orEmpty().lowercase()
+        val brand = Build.BRAND.orEmpty().lowercase()
+        val device = Build.DEVICE.orEmpty().lowercase()
+        val board = Build.BOARD.orEmpty().lowercase()
         return fingerprint.contains("generic") ||
             fingerprint.contains("emulator") ||
             fingerprint.contains("vbox") ||
+            fingerprint.contains("nemu") ||
+            fingerprint.contains("mumu") ||
             model.contains("sdk_gphone") ||
             model.contains("emulator") ||
             model.contains("android sdk built for") ||
+            model.contains("mumu") ||
+            model.contains("nox") ||
+            model.contains("ldplayer") ||
+            model.contains("bluestacks") ||
             manufacturer.contains("genymotion") ||
+            manufacturer.contains("netease") ||
+            manufacturer.contains("mumu") ||
             hardware.contains("goldfish") ||
             hardware.contains("ranchu") ||
             hardware.contains("vbox86") ||
+            hardware.contains("qemu") ||
+            hardware.contains("nemu") ||
+            hardware.contains("dummy-virt") ||
             product.contains("sdk") ||
             product.contains("emulator") ||
-            product.contains("simulator")
+            product.contains("simulator") ||
+            product.contains("mumu") ||
+            product.contains("nemu") ||
+            brand.contains("generic") ||
+            device.contains("generic") ||
+            device.contains("mumu") ||
+            device.contains("nemu") ||
+            board.contains("qemu") ||
+            board.contains("goldfish") ||
+            board.contains("ranchu") ||
+            hasKnownEmulatorSystemProperties() ||
+            hasKnownEmulatorFiles() ||
+            hasKnownEmulatorMounts() ||
+            hasKnownEmulatorPackages()
     }
+
+    private fun hasKnownEmulatorSystemProperties(): Boolean {
+        val exactMatches = mapOf(
+            "ro.kernel.qemu" to setOf("1"),
+            "ro.boot.qemu" to setOf("1"),
+            "ro.build.hv.platform" to setOf("qemu"),
+            "ro.build.version.nemux" to setOf("true", "1"),
+            "nemud.player_package" to setOf("mumu"),
+            "nemud.player_engine" to setOf("macpro"),
+            "init.svc.nemuinit" to setOf("running"),
+            "init.svc.nemuinput" to setOf("running"),
+            "init.svc.nemu_sys_opt" to setOf("running"),
+            "persist.nemu.root_state" to setOf("open", "close"),
+        )
+        if (exactMatches.any { (key, values) ->
+                systemProperty(key)?.lowercase(Locale.ROOT) in values
+            }
+        ) {
+            return true
+        }
+
+        val needleProps = listOf(
+            "ro.product.model",
+            "ro.product.manufacturer",
+            "ro.hardware",
+            "ro.board.platform",
+            "ro.boot.hardware",
+            "ro.build.fingerprint",
+            "ro.build.description",
+            "ro.product.name",
+            "ro.product.device",
+        )
+        val needles = listOf(
+            "mumu",
+            "nemu",
+            "netease",
+            "nox",
+            "ldplayer",
+            "bluestacks",
+            "genymotion",
+            "goldfish",
+            "ranchu",
+            "vbox",
+        )
+        return needleProps.any { key ->
+            val value = systemProperty(key)?.lowercase(Locale.ROOT).orEmpty()
+            value.isNotBlank() && needles.any(value::contains)
+        }
+    }
+
+    private fun hasKnownEmulatorFiles(): Boolean {
+        val paths = listOf(
+            "/dev/qemu_pipe",
+            "/dev/socket/qemud",
+            "/dev/socket/genyd",
+            "/dev/socket/baseband_genyd",
+            "/system/bin/nemuinit",
+            "/system/bin/nemuinput",
+            "/system/bin/nemu_sys_opt",
+            "/system/lib/libldutils.so",
+            "/data/data/com.bluestacks",
+        )
+        return paths.any { path -> runCatching { java.io.File(path).exists() }.getOrDefault(false) }
+    }
+
+    private fun hasKnownEmulatorMounts(): Boolean = runCatching {
+        java.io.File("/proc/mounts")
+            .takeIf { it.exists() }
+            ?.useLines { lines ->
+                lines.any { line ->
+                    val normalized = line.lowercase(Locale.ROOT)
+                    normalized.contains("mumu") ||
+                        normalized.contains("nemu") ||
+                        normalized.contains("vbox") ||
+                        normalized.contains("qemu") ||
+                        normalized.contains("virtio") && normalized.contains("9p")
+                }
+            }
+            ?: false
+    }.getOrDefault(false)
+
+    private fun hasKnownEmulatorPackages(): Boolean {
+        val knownPackages = listOf(
+            "com.yhd.yofun.mumu",
+            "com.mumu.launcher",
+            "com.bignox.app",
+            "com.vphone.launcher",
+            "com.microvirt.launcher",
+            "com.bluestacks.home",
+        )
+        return knownPackages.any(::isPackageInstalled)
+    }
+
+    private fun systemProperty(key: String): String? = runCatching {
+        val clazz = Class.forName("android.os.SystemProperties")
+        clazz.getMethod("get", String::class.java).invoke(null, key) as? String
+    }.getOrNull()?.trim()?.ifEmpty { null }
 
     private fun isDeveloperOptionsEnabled(): Boolean = runCatching {
         Settings.Global.getInt(appContext.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1
