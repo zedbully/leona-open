@@ -220,8 +220,7 @@ class MainActivity : AppCompatActivity() {
                     riskTags.joinToString(",").ifBlank { "-" },
                     canonicalDeviceId,
                 )
-                binding.verdictJson.text = Leona.getLastServerVerdictJson()
-                    ?: payload
+                binding.verdictJson.text = runCatching { json.toString(2) }.getOrDefault(payload)
                 lastBoxId = null
             }.onFailure {
                 binding.verdictResult.text =

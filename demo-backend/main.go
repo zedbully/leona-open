@@ -56,8 +56,14 @@ type verdictRequest struct {
 }
 
 type verdictResponse struct {
-	BoxID             string `json:"boxId"`
-	DeviceFingerprint string `json:"deviceFingerprint"`
+	BoxID             string   `json:"boxId"`
+	CanonicalDeviceID string   `json:"canonicalDeviceId,omitempty"`
+	DeviceFingerprint string   `json:"deviceFingerprint"`
+	Decision          string   `json:"decision,omitempty"`
+	Action            string   `json:"action,omitempty"`
+	RiskLevel         string   `json:"riskLevel,omitempty"`
+	RiskScore         int      `json:"riskScore,omitempty"`
+	RiskTags          []string `json:"riskTags,omitempty"`
 	Risk              struct {
 		Level string `json:"level"`
 		Score int    `json:"score"`
@@ -71,8 +77,10 @@ type demoResponse struct {
 	Identity          identityEcho `json:"identity,omitempty"`
 	DeviceIdentity    identityEcho `json:"deviceIdentity,omitempty"`
 	Decision          string       `json:"decision"`
+	Action            string       `json:"action"`
 	RiskLevel         string       `json:"riskLevel"`
 	RiskScore         int          `json:"riskScore"`
+	RiskTags          []string     `json:"riskTags,omitempty"`
 	HoneypotSuggested bool         `json:"honeypotSuggested"`
 }
 
@@ -181,10 +189,12 @@ func demoVerdict(w http.ResponseWriter, r *http.Request) {
 
 	response := demoResponse{
 		BoxID:             verdict.BoxID,
-		Decision:          decisionOf(verdict.Risk.Level),
-		RiskLevel:         verdict.Risk.Level,
-		RiskScore:         verdict.Risk.Score,
-		HoneypotSuggested: honeypotSuggested(verdict.Risk.Level),
+		Decision:          firstNonBlank(verdict.Decision, decisionOf(verdict.Risk.Level)),
+		Action:            firstNonBlank(verdict.Action, actionOf(verdict.Risk.Level)),
+		RiskLevel:         firstNonBlank(verdict.RiskLevel, verdict.Risk.Level),
+		RiskScore:         firstNonZero(verdict.RiskScore, verdict.Risk.Score),
+		RiskTags:          verdict.RiskTags,
+		HoneypotSuggested: honeypotSuggested(firstNonBlank(verdict.RiskLevel, verdict.Risk.Level)),
 	}
 	if canonicalDeviceID := resolveVerdictCanonicalDeviceID(r, verdict); canonicalDeviceID != "" {
 		response.CanonicalDeviceID = canonicalDeviceID
@@ -308,6 +318,19 @@ func decisionOf(level string) string {
 	}
 }
 
+func actionOf(level string) string {
+	switch strings.ToUpper(level) {
+	case "CLEAN", "LOW":
+		return "allow"
+	case "MEDIUM":
+		return "review"
+	case "HIGH", "CRITICAL":
+		return "block"
+	default:
+		return "unknown"
+	}
+}
+
 func honeypotSuggested(level string) bool {
 	switch strings.ToUpper(level) {
 	case "HIGH", "CRITICAL":
@@ -315,6 +338,15 @@ func honeypotSuggested(level string) bool {
 	default:
 		return false
 	}
+}
+
+func firstNonZero(values ...int) int {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func resolveCanonicalDeviceID(r *http.Request) string {
