@@ -5,20 +5,22 @@
 
 ---
 
-## 1. 现在继续项目，先看这 7 份
+## 1. 现在继续项目，先看这 8 份
 
-1. `/Users/a/back/Game/cq/docs/closeout-strategy.md`
-2. `/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
-3. `/Users/a/back/Game/cq/docs/phase-execution-checklist.md`
-4. `/Users/a/back/Game/cq/docs/final-acceptance-summary.md`
-5. `/Users/a/back/Game/cq/docs/alpha-development-plan.md`
-6. `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
-7. `/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
+1. `/Users/a/back/Game/cq/docs/work-items.md`
+2. `/Users/a/back/Game/cq/docs/closeout-strategy.md`
+3. `/Users/a/back/Game/cq/docs/open-vs-private-final-matrix.md`
+4. `/Users/a/back/Game/cq/docs/phase-execution-checklist.md`
+5. `/Users/a/back/Game/cq/docs/final-acceptance-summary.md`
+6. `/Users/a/back/Game/cq/docs/alpha-development-plan.md`
+7. `/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
+8. `/Users/a/back/Game/cq/docs/alpha-emulator-validation-record-2026-04-29.md`
 
 ---
 
 ## 2. 当前最关键文档
 
+- 工作目标与工作项：`/Users/a/back/Game/cq/docs/work-items.md`
 - 当前状态：`/Users/a/back/Game/cq/docs/current-status.md`
 - Alpha 开发计划：`/Users/a/back/Game/cq/docs/alpha-development-plan.md`
 - Alpha 执行记录：`/Users/a/back/Game/cq/docs/alpha-execution-record-2026-04-29.md`
