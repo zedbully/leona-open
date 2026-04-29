@@ -9,7 +9,7 @@
 
 Android repo 已补充 manual workflow：
 
-- `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+- `/Users/a/back/Game/cq/.github/workflows/android.yml`
 
 新增 job：
 

@@ -129,7 +129,7 @@ scope too much.
 - `/Users/a/back/Game/cq/docs/demo-flow.md`
 - `/Users/a/back/Game/cq/docs/detection-matrix.md`
 - `/Users/a/back/Game/cq/docs/local-runbook.md`
-- `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+- `/Users/a/back/Game/cq/.github/workflows/android.yml`
 - `/Users/a/back/Game/cq/leona-sdk-android/docs/release-closure.md`
 - `/Users/a/back/Game/cq/leona-sdk-android/sample-app/src/main/kotlin/io/leonasec/leona/sample/MainActivity.kt`
 - `/Users/a/back/Game/cq/leona-sdk-android/sample-app/src/main/res/values/strings.xml`

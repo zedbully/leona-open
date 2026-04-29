@@ -172,7 +172,7 @@ Android SDK -> Leona Server -> BoxId -> 客户业务后端 -> Verdict
 - 总体验收: `docs/final-acceptance-summary.md`
 - release closure gate: `leona-sdk-android/docs/release-closure.md`
 - Mainland / 非 GMS: `docs/mainland-closeout-summary.md`
-- GitHub manual live emulator / attestation workflow: `leona-sdk-android/.github/workflows/android.yml`
+- GitHub manual live emulator / attestation workflow: `.github/workflows/android.yml`
 - 本地/线上数据同步执行包: `docs/online-data-sync-runbook.md`
 
 ## 接入步骤
@@ -619,7 +619,7 @@ LEONA_DEMO_BACKEND_BASE_URL=http://127.0.0.1:8090 \
 Workflow:
 
 ```text
-leona-sdk-android/.github/workflows/android.yml
+.github/workflows/android.yml
 ```
 
 需要配置 secrets / variables：

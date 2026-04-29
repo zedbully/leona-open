@@ -28,6 +28,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    working-directory: leona-sdk-android
+
 jobs:
   lint-and-test:
     name: Lint + Unit tests
@@ -62,7 +66,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-report
-          path: sdk/build/reports/tests/
+          path: leona-sdk-android/sdk/build/reports/tests/
           retention-days: 7
 
   assemble:
@@ -101,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: leona-sdk-aars
-          path: sdk/build/outputs/aar/*.aar
+          path: leona-sdk-android/sdk/build/outputs/aar/*.aar
           retention-days: 30
 
   native-sanity:
@@ -259,6 +263,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
+            cd leona-sdk-android
             export LEONA_API_KEY="$LEONA_API_KEY"
             export LEONA_SERVER_SECRET_KEY="$LEONA_SERVER_SECRET_KEY"
             export LEONA_REPORTING_ENDPOINT="$LEONA_REPORTING_ENDPOINT"
@@ -338,6 +343,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
+            cd leona-sdk-android
             export LEONA_API_KEY="$LEONA_API_KEY"
             export LEONA_HOST_BASE_URL="$LEONA_HOST_BASE_URL"
             export LEONA_REPORTING_ENDPOINT="$LEONA_REPORTING_ENDPOINT"
@@ -426,7 +432,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            sdk/build/outputs/aar/sdk-release.aar
+            leona-sdk-android/sdk/build/outputs/aar/sdk-release.aar
           draft: false
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
           generate_release_notes: true

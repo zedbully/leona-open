@@ -501,7 +501,7 @@ For a one-command local alpha closure pass, run:
 
 This repo includes:
 
-- regular Android CI in `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+- regular Android CI in `/Users/a/back/Game/cq/.github/workflows/android.yml`
 - a manual `workflow_dispatch` job for **alpha closure**
 - a manual `workflow_dispatch` job for **live emulator E2E**
 

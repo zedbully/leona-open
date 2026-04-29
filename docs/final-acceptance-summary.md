@@ -109,7 +109,7 @@
 - alpha release notes 已定稿：
   - `/Users/a/back/Game/cq/docs/alpha-release-notes.md`
 - GitHub manual live emulator E2E / attestation summary E2E workflow 已补：
-  - `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+  - `/Users/a/back/Game/cq/.github/workflows/android.yml`
   - `/Users/a/back/Game/cq/docs/ci-e2e-setup.md`
   - workflow_dispatch 输入：
     - `run_live_e2e`

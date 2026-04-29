@@ -42,6 +42,7 @@ Alpha 阶段目标：
 - [x] Server common 单测通过。
 - [x] 本地 `query-service` 已用最新 jar 重建并重启。
 - [x] 新增 Codex 启动工作项入口：`AGENTS.md` 与 `docs/work-items.md`。
+- [x] GitHub Actions workflow 已从子目录提升到仓库根目录 `.github/workflows/android.yml`，并适配 monorepo 运行路径。
 
 ---
 
@@ -50,12 +51,12 @@ Alpha 阶段目标：
 - [ ] **补 USB 物理真机 E2E 留档**
   - 入口：`/Users/a/back/Game/cq/leona-sdk-android/scripts/run-device-e2e.sh`
   - 验收：记录 BoxId、canonicalDeviceId、support bundle、server verdict、risk tags。
-  - 当前状态：blocked，当前环境只有 MuMu 和 Android Studio Emulator，未发现 USB 物理真机。
+  - 当前状态：blocked，2026-04-29 再次检查 ADB，只发现 MuMu `127.0.0.1:16512` 与 Android Studio Emulator `emulator-5554`，未发现 USB 物理真机。
 
 - [ ] **GitHub manual live E2E 首跑**
-  - 入口：`/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+  - 入口：`/Users/a/back/Game/cq/.github/workflows/android.yml`
   - 验收：Actions summary 显示 BoxId、canonical、risk、attestation provider/status/code。
-  - 当前状态：待配置真实仓库 secrets / variables。
+  - 当前状态：workflow 已移动到 GitHub 可识别的根目录，待推送后配置真实仓库 secrets / variables 并首次触发。
 
 - [ ] **最终文档一致性收口**
   - 核对：`README.md`、`docs/current-status.md`、`docs/alpha-development-plan.md`、`docs/final-acceptance-summary.md`、OpenAPI。
@@ -126,3 +127,4 @@ Alpha 阶段目标：
 - 2026-04-29：提交 `52a7a64 feat: add runtime emulator probes`。
 - 2026-04-29：提交 `bfb59fd docs: add codex work item tracker`。
 - 2026-04-29：已同步 `main` 到 GitHub `origin/main`；远端 fetch 后无新提交需要合并，首次 push 将远端从 `200cb18` 推进到 `9547be8`。
+- 2026-04-29：发现 GitHub workflow 放在 `leona-sdk-android/.github/workflows/`，真实仓库不会识别；已移动到 `.github/workflows/android.yml` 并调整运行路径。

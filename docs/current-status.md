@@ -83,10 +83,10 @@ Leona 当前执行范围已经收敛为：
   - attestation：`provider=play_integrity`，`status=play_integrity/MEETS_DEVICE_INTEGRITY`，`code=PLAY_INTEGRITY_VERIFIED`
   - 专项留档：`/Users/a/back/Game/cq/docs/attestation-record-2026-04-25.md`
 - Android GitHub manual live emulator E2E workflow scaffold 已补：
-  - `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+  - `/Users/a/back/Game/cq/.github/workflows/android.yml`
   - `/Users/a/back/Game/cq/docs/ci-e2e-setup.md`
 - Android GitHub manual live attestation E2E workflow scaffold 已补：
-  - `/Users/a/back/Game/cq/leona-sdk-android/.github/workflows/android.yml`
+  - `/Users/a/back/Game/cq/.github/workflows/android.yml`
   - workflow_dispatch 输入：`run_live_attestation_e2e`
   - job summary 已支持显示 attestation provider / status / code / retryable
 - public-only 构建验收已完成：
