@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import io.leonasec.leona.config.LeonaConfig
 import io.leonasec.leona.internal.spi.SecureDeviceContext
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
@@ -37,6 +38,25 @@ class SecureChannelTest {
         val id1 = channel.upload(byteArrayOf(), deviceContext())
         val id2 = channel.upload(byteArrayOf(), deviceContext())
         assertNotEquals(id1, id2)
+    }
+
+    @Test
+    fun `missing private reporting engine error does not leak api key`() = runBlocking {
+        val ctx = mockContext()
+        val secret = "leona_live_secret_should_not_leak"
+        val channel = SecureChannel(
+            ctx,
+            LeonaConfig.Builder()
+                .reportingEndpoint("https://api.example.test/v1/sense")
+                .apiKey(secret)
+                .build(),
+        )
+
+        val error = runCatching { channel.upload(byteArrayOf(1, 2, 3), deviceContext()) }
+            .exceptionOrNull()
+
+        assertNotNull(error)
+        assertFalse(error!!.message.orEmpty().contains(secret))
     }
 
     @Test

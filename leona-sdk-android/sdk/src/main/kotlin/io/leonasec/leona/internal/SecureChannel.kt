@@ -52,11 +52,10 @@ internal class SecureChannel(
         val endpoint = config.reportingEndpoint
             ?: return SecureUploadResult(BoxId.of(UUID.randomUUID().toString()))
 
-        val apiKey = config.apiKey
-            ?: error("Leona.sense() requires apiKey when reportingEndpoint is set.")
+        config.apiKey ?: error("Leona.sense() requires apiKey when reportingEndpoint is set.")
 
         return engine?.upload(payload, deviceContext) ?: throw IOException(
-            "Secure reporting for $endpoint requires the closed-source module :sdk-private-core on the runtime classpath (apiKey=$apiKey).",
+            "Secure reporting for $endpoint requires the closed-source module :sdk-private-core on the runtime classpath.",
         )
     }
 
