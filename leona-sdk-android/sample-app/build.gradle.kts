@@ -9,6 +9,7 @@ val leonaReportingEndpoint = providers.gradleProperty("LEONA_REPORTING_ENDPOINT"
 val leonaCloudConfigEndpoint = providers.gradleProperty("LEONA_CLOUD_CONFIG_ENDPOINT").orElse("").get()
 val leonaDemoBackendBaseUrl = providers.gradleProperty("LEONA_DEMO_BACKEND_BASE_URL").orElse("").get()
 val leonaDemoVerdictSecretKey = providers.gradleProperty("LEONA_DEMO_VERDICT_SECRET_KEY").orElse("").get()
+val leonaE2EToken = providers.gradleProperty("LEONA_E2E_TOKEN").orElse("").get()
 val leonaSampleAttestationMode = providers.gradleProperty("LEONA_SAMPLE_ATTESTATION_MODE").orElse("off").get()
 val leonaSamplePlayIntegrityCloudProjectNumber =
     providers.gradleProperty("LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER").orElse("").get()
@@ -31,6 +32,7 @@ android {
         buildConfigField("String", "LEONA_CLOUD_CONFIG_ENDPOINT", "\"$leonaCloudConfigEndpoint\"")
         buildConfigField("String", "LEONA_DEMO_BACKEND_BASE_URL", "\"$leonaDemoBackendBaseUrl\"")
         buildConfigField("String", "LEONA_DEMO_VERDICT_SECRET_KEY", "\"$leonaDemoVerdictSecretKey\"")
+        buildConfigField("String", "LEONA_E2E_TOKEN", "\"$leonaE2EToken\"")
         buildConfigField("String", "LEONA_SAMPLE_ATTESTATION_MODE", "\"$leonaSampleAttestationMode\"")
         buildConfigField(
             "String",

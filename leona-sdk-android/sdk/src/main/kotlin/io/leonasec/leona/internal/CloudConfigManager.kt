@@ -51,8 +51,7 @@ internal class CloudConfigManager(
         }
 
         return runCatching {
-            val snapshot = identityManager.currentSnapshot()
-                ?: identityManager.resolve(cached)
+            val snapshot = identityManager.resolve(cached, refreshRiskSignals = true)
             val request = Request.Builder()
                 .url(endpoint)
                 .get()

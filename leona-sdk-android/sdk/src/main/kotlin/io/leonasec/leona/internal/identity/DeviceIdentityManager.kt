@@ -29,7 +29,10 @@ internal class DeviceIdentityManager(
     private val store = LeonaIdentityStore(appContext)
 
     @Synchronized
-    fun resolve(policy: CollectionPolicy = CollectionPolicy()): DeviceFingerprintSnapshot {
+    fun resolve(
+        policy: CollectionPolicy = CollectionPolicy(),
+        refreshRiskSignals: Boolean = false,
+    ): DeviceFingerprintSnapshot {
         val cached = store.loadLastSnapshot()
         val persistedCanonicalDeviceId = store.loadCanonicalDeviceId()
             ?.let(::normalizeCanonicalId)
@@ -41,7 +44,7 @@ internal class DeviceIdentityManager(
         if (policy.disableCollectionWindowMs >= 0 && cached != null && cached.canonicalDeviceId == persistedCanonicalDeviceId) {
             val age = System.currentTimeMillis() - cached.generatedAtMillis
             if (age in 0..policy.disableCollectionWindowMs) {
-                return cached
+                return if (refreshRiskSignals) refreshCachedRiskSignals(cached, policy) else cached
             }
         }
 
@@ -109,6 +112,26 @@ internal class DeviceIdentityManager(
         return snapshot
     }
 
+    private fun refreshCachedRiskSignals(
+        cached: DeviceFingerprintSnapshot,
+        policy: CollectionPolicy,
+    ): DeviceFingerprintSnapshot {
+        val packageInfo = packageInfo()
+        val signingCerts = if ("signingCert" in policy.disabledSignals) emptyList() else loadSigningCertDigests()
+        val installerPackage = if ("installer" in policy.disabledSignals) null else loadInstallerPackage()
+        return CachedSnapshotRiskSignals.refresh(
+            cached = cached,
+            installerPackage = installerPackage,
+            signingCertSha256 = signingCerts,
+            riskSignals = collectRiskSignals(
+                policy = policy,
+                packageInfo = packageInfo,
+                signingCerts = signingCerts,
+                installerPackage = installerPackage,
+            ),
+        )
+    }
+
     fun currentSnapshot(): DeviceFingerprintSnapshot? = store.loadLastSnapshot()
 
     fun updateCanonicalDeviceId(deviceId: String?) {
@@ -137,10 +160,15 @@ internal class DeviceIdentityManager(
         packageInfo: PackageInfo?,
         signingCerts: List<String>,
         installerPackage: String?,
-    ): Set<String> = buildSet {
-        if ("root" !in policy.disabledSignals && isBasicRootLikely()) add("root.basic")
-        if ("rootPackages" !in policy.disabledSignals && hasKnownRootPackages()) add("root.packages")
-        if ("emulator" !in policy.disabledSignals && isEmulatorLikely()) add("environment.emulator")
+    ): Set<String> =
+        collectVolatileRiskSignals(policy) + collectStableRiskSignals(
+            policy = policy,
+            packageInfo = packageInfo,
+            signingCerts = signingCerts,
+            installerPackage = installerPackage,
+        )
+
+    private fun collectVolatileRiskSignals(policy: CollectionPolicy): Set<String> = buildSet {
         if ("debugger" !in policy.disabledSignals && Debug.isDebuggerConnected()) add("debugger.attached")
         if ("developerOptions" !in policy.disabledSignals && isDeveloperOptionsEnabled()) add("developer.options_enabled")
         if ("adb" !in policy.disabledSignals && isAdbEnabled()) add("developer.adb_enabled")
@@ -149,6 +177,17 @@ internal class DeviceIdentityManager(
         if ("accessibility" !in policy.disabledSignals && hasThirdPartyAccessibilityServicesEnabled()) {
             add("accessibility.third_party_enabled")
         }
+    }
+
+    private fun collectStableRiskSignals(
+        policy: CollectionPolicy,
+        packageInfo: PackageInfo?,
+        signingCerts: List<String>,
+        installerPackage: String?,
+    ): Set<String> = buildSet {
+        if ("root" !in policy.disabledSignals && isBasicRootLikely()) add("root.basic")
+        if ("rootPackages" !in policy.disabledSignals && hasKnownRootPackages()) add("root.packages")
+        if ("emulator" !in policy.disabledSignals && isEmulatorLikely()) add("environment.emulator")
         if ("virtualContainer" !in policy.disabledSignals && hasKnownVirtualContainerPackages()) {
             add("environment.virtual_container")
         }

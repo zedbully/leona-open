@@ -102,7 +102,7 @@ object Leona {
     suspend fun sense(): BoxId = withContext(Dispatchers.IO) {
         val state = runtimeState.get() ?: error("Leona.init() must be called before sense().")
         val policy = state.cloudConfigManager.refreshIfNeeded(force = false)
-        val snapshot = state.identityManager.resolve(policy)
+        val snapshot = state.identityManager.resolve(policy, refreshRiskSignals = true)
         val tamperContext = refreshTamperDebugState(state)
         NativeBridge.updateTamperContext(
             tamperContext.integritySnapshot,
@@ -172,7 +172,7 @@ object Leona {
     fun getDiagnosticSnapshot(): LeonaDiagnosticSnapshot {
         val state = runtimeState.get() ?: error("Leona.init() must be called before getDiagnosticSnapshot().")
         val policy = state.cloudConfigManager.currentPolicy()
-        val identity = state.identityManager.resolve(policy)
+        val identity = state.identityManager.resolve(policy, refreshRiskSignals = true)
         val nativeRisk = state.lastNativeRisk.get()
         val serverVerdict = state.lastServerVerdict.get()
         return LeonaDiagnosticSnapshot(

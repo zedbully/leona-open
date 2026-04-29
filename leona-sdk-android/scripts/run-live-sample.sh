@@ -8,11 +8,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${LEONA_REPORTING_ENDPOINT:?LEONA_REPORTING_ENDPOINT is required. Use the Leona hosted reporting endpoint.}"
 : "${LEONA_CLOUD_CONFIG_ENDPOINT:=}"
 : "${LEONA_DEMO_BACKEND_BASE_URL:=}"
+: "${LEONA_DEMO_VERDICT_SECRET_KEY:=}"
+: "${LEONA_E2E_TOKEN:=}"
 : "${LEONA_TENANT_ID:=sample}"
 : "${LEONA_SAMPLE_ATTESTATION_MODE:=off}"
 : "${LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER:=}"
 : "${LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP:=false}"
 : "${LEONA_TASK:=auto}"
+: "${LEONA_ADB_SERIAL:=${ADB_SERIAL:-${ANDROID_SERIAL:-}}}"
 
 if [[ ! -x "$ROOT_DIR/gradlew" ]]; then
   echo "gradlew not found or not executable: $ROOT_DIR/gradlew" >&2
@@ -31,14 +34,21 @@ fi
 
 cd "$ROOT_DIR"
 
+APK_PATH="$ROOT_DIR/sample-app/build/outputs/apk/debug/sample-app-debug.apk"
+GRADLE_TASK="$LEONA_TASK"
+if [[ "$LEONA_TASK" == "installDebug" && -n "$LEONA_ADB_SERIAL" ]]; then
+  GRADLE_TASK="assembleDebug"
+fi
+
 ./gradlew \
-  :sample-app:"$LEONA_TASK" \
+  :sample-app:"$GRADLE_TASK" \
   -PLEONA_API_KEY="$LEONA_API_KEY" \
   -PLEONA_TENANT_ID="$LEONA_TENANT_ID" \
   -PLEONA_REPORTING_ENDPOINT="$LEONA_REPORTING_ENDPOINT" \
   -PLEONA_CLOUD_CONFIG_ENDPOINT="$LEONA_CLOUD_CONFIG_ENDPOINT" \
   -PLEONA_DEMO_BACKEND_BASE_URL="$LEONA_DEMO_BACKEND_BASE_URL" \
-  -PLEONA_DEMO_VERDICT_SECRET_KEY="" \
+  -PLEONA_DEMO_VERDICT_SECRET_KEY="$LEONA_DEMO_VERDICT_SECRET_KEY" \
+  -PLEONA_E2E_TOKEN="$LEONA_E2E_TOKEN" \
   -PLEONA_SAMPLE_ATTESTATION_MODE="$LEONA_SAMPLE_ATTESTATION_MODE" \
   -PLEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER="$LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER" \
   -PLEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP="$LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP" \
@@ -47,7 +57,13 @@ cd "$ROOT_DIR"
   --stacktrace
 
 BUILD_CONFIG="$ROOT_DIR/sample-app/build/generated/source/buildConfig/debug/io/leonasec/leona/sample/BuildConfig.java"
-APK_PATH="$ROOT_DIR/sample-app/build/outputs/apk/debug/sample-app-debug.apk"
+
+if [[ "$LEONA_TASK" == "installDebug" && -n "$LEONA_ADB_SERIAL" ]]; then
+  adb -s "$LEONA_ADB_SERIAL" wait-for-device >/dev/null
+  adb -s "$LEONA_ADB_SERIAL" push "$APK_PATH" /data/local/tmp/leona-sample-debug.apk >/dev/null
+  adb -s "$LEONA_ADB_SERIAL" shell pm install -r -d -g /data/local/tmp/leona-sample-debug.apk >/dev/null
+  adb -s "$LEONA_ADB_SERIAL" shell rm -f /data/local/tmp/leona-sample-debug.apk >/dev/null
+fi
 
 echo
 echo "[Leona] task completed: $LEONA_TASK"
@@ -59,11 +75,11 @@ import re
 import sys
 
 path = sys.argv[1]
-secret_keys = {"LEONA_API_KEY", "LEONA_DEMO_VERDICT_SECRET_KEY"}
+secret_keys = {"LEONA_API_KEY", "LEONA_DEMO_VERDICT_SECRET_KEY", "LEONA_E2E_TOKEN"}
 pattern = re.compile(
     r'public static final String '
     r'(LEONA_(?:API_KEY|TENANT_ID|REPORTING_ENDPOINT|CLOUD_CONFIG_ENDPOINT|DEMO_BACKEND_BASE_URL|'
-    r'DEMO_VERDICT_SECRET_KEY|SAMPLE_ATTESTATION_MODE|SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER))'
+    r'DEMO_VERDICT_SECRET_KEY|E2E_TOKEN|SAMPLE_ATTESTATION_MODE|SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER))'
     r' = "(.*)";'
 )
 

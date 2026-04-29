@@ -30,6 +30,12 @@ LEONA_REPORTING_ENDPOINT=https://<leona-api> \
 adb shell am start -n io.leonasec.leona.sample/.MainActivity
 ```
 
+`run-live-sample.sh` builds the sample debug APK by default. If you are using a
+Leona/customer backend running on your development machine, set
+`LEONA_REPORTING_ENDPOINT` to an address the phone can reach on the LAN, for
+example `http://192.168.x.y:<port>`. Do not use `localhost` or `127.0.0.1` for
+physical-device testing unless the backend is actually running on the phone.
+
 Tap **Run sense()**. You should see a BoxId appear. A successful result
 confirms:
 
@@ -37,6 +43,33 @@ confirms:
 - JNI boundary works
 - Native detectors ran without crashing
 - the SDK uploaded to the configured Leona API/backend
+
+The repository also contains an internal device E2E script that reads structured
+results from `LeonaE2E` logcat events instead of scraping UI text. That path is
+debug-only and requires a per-run `LEONA_E2E_TOKEN`, so a normal launcher intent
+or release build will not trigger the automation.
+
+### 2.1 Clean-device debug and sideload signals
+
+On a clean physical device, a sample debug install can still produce
+`debug.app_debuggable`, `debug.adb_enabled`,
+`debug.developer_options_enabled`, and `install.sideload_or_unknown` in the
+server verdict or diagnostic output.
+
+- `debug.app_debuggable`: the APK was built with Android's debuggable flag.
+  This is expected for `sample-app-debug.apk`.
+- `install.sideload_or_unknown`: Android reported no trusted installer, or the
+  package came from ADB/manual sideload. This is expected when installing the
+  sample locally.
+- `debug.adb_enabled` and `debug.developer_options_enabled`: the device is in a
+  developer-test posture. They are evidence for the server; the client does not
+  make the final allow/deny decision.
+
+To verify the release/non-debug baseline, install a non-debug build through the
+same channel you expect in production, then run `sense()` and query the server
+verdict for the returned BoxId. If you disable Developer options or ADB after a
+debug run, run `sense()` again and use the new BoxId; an older BoxId represents
+the environment at the time it was minted.
 
 ---
 

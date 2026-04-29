@@ -106,6 +106,7 @@ internal object AppIntegrity {
             "installer" to packageManager.safeInstaller(packageName).orEmpty(),
             "sourceDir" to appInfo.sourceDir.orEmpty(),
             "nativeLibraryDir" to appInfo.nativeLibraryDir.orEmpty(),
+            "splitSourceDirs" to appInfo.splitSourceDirs.orEmpty().joinToString(";"),
             "splitCount" to (appInfo.splitSourceDirs?.size ?: 0).toString(),
             "versionCode" to (packageInfo?.safeLongVersionCode() ?: 0L).toString(),
             "certSha256" to packageInfo.signingDigestsSha256().joinToString(","),
