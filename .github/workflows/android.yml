@@ -6,6 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main, develop]
+  schedule:
+    # Nightly alpha closure at 02:00 Asia/Shanghai.
+    - cron: "0 18 * * *"
   workflow_dispatch:
     inputs:
       run_alpha_closure:
@@ -131,7 +134,7 @@ jobs:
   alpha-closure:
     name: Alpha closure
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.run_alpha_closure
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_alpha_closure)
     timeout-minutes: 45
     env:
       OUTPUT_DIR: /tmp/leona-alpha-closure

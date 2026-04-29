@@ -638,6 +638,12 @@ Workflow:
 - `run_live_attestation_e2e=true`
 - `run_alpha_closure=true`
 
+自动触发：
+
+- 每天 02:00 Asia/Shanghai 运行 `alpha-closure`
+- 自动任务只跑不依赖外部密钥和真实设备的 build gate + demo-backend cloud-config smoke
+- live emulator E2E / live attestation E2E 仍需手动触发并配置 `LEONA_E2E_*`
+
 ### 12. Release preflight
 
 ```bash

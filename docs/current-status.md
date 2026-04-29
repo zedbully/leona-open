@@ -89,6 +89,10 @@ Leona 当前执行范围已经收敛为：
   - `/Users/a/back/Game/cq/.github/workflows/android.yml`
   - workflow_dispatch 输入：`run_live_attestation_e2e`
   - job summary 已支持显示 attestation provider / status / code / retryable
+- Android GitHub nightly alpha closure 已补：
+  - `/Users/a/back/Game/cq/.github/workflows/android.yml`
+  - 每天 02:00 Asia/Shanghai 自动运行 `alpha-closure`
+  - 默认只跑不依赖外部密钥和真实设备的 build gate + demo-backend cloud-config smoke
 - public-only 构建验收已完成：
   - `/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-23.md`
   - `/Users/a/back/Game/cq/docs/public-only-build-record-2026-04-24.md`

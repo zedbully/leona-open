@@ -44,6 +44,7 @@ Alpha 阶段目标：
 - [x] 新增 Codex 启动工作项入口：`AGENTS.md` 与 `docs/work-items.md`。
 - [x] GitHub Actions workflow 已从子目录提升到仓库根目录 `.github/workflows/android.yml`，并适配 monorepo 运行路径。
 - [x] GitHub manual alpha closure smoke 已通过：run `25086369013` 中 `Native source sanity`、`Lint + Unit tests`、`Alpha closure`、`Assemble AAR` 全部通过。
+- [x] GitHub nightly alpha closure 已启用：每天 02:00 Asia/Shanghai 自动运行不依赖外部密钥的 alpha closure。
 
 ---
 
@@ -57,7 +58,7 @@ Alpha 阶段目标：
 - [ ] **GitHub manual live E2E 首跑**
   - 入口：`/Users/a/back/Game/cq/.github/workflows/android.yml`
   - 验收：Actions summary 显示 BoxId、canonical、risk、attestation provider/status/code。
-  - 当前状态：manual alpha closure smoke 已通过；live emulator / live attestation 仍待配置真实仓库 secrets / variables 后触发。
+  - 当前状态：manual alpha closure smoke 已通过；nightly alpha closure 已自动化；live emulator / live attestation 仍待配置真实仓库 secrets / variables 后触发。
 
 - [ ] **最终文档一致性收口**
   - 核对：`README.md`、`docs/current-status.md`、`docs/alpha-development-plan.md`、`docs/final-acceptance-summary.md`、OpenAPI。
@@ -143,3 +144,4 @@ Alpha 阶段目标：
 - 2026-04-29：GitHub run `25086064266` 中 `build-gate`、`Lint + Unit tests`、`Assemble AAR` 已通过；`cloud-config-smoke` 暴露 smoke 脚本与 demo-backend canonical 规则不一致。
 - 2026-04-29：`verify-demo-cloud-config.sh` 已对齐 demo-backend 规则：fingerprint/deviceId 作为设备级映射跨 tenant/app 稳定，install-only 仍按 tenant/app 隔离；本地单独 cloud smoke 与完整 `scripts/run-alpha-closure.sh` 均通过。
 - 2026-04-29：GitHub manual workflow run `25086369013` 已通过：`Alpha closure` 3m45s，`Lint + Unit tests` 3m47s，`Assemble AAR` 3m32s；live E2E jobs 因本次未启用而 skipped。
+- 2026-04-29：`.github/workflows/android.yml` 已增加 nightly alpha closure，定时运行 build gate + demo-backend cloud-config smoke；live E2E 继续保留手动触发，避免未配置 secrets 时自动失败。

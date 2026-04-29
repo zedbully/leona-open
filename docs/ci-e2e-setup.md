@@ -1,6 +1,6 @@
 # Leona 模拟器 E2E 接入 GitHub CI 说明
 
-> 更新时间：2026-04-23
+> 更新时间：2026-04-29
 > 适用对象：`/Users/a/back/Game/cq/leona-sdk-android`
 
 ---
@@ -14,17 +14,19 @@ Android repo 已补充 manual workflow：
 新增 job：
 
 - `live-emulator-e2e`
+- `alpha-closure`
 
 触发方式：
 
 - GitHub Actions `workflow_dispatch`
 - input：`run_live_e2e=true`
+- 每天 02:00 Asia/Shanghai 自动运行 `alpha-closure`
 
 ---
 
 ## 2. 该 workflow 做什么
 
-该 job 会：
+`live-emulator-e2e` 会：
 
 1. 校验 GitHub secrets / variables
 2. 安装 JDK 21、NDK、emulator、API 34 system image
@@ -36,6 +38,19 @@ bash ./scripts/run-emulator-e2e.sh
 ```
 
 5. 上传截图 / XML artifacts
+
+`alpha-closure` 会在无人值守场景下自动做最小 alpha 闭环：
+
+1. 运行 SDK / sample / public split 构建门禁
+2. 启动本地 demo-backend
+3. 运行 cloud config smoke
+4. 生成 `report.json` / `report.md`
+5. 上传 alpha closure artifacts
+
+说明：
+
+- 自动定时只跑不依赖外部密钥和真实设备的 alpha closure。
+- live emulator E2E 和 live attestation E2E 仍需要手动 `workflow_dispatch`，因为它们依赖真实 `LEONA_E2E_*` secrets / variables。
 
 ---
 
@@ -63,6 +78,7 @@ bash ./scripts/run-emulator-e2e.sh
 
 - 本地模拟器 E2E 脚本跑通
 - GitHub manual workflow scaffold 已补
+- GitHub nightly alpha closure 已补，默认每天 02:00 Asia/Shanghai 自动执行
 
 当前仍待完成：
 

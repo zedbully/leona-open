@@ -114,6 +114,7 @@
   - workflow_dispatch 输入：
     - `run_live_e2e`
     - `run_live_attestation_e2e`
+  - nightly `alpha-closure` 已补，默认每天 02:00 Asia/Shanghai 自动跑 build gate + demo-backend cloud-config smoke
   - Actions summary 已支持直接显示：
     - `deviceBindingStatus`
     - `provider`
