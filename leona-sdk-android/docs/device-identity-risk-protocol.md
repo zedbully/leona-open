@@ -90,22 +90,16 @@ Current client supports these body fields:
 - `policy.disableCollectionWindow`
 - `config.disableCollectionWindowMs`
 - `config.disableCollectionWindow`
-- `canonicalDeviceId`
-- `deviceId`
-- `device.canonicalDeviceId`
-- `device.deviceId`
-- `identity.canonicalDeviceId`
-- `identity.deviceId`
-- `deviceIdentity.canonicalDeviceId`
-- `deviceIdentity.deviceId`
-- `deviceIdentity.resolvedDeviceId`
 
 And these response headers:
 
-- `X-Leona-Canonical-Device-Id`
-- `X-Leona-Device-Id`
 - `X-Leona-Disabled-Signals`
 - `X-Leona-Disable-Collection-Window-Ms`
+
+Mobile-config is a collection-policy control plane. It is not an identity
+binding authority, and the SDK does not persist canonical device ids from
+mobile-config body fields or headers. Canonical ids are only accepted from the
+secure reporting handshake / sense response path.
 
 ---
 

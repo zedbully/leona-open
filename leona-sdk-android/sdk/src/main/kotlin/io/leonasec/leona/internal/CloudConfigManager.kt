@@ -45,8 +45,12 @@ internal class CloudConfigManager(
         val cached = currentPolicy()
         if (!config.cloudConfigEnabled) return cached
         val endpoint = resolvedEndpoint() ?: return cached
+        val trustedConfigSource = isTrustedCloudConfigEndpoint(endpoint)
+        if (!trustedConfigSource) return cached
         val now = System.currentTimeMillis()
-        if (!force && now - prefs.getLong(KEY_FETCHED_AT, 0L) < REFRESH_TTL_MS) {
+        val cacheFresh = now - prefs.getLong(KEY_FETCHED_AT, 0L) < REFRESH_TTL_MS
+        val cacheBoundToEndpoint = isTrustedCachedCloudConfig(endpoint, prefs.getString(KEY_REMOTE_ENDPOINT, null))
+        if (!force && cacheFresh && cacheBoundToEndpoint) {
             return cached
         }
 
@@ -66,21 +70,27 @@ internal class CloudConfigManager(
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use cached
                 val body = response.body?.string().orEmpty()
-                val remote = parseRemoteConfig(body, response)
-                prefs.edit()
-                    .putString(KEY_REMOTE_JSON, body)
-                    .putLong(KEY_FETCHED_AT, now)
-                    .apply()
-                remote.canonicalDeviceId?.let(identityManager::updateCanonicalDeviceId)
+                val remote = parseRemoteConfig(body, response).onlyIfTrusted(trustedConfigSource)
+                if (trustedConfigSource) {
+                    prefs.edit()
+                        .putString(KEY_REMOTE_JSON, body)
+                        .putString(KEY_REMOTE_ENDPOINT, endpoint)
+                        .putLong(KEY_FETCHED_AT, now)
+                        .apply()
+                }
                 remote.toPolicy(config)
             }
         }.getOrDefault(cached)
     }
 
     fun currentPolicy(): CollectionPolicy {
+        if (!config.cloudConfigEnabled) return RemoteConfig().toPolicy(config)
+        val endpoint = resolvedEndpoint()
+        if (!isTrustedCachedCloudConfig(endpoint, prefs.getString(KEY_REMOTE_ENDPOINT, null))) {
+            return RemoteConfig().toPolicy(config)
+        }
         val body = prefs.getString(KEY_REMOTE_JSON, null)
         val remote = parseRemoteConfig(body)
-        remote.canonicalDeviceId?.let(identityManager::updateCanonicalDeviceId)
         return remote.toPolicy(config)
     }
 
@@ -104,7 +114,6 @@ internal class CloudConfigManager(
     internal data class RemoteConfig(
         val disabledSignals: Set<String> = emptySet(),
         val disableCollectionWindowMs: Long = -1L,
-        val canonicalDeviceId: String? = null,
     ) {
         fun merge(other: RemoteConfig): RemoteConfig = RemoteConfig(
             disabledSignals = disabledSignals + other.disabledSignals,
@@ -112,8 +121,10 @@ internal class CloudConfigManager(
                 other.disableCollectionWindowMs >= 0 -> other.disableCollectionWindowMs
                 else -> disableCollectionWindowMs
             },
-            canonicalDeviceId = other.canonicalDeviceId ?: canonicalDeviceId,
         )
+
+        fun onlyIfTrusted(trusted: Boolean): RemoteConfig =
+            if (trusted) this else RemoteConfig()
 
         fun toPolicy(config: LeonaConfig): CollectionPolicy = CollectionPolicy(
             disabledSignals = config.disabledSignals + disabledSignals,
@@ -146,8 +157,6 @@ internal class CloudConfigManager(
             mapOf(
                 "X-Leona-Disabled-Signals" to header("X-Leona-Disabled-Signals"),
                 "X-Leona-Disable-Collection-Window-Ms" to header("X-Leona-Disable-Collection-Window-Ms"),
-                "X-Leona-Canonical-Device-Id" to header("X-Leona-Canonical-Device-Id"),
-                "X-Leona-Device-Id" to header("X-Leona-Device-Id"),
             ),
         )
     }
@@ -155,8 +164,17 @@ internal class CloudConfigManager(
     internal companion object {
         const val PREFS_NAME = "io.leonasec.leona.cloud"
         const val KEY_REMOTE_JSON = "remote.json"
+        const val KEY_REMOTE_ENDPOINT = "remote.endpoint"
         const val KEY_FETCHED_AT = "remote.fetchedAt"
         const val REFRESH_TTL_MS = 6L * 60L * 60L * 1000L
+
+        internal fun isTrustedCloudConfigEndpoint(endpoint: String?): Boolean =
+            endpoint?.trim()?.startsWith("https://", ignoreCase = true) == true
+
+        internal fun isTrustedCachedCloudConfig(endpoint: String?, cachedEndpoint: String?): Boolean {
+            val resolved = endpoint?.trim()?.ifEmpty { null } ?: return false
+            return isTrustedCloudConfigEndpoint(resolved) && cachedEndpoint == resolved
+        }
 
         internal fun parseRemoteConfigBody(body: String?): RemoteConfig {
             if (body.isNullOrBlank()) return RemoteConfig()
@@ -181,7 +199,6 @@ internal class CloudConfigManager(
                         configJson?.optLong("disableCollectionWindowMs", -1L) ?: -1L,
                         configJson?.optLong("disableCollectionWindow", -1L) ?: -1L,
                     ),
-                    canonicalDeviceId = resolveCanonicalDeviceId(json),
                 )
             }.getOrDefault(RemoteConfig())
         }
@@ -196,32 +213,11 @@ internal class CloudConfigManager(
                 ?.trim()
                 ?.toLongOrNull()
                 ?: -1L
-            val canonicalDeviceId = sequenceOf(
-                headers["X-Leona-Canonical-Device-Id"],
-                headers["X-Leona-Device-Id"],
-            ).mapNotNull { it?.trim()?.ifEmpty { null } }
-                .firstOrNull()
             return RemoteConfig(
                 disabledSignals = disabledSignals,
                 disableCollectionWindowMs = disableCollectionWindowMs,
-                canonicalDeviceId = canonicalDeviceId,
             )
         }
-
-        private fun resolveCanonicalDeviceId(json: JSONObject): String? =
-            sequenceOf(
-                json.optString("canonicalDeviceId"),
-                json.optString("deviceId"),
-                json.optJSONObject("device")?.optString("canonicalDeviceId"),
-                json.optJSONObject("device")?.optString("deviceId"),
-                json.optJSONObject("device")?.optString("id"),
-                json.optJSONObject("identity")?.optString("canonicalDeviceId"),
-                json.optJSONObject("identity")?.optString("deviceId"),
-                json.optJSONObject("deviceIdentity")?.optString("canonicalDeviceId"),
-                json.optJSONObject("deviceIdentity")?.optString("deviceId"),
-                json.optJSONObject("deviceIdentity")?.optString("resolvedDeviceId"),
-            ).mapNotNull { it?.trim()?.ifEmpty { null } }
-                .firstOrNull()
 
         private fun readStringArray(json: JSONObject?, key: String): Set<String> {
             if (json == null) return emptySet()

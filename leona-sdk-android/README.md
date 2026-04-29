@@ -469,6 +469,12 @@ LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
 ./scripts/run-live-sample.sh
 ```
 
+Cloud config is a control-plane input because it can tune collection policy. The
+SDK only trusts HTTPS cloud config endpoints; HTTP endpoints are ignored for
+cloud config even when they are useful for local upload/verdict testing.
+Canonical device identity is only persisted from the secure reporting server,
+not from mobile-config responses.
+
 The public SDK requires Leona hosted API/backend access for authoritative
 verdicts. It does not ship a self-hosted production backend.
 

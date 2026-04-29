@@ -25,6 +25,13 @@ LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
 sample path. The client collects signals and uploads them; authoritative
 verdicts are produced by Leona API/backend.
 
+`LEONA_CLOUD_CONFIG_ENDPOINT` must use HTTPS to be trusted. HTTP/LAN endpoints
+are still useful for local upload or verdict testing, but the SDK ignores
+cleartext cloud config responses so an unauthenticated control-plane response
+cannot change collection policy. The SDK does not persist canonical device
+identity from mobile-config responses; canonical identity comes from the secure
+reporting server path.
+
 Do not build server-side verdict secrets into the sample APK. Direct `/v1/verdict`
 signature verification belongs in a host-side script or your backend; the sample
 app only sends the BoxId and low-trust demo context to the configured demo
@@ -92,7 +99,8 @@ BoxIds keep the evidence captured at the time they were minted.
 When testing against a backend on your LAN, use an address reachable from the
 phone, such as `http://192.168.x.y:<port>`. `localhost` and `127.0.0.1` from
 inside the app refer to the Android device itself, not your development
-machine.
+machine. Use HTTPS for cloud config validation; otherwise only the upload and
+verdict paths should be expected to work.
 
 ## Emulator And Tooling Checks
 

@@ -142,7 +142,7 @@ object Leona {
     /**
      * Returns the best currently-known device identifier.
      *
-     * - `L...` = canonical ID persisted from server/cloud config
+     * - `L...` = canonical ID persisted from the secure reporting server
      * - `T...` = local temporary ID derived from stable per-app/device inputs
      */
     @JvmStatic
