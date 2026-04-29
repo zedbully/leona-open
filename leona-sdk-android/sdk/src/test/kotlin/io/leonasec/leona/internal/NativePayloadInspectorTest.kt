@@ -70,6 +70,26 @@ class NativePayloadInspectorTest {
         assertTrue(summary.riskTags.isEmpty())
     }
 
+    @Test
+    fun `runtime mapping facts do not become hook or injection risk tags`() {
+        val payload = buildPayload(
+            Event(
+                id = "runtime.mapping.memfd_executable",
+                severity = 2,
+                category = 0,
+                message = "Executable memfd mapping is present",
+                evidence = "path=/memfd:payload",
+            ),
+        )
+
+        val summary = NativePayloadInspector.inspect(payload)
+
+        assertEquals(1, summary.eventCount)
+        assertEquals(listOf("runtime.mapping.memfd_executable"), summary.findingIds)
+        assertTrue("runtime facts should not imply hook risk", "hook.injection.native" !in summary.riskTags)
+        assertTrue("runtime facts should not imply frida risk", "hook.frida.native" !in summary.riskTags)
+    }
+
     private data class Event(
         val id: String,
         val severity: Int,

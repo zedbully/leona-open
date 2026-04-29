@@ -23,6 +23,10 @@ struct MapRegion {
     bool is_anon() const    { return path.empty() || path[0] == '['; }
 };
 
+// Parse one /proc/<pid>/maps line. Exposed so host-side tests can exercise the
+// parser with fixtures without reading the current process map.
+bool parse_maps_line(const char* line, MapRegion* out);
+
 // Parse the current process's memory map. Returns empty vector on failure.
 // Safe to call on any Android version.
 std::vector<MapRegion> read_self_maps();

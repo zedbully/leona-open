@@ -49,6 +49,10 @@ results from `LeonaE2E` logcat events instead of scraping UI text. That path is
 debug-only and requires a per-run `LEONA_E2E_TOKEN`, so a normal launcher intent
 or release build will not trigger the automation.
 
+Server-side verdict secrets must stay outside the APK. Use a host-side E2E
+script or your backend for signed `/v1/verdict` calls; the sample app does not
+embed or send a verdict secret.
+
 ### 2.1 Clean-device debug and sideload signals
 
 On a clean physical device, a sample debug install can still produce

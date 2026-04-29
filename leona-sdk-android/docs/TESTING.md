@@ -25,6 +25,11 @@ LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
 sample path. The client collects signals and uploads them; authoritative
 verdicts are produced by Leona API/backend.
 
+Do not build server-side verdict secrets into the sample APK. Direct `/v1/verdict`
+signature verification belongs in a host-side script or your backend; the sample
+app only sends the BoxId and low-trust demo context to the configured demo
+backend.
+
 The sample app's logcat automation is a debug-only field-test helper. It only
 runs when the debug APK is built with `LEONA_E2E_TOKEN` and the launch intent
 provides the same token; release builds and normal launches ignore that path.

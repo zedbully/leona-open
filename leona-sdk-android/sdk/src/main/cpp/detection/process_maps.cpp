@@ -10,6 +10,36 @@
 
 namespace leona::detection {
 
+bool parse_maps_line(const char* line, MapRegion* out) {
+    if (!line || !out) return false;
+
+    MapRegion r;
+    char perms[8] = {};
+    unsigned long long start = 0, end = 0;
+    // Format: start-end perms offset dev inode path?
+    // We only care about start, end, perms, path.
+    int consumed = 0;
+    int matched = std::sscanf(line, "%llx-%llx %7s %*llx %*s %*llu %n",
+                              &start, &end, perms, &consumed);
+    if (matched < 3) return false;
+
+    r.start = static_cast<uintptr_t>(start);
+    r.end   = static_cast<uintptr_t>(end);
+    std::strncpy(r.perms, perms, sizeof(r.perms) - 1);
+
+    // Trim trailing newline from the path tail.
+    if (consumed > 0 && consumed < static_cast<int>(std::strlen(line))) {
+        const char* p = line + consumed;
+        while (*p == ' ' || *p == '\t') ++p;
+        const char* end_p = p + std::strlen(p);
+        while (end_p > p && (end_p[-1] == '\n' || end_p[-1] == '\r')) --end_p;
+        r.path.assign(p, end_p);
+    }
+
+    *out = std::move(r);
+    return true;
+}
+
 std::vector<MapRegion> read_self_maps() {
     std::vector<MapRegion> out;
     FILE* f = std::fopen("/proc/self/maps", "r");
@@ -19,29 +49,7 @@ std::vector<MapRegion> read_self_maps() {
     char line[8192];
     while (std::fgets(line, sizeof(line), f)) {
         MapRegion r;
-        char perms[8] = {};
-        unsigned long long start = 0, end = 0;
-        // Format: start-end perms offset dev inode path?
-        // We only care about start, end, perms, path.
-        int consumed = 0;
-        int matched = std::sscanf(line, "%llx-%llx %7s %*llx %*s %*llu %n",
-                                  &start, &end, perms, &consumed);
-        if (matched < 3) continue;
-
-        r.start = static_cast<uintptr_t>(start);
-        r.end   = static_cast<uintptr_t>(end);
-        std::strncpy(r.perms, perms, sizeof(r.perms) - 1);
-
-        // Trim trailing newline from the path tail.
-        if (consumed > 0 && consumed < static_cast<int>(std::strlen(line))) {
-            const char* p = line + consumed;
-            while (*p == ' ' || *p == '\t') ++p;
-            const char* end_p = p + std::strlen(p);
-            while (end_p > p && (end_p[-1] == '\n' || end_p[-1] == '\r')) --end_p;
-            r.path.assign(p, end_p);
-        }
-
-        out.push_back(std::move(r));
+        if (parse_maps_line(line, &r)) out.push_back(std::move(r));
     }
     std::fclose(f);
     return out;

@@ -234,10 +234,6 @@ class MainActivity : AppCompatActivity() {
         val request = Request.Builder()
             .url(baseUrl.trimEnd('/') + "/demo/verdict")
             .apply {
-                val localVerdictSecret = BuildConfig.LEONA_DEMO_VERDICT_SECRET_KEY.trim()
-                if (localVerdictSecret.isNotEmpty()) {
-                    header("X-Leona-Demo-Secret-Key", localVerdictSecret)
-                }
                 header("X-Leona-Demo-App-Id", "sample-app")
                 BuildConfig.LEONA_TENANT_ID.trim()
                     .ifEmpty { "sample" }
