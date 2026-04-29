@@ -106,6 +106,12 @@ Leona 当前执行范围已经收敛为：
   - `debug_fake` attestation 路线通过
   - E2E 日志敏感字段脱敏
   - attestation E2E 跨模式 session 隔离问题已修复
+- 2026-04-29 MuMu 模拟器原理级检测已完成：
+  - MuMu 设备：`127.0.0.1:16512`
+  - 验证 BoxId：`01KQBAEJW4RR75TSFJY62Z7EE3`
+  - native events 已覆盖：`env.emulator.runtime.*`、`env.emulator.cpu.*`、`env.emulator.sysfs.virtio_devices`、`env.emulator.fs.virtio_9p_shared_mount`、`env.emulator.net.qemu_nat_subnet`、`env.emulator.identity.consumer_brand_virtualized`
+  - sample verdict 已返回 `environment.emulator.detected`
+  - 当前工作项入口：`/Users/a/back/Game/cq/docs/work-items.md`
 - 私有模块拆分脚手架已补：
   - `/Users/a/back/Game/cq/docs/private-module-split.md`
   - Android public SDK 已增加 `NativeRuntime` 私有替换边界

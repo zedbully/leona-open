@@ -14,8 +14,9 @@ Android SDK -> Leona Server -> BoxId -> 客户业务后端 -> Verdict
 
 - Public alpha tag: `v0.1.0-alpha.1`
 - GitHub: [zedbully/leona-open](https://github.com/zedbully/leona-open)
-- 更新时间: 2026-04-28
-- 当前状态: Android SDK + Server + Demo Backend 已在本地模拟器跑通完整闭环，CLI 仍是 placeholder。
+- 更新时间: 2026-04-29
+- 当前状态: Android SDK + Server + Demo Backend 已在本地模拟器和 MuMu 上跑通完整闭环；MuMu 已验证原理级模拟器证据上报与服务端 `environment.emulator.detected` 判定标签；CLI 仍是 placeholder。
+- 当前工作项入口: [`docs/work-items.md`](docs/work-items.md)
 
 ## 仓库结构
 
@@ -69,6 +70,7 @@ Android SDK -> Leona Server -> BoxId -> 客户业务后端 -> Verdict
   - JNI / C++ native payload 采集
   - native risk tags / finding ids / highest severity 摘要
   - Frida / ptrace / trampoline、emulator、root / Magisk / KernelSU / Riru、Xposed / LSPosed / EdXposed、Unidbg 等检测族的公开 fallback 面
+  - 模拟器原理级 native 证据：hypervisor/QEMU、guest control service、guest metadata、CPU 虚拟化、virtio/9p 共享挂载、QEMU NAT 网段、设备身份伪装与运行时矛盾
 - Tamper baseline
   - package name
   - installer allowlist

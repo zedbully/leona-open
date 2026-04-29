@@ -41,6 +41,7 @@ Alpha 阶段目标：
 - [x] Android SDK 单测和 sample-app 构建通过。
 - [x] Server common 单测通过。
 - [x] 本地 `query-service` 已用最新 jar 重建并重启。
+- [x] 新增 Codex 启动工作项入口：`AGENTS.md` 与 `docs/work-items.md`。
 
 ---
 
@@ -123,3 +124,5 @@ Alpha 阶段目标：
 - 2026-04-29：Redis 收到原理级事件：`env.emulator.runtime.*`、`env.emulator.cpu.*`、`env.emulator.sysfs.virtio_devices`、`env.emulator.fs.virtio_9p_shared_mount`、`env.emulator.net.qemu_nat_subnet`、`env.emulator.identity.consumer_brand_virtualized`。
 - 2026-04-29：sample verdict 返回 `environment.emulator.detected`。
 - 2026-04-29：提交 `52a7a64 feat: add runtime emulator probes`。
+- 2026-04-29：提交 `bfb59fd docs: add codex work item tracker`。
+- 2026-04-29：准备同步 `main` 到 GitHub `origin/main`，远端 fetch 后无新提交需要合并。
