@@ -45,6 +45,7 @@ Alpha 阶段目标：
 - [x] GitHub Actions workflow 已从子目录提升到仓库根目录 `.github/workflows/android.yml`，并适配 monorepo 运行路径。
 - [x] GitHub manual alpha closure smoke 已通过：run `25086369013` 中 `Native source sanity`、`Lint + Unit tests`、`Alpha closure`、`Assemble AAR` 全部通过。
 - [x] GitHub nightly alpha closure 已启用：每天 02:00 Asia/Shanghai 自动运行不依赖外部密钥的 alpha closure。
+- [x] Codex app overnight runner 已启用：automation id `leona-alpha-overnight-runner`，每 2 小时读取本文件、检查 CI、推进未阻塞 P0。
 
 ---
 
@@ -145,3 +146,5 @@ Alpha 阶段目标：
 - 2026-04-29：`verify-demo-cloud-config.sh` 已对齐 demo-backend 规则：fingerprint/deviceId 作为设备级映射跨 tenant/app 稳定，install-only 仍按 tenant/app 隔离；本地单独 cloud smoke 与完整 `scripts/run-alpha-closure.sh` 均通过。
 - 2026-04-29：GitHub manual workflow run `25086369013` 已通过：`Alpha closure` 3m45s，`Lint + Unit tests` 3m47s，`Assemble AAR` 3m32s；live E2E jobs 因本次未启用而 skipped。
 - 2026-04-29：`.github/workflows/android.yml` 已增加 nightly alpha closure，定时运行 build gate + demo-backend cloud-config smoke；live E2E 继续保留手动触发，避免未配置 secrets 时自动失败。
+- 2026-04-29：GitHub manual workflow run `25086928017` 已验证新 workflow：`Alpha closure` 3m40s，`Lint + Unit tests` 3m50s，`Assemble AAR` 3m40s，整体 success；push run `25086923177` 因同 workflow concurrency 被手动 run 取消，属于预期。
+- 2026-04-29：Codex app automation `leona-alpha-overnight-runner` 已创建，自动巡检范围限定为 `/Users/a/back/Game/cq`，不会在缺 USB 真机或缺 `LEONA_E2E_*` 配置时伪造完成状态。
