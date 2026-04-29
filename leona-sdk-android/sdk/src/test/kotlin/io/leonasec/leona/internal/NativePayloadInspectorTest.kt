@@ -91,6 +91,45 @@ class NativePayloadInspectorTest {
     }
 
     @Test
+    fun `rom bootloader verified boot and build facts do not become emulator risk tags`() {
+        val payload = buildPayload(
+            Event(
+                id = "rom.custom_aosp_like",
+                severity = 1,
+                category = 2,
+                message = "custom ROM evidence",
+                evidence = "family=lineage",
+            ),
+            Event(
+                id = "bootloader.unlocked",
+                severity = 1,
+                category = 2,
+                message = "bootloader state",
+                evidence = "flashLocked=0",
+            ),
+            Event(
+                id = "verified_boot.orange",
+                severity = 1,
+                category = 2,
+                message = "verified boot state",
+                evidence = "state=orange",
+            ),
+            Event(
+                id = "build.tags.test_keys",
+                severity = 1,
+                category = 2,
+                message = "build tags",
+                evidence = "tags=test-keys",
+            ),
+        )
+
+        val summary = NativePayloadInspector.inspect(payload)
+
+        assertEquals(4, summary.eventCount)
+        assertTrue("ROM facts should not imply emulator risk", "environment.emulator.native" !in summary.riskTags)
+    }
+
+    @Test
     fun `inspect advances offsets by utf8 byte length`() {
         val payload = buildPayload(
             Event(

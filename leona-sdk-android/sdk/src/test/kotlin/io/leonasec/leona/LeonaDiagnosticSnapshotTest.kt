@@ -28,6 +28,11 @@ class LeonaDiagnosticSnapshotTest {
             timeZoneId = "Asia/Shanghai",
             screenSummary = "1080x2400@440",
             localRiskSignals = setOf("root.basic"),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence(
+                evidenceIds = setOf("build.tags.test_keys", "bootloader.unlocked"),
+                build = mapOf("tags" to "test-keys"),
+                bootloader = mapOf("flashLocked" to "0"),
+            ),
             nativeRiskTags = setOf("hook.frida.native"),
             nativeFindingIds = listOf("injection.frida.known_library"),
             nativeHighestSeverity = 3,
@@ -47,6 +52,10 @@ class LeonaDiagnosticSnapshotTest {
         assertEquals("Lcanon", obj.getString("canonicalDeviceId"))
         assertEquals(1, obj.getInt("nativeEventCount"))
         assertEquals("LOW", obj.getString("serverRiskLevel"))
+        assertEquals(
+            "build.tags.test_keys",
+            obj.getJSONObject("deviceEnvironmentEvidence").getJSONArray("evidenceIds").getString(1),
+        )
         assertTrue(json.contains("\n"))
     }
 
@@ -67,6 +76,10 @@ class LeonaDiagnosticSnapshotTest {
             timeZoneId = "Asia/Shanghai",
             screenSummary = "1080x2400@440",
             localRiskSignals = setOf("root.basic"),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence(
+                evidenceIds = setOf("verified_boot.orange"),
+                verifiedBoot = mapOf("state" to "orange"),
+            ),
             nativeRiskTags = setOf("hook.frida.native"),
             nativeFindingIds = listOf("injection.frida.known_library"),
             nativeHighestSeverity = 3,
@@ -85,5 +98,9 @@ class LeonaDiagnosticSnapshotTest {
         assertEquals(true, obj.getBoolean("androidIdPresent"))
         assertTrue(!obj.has("androidId"))
         assertEquals("box-...7890", obj.getString("lastBoxId"))
+        val redactedVerifiedBoot = obj.getJSONObject("deviceEnvironmentEvidence")
+            .getJSONObject("verifiedBoot")
+        assertTrue(redactedVerifiedBoot.has("valueSha256ByKey"))
+        assertTrue(!redactedVerifiedBoot.has("state"))
     }
 }

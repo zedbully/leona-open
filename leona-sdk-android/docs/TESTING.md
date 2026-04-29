@@ -111,13 +111,16 @@ Use devices and tooling that you own or are explicitly allowed to test.
 
 - For a repeatable field-testing template and a matrix you can fill in as you
   validate multiple emulator vendors, see `docs/emulator-matrix.md`.
+- For custom AOSP, community ROMs, GSI, and bootloader-unlocked devices, see
+  `docs/rom-matrix.md` and start with the read-only
+  `scripts/collect-device-posture.sh` posture collector.
 - Android Studio emulator, MuMu, LDPlayer, Nox, BlueStacks, and Genymotion
   should produce emulator-related signals for server-side evaluation.
 - Frida, Xposed/LSPosed, Magisk/KernelSU, and Unidbg tests should produce
   signal evidence when present.
 - False positives on retail, non-rooted devices should be reported with
-  device model, build fingerprint, Android version, and exported diagnostic
-  payload.
+  device model, fingerprint hash or redacted fingerprint evidence, Android
+  version, and exported diagnostic payload.
 
 The public SDK is intentionally signal-oriented. Do not add public APIs that
 return a local trust verdict.

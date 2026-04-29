@@ -5,6 +5,7 @@
 package io.leonasec.leona.internal.spi
 
 import io.leonasec.leona.BoxId
+import io.leonasec.leona.LeonaDeviceEnvironmentEvidence
 import io.leonasec.leona.LeonaSecureTransportSnapshot
 import io.leonasec.leona.LeonaServerVerdict
 
@@ -17,6 +18,7 @@ data class SecureDeviceContext(
     val nativeRiskTags: Set<String> = emptySet(),
     val nativeFindingIds: List<String> = emptyList(),
     val nativeHighestSeverity: Int? = null,
+    val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
     val installerPackage: String? = null,
     val signingCertSha256: List<String> = emptyList(),
     val sdkInt: Int? = null,

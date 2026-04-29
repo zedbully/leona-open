@@ -28,6 +28,11 @@ class LeonaSupportBundleTest {
             timeZoneId = "Asia/Shanghai",
             screenSummary = "1080x2400@440",
             localRiskSignals = setOf("root.basic"),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence(
+                evidenceIds = setOf("build.tags.test_keys", "verified_boot.orange"),
+                build = mapOf("tags" to "test-keys"),
+                verifiedBoot = mapOf("state" to "orange"),
+            ),
             nativeRiskTags = setOf("hook.frida.native"),
             nativeFindingIds = listOf("injection.frida.known_library"),
             nativeHighestSeverity = 3,
@@ -169,5 +174,10 @@ class LeonaSupportBundleTest {
             redacted.getJSONObject("cloudConfigRaw").getString("type"),
         )
         assertTrue(redacted.getJSONObject("lastIntegritySnapshot").has("valueSha256ByKey"))
+        val redactedVerifiedBoot = redacted.getJSONObject("diagnosticSnapshot")
+            .getJSONObject("deviceEnvironmentEvidence")
+            .getJSONObject("verifiedBoot")
+        assertTrue(redactedVerifiedBoot.has("valueSha256ByKey"))
+        assertTrue(!redactedVerifiedBoot.has("state"))
     }
 }

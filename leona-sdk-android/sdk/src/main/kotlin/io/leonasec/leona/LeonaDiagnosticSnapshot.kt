@@ -28,6 +28,7 @@ data class LeonaDiagnosticSnapshot(
     val timeZoneId: String,
     val screenSummary: String?,
     val localRiskSignals: Set<String>,
+    val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
     val nativeRiskTags: Set<String>,
     val nativeFindingIds: List<String>,
     val nativeHighestSeverity: Int?,
@@ -62,6 +63,7 @@ data class LeonaDiagnosticSnapshot(
         .put("timeZoneId", timeZoneId)
         .put("screenSummary", screenSummary)
         .put("localRiskSignals", JSONArray(localRiskSignals.toList().sorted()))
+        .put("deviceEnvironmentEvidence", deviceEnvironmentEvidence.toJsonObject(LeonaDebugExportView.FULL_DEBUG))
         .put("nativeRiskTags", JSONArray(nativeRiskTags.toList().sorted()))
         .put("nativeFindingIds", JSONArray(nativeFindingIds))
         .put("nativeHighestSeverity", nativeHighestSeverity)
@@ -88,6 +90,7 @@ data class LeonaDiagnosticSnapshot(
         .put("timeZoneId", timeZoneId)
         .put("screenSummary", screenSummary)
         .put("localRiskSignals", JSONArray(localRiskSignals.toList().sorted()))
+        .put("deviceEnvironmentEvidence", deviceEnvironmentEvidence.toJsonObject(LeonaDebugExportView.REDACTED))
         .put("nativeRiskTags", JSONArray(nativeRiskTags.toList().sorted()))
         .put("nativeFindingIds", JSONArray(nativeFindingIds))
         .put("nativeHighestSeverity", nativeHighestSeverity)

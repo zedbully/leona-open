@@ -4,6 +4,7 @@
  */
 package io.leonasec.leona.internal.identity
 
+import io.leonasec.leona.LeonaDeviceEnvironmentEvidence
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -28,6 +29,7 @@ internal data class DeviceFingerprintSnapshot(
     val timeZoneId: String,
     val screenSummary: String?,
     val riskSignals: Set<String>,
+    val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
 ) {
     fun toJson(): String = JSONObject()
         .put("generatedAtMillis", generatedAtMillis)
@@ -50,6 +52,7 @@ internal data class DeviceFingerprintSnapshot(
         .put("timeZoneId", timeZoneId)
         .put("screenSummary", screenSummary)
         .put("riskSignals", JSONArray(riskSignals.toList().sorted()))
+        .put("deviceEnvironmentEvidence", deviceEnvironmentEvidence.toPersistedJsonObject())
         .toString()
 
     companion object {
@@ -78,6 +81,9 @@ internal data class DeviceFingerprintSnapshot(
                     timeZoneId = obj.optString("timeZoneId"),
                     screenSummary = obj.optString("screenSummary").ifBlank { null },
                     riskSignals = obj.optStringArray("riskSignals").toSet(),
+                    deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.fromJsonObject(
+                        obj.optJSONObject("deviceEnvironmentEvidence"),
+                    ),
                 )
             }.getOrNull()
         }

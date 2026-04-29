@@ -56,6 +56,7 @@ internal class DeviceIdentityManager(
         val localSigningCerts = loadSigningCertDigests()
         val signingCerts = if ("signingCert" in policy.disabledSignals) emptyList() else localSigningCerts
         val installerPackage = if ("installer" in policy.disabledSignals) null else loadInstallerPackage()
+        val deviceEnvironmentEvidence = DeviceEnvironmentEvidenceCollector.collect()
         val riskSignals = collectRiskSignals(
             policy = policy,
             packageInfo = packageInfo,
@@ -107,6 +108,7 @@ internal class DeviceIdentityManager(
             timeZoneId = timeZoneId,
             screenSummary = screenSummary,
             riskSignals = riskSignals,
+            deviceEnvironmentEvidence = deviceEnvironmentEvidence,
         )
         store.persistLastSnapshot(snapshot)
         return snapshot
@@ -119,6 +121,7 @@ internal class DeviceIdentityManager(
         val packageInfo = packageInfo()
         val signingCerts = if ("signingCert" in policy.disabledSignals) emptyList() else loadSigningCertDigests()
         val installerPackage = if ("installer" in policy.disabledSignals) null else loadInstallerPackage()
+        val deviceEnvironmentEvidence = DeviceEnvironmentEvidenceCollector.collect()
         return CachedSnapshotRiskSignals.refresh(
             cached = cached,
             installerPackage = installerPackage,
@@ -129,6 +132,7 @@ internal class DeviceIdentityManager(
                 signingCerts = signingCerts,
                 installerPackage = installerPackage,
             ),
+            deviceEnvironmentEvidence = deviceEnvironmentEvidence,
         )
     }
 
@@ -234,7 +238,7 @@ internal class DeviceIdentityManager(
         if (suspiciousPaths.any { path -> runCatching { java.io.File(path).exists() }.getOrDefault(false) }) {
             return true
         }
-        return Build.TAGS?.contains("test-keys", ignoreCase = true) == true
+        return false
     }
 
     private fun hasKnownRootPackages(): Boolean {

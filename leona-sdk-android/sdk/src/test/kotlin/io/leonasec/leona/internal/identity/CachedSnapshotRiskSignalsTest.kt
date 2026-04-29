@@ -4,6 +4,7 @@
  */
 package io.leonasec.leona.internal.identity
 
+import io.leonasec.leona.LeonaDeviceEnvironmentEvidence
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -27,6 +28,9 @@ class CachedSnapshotRiskSignalsTest {
             installerPackage = null,
             signingCertSha256 = listOf("fresh-cert"),
             riskSignals = setOf("debugger.attached", "root.basic"),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence(
+                evidenceIds = setOf("build.tags.test_keys"),
+            ),
         )
 
         assertEquals(cached.installId, refreshed.installId)
@@ -39,6 +43,7 @@ class CachedSnapshotRiskSignalsTest {
             setOf("debugger.attached", "root.basic"),
             refreshed.riskSignals,
         )
+        assertEquals(setOf("build.tags.test_keys"), refreshed.deviceEnvironmentEvidence.evidenceIds)
     }
 
     @Test
@@ -62,12 +67,14 @@ class CachedSnapshotRiskSignalsTest {
             installerPackage = "com.android.vending",
             signingCertSha256 = listOf("trusted-cert"),
             riskSignals = emptySet(),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
         )
 
         assertEquals(cached.copy(
             installerPackage = "com.android.vending",
             signingCertSha256 = listOf("trusted-cert"),
             riskSignals = emptySet(),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
         ), refreshed)
     }
 

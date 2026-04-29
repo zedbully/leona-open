@@ -133,7 +133,10 @@ internal object NativePayloadInspector {
                 }
 
                 id.startsWith("root.") -> add("root.native")
-                id.startsWith("environment.") || id.startsWith("env.") -> add("environment.emulator.native")
+                id.startsWith("environment.emulator.") ||
+                    id == "environment.emulator" ||
+                    id.startsWith("env.emulator.") ||
+                    id == "env.emulator" -> add("environment.emulator.native")
                 id.startsWith("unidbg.") -> add("environment.unidbg.native")
                 id.startsWith("tamper.") -> {
                     add("tamper.native")

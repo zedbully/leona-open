@@ -4,6 +4,7 @@
  */
 package io.leonasec.leona.internal.identity
 
+import io.leonasec.leona.LeonaDeviceEnvironmentEvidence
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -33,6 +34,11 @@ class DeviceFingerprintSnapshotTest {
             timeZoneId = "UTC",
             screenSummary = "1080x2400@440",
             riskSignals = setOf("root.basic", "debugger.attached"),
+            deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence(
+                evidenceIds = setOf("build.tags.test_keys", "verified_boot.orange"),
+                build = mapOf("tags" to "test-keys", "type" to "userdebug"),
+                verifiedBoot = mapOf("state" to "orange"),
+            ),
         )
 
         val parsed = DeviceFingerprintSnapshot.fromJson(snapshot.toJson())
