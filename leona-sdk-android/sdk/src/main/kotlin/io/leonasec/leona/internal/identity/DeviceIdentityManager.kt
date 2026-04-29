@@ -4,6 +4,7 @@
  */
 package io.leonasec.leona.internal.identity
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -408,7 +409,11 @@ internal class DeviceIdentityManager(
     }.getOrDefault(false)
 
     private fun isVpnActive(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            appContext.checkSelfPermission(Manifest.permission.ACCESS_NETWORK_STATE) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
             val cm = appContext.getSystemService(ConnectivityManager::class.java)
             val caps = runCatching { cm?.getNetworkCapabilities(cm.activeNetwork) }.getOrNull()
             if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) {

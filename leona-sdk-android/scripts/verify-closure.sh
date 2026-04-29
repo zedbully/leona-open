@@ -38,9 +38,14 @@ export PATH="$JAVA_HOME/bin:$PATH"
 GRADLE_ARGS=(
   --no-configuration-cache
   :sdk:testDebugUnitTest
-  :sdk-private-core:assembleDebug
   :sample-app:assembleDebug
 )
+
+if [[ -d "$ROOT_DIR/private/sdk-private-core" ]]; then
+  GRADLE_ARGS+=(:sdk-private-core:assembleDebug)
+else
+  echo "[Leona closure] private sdk core not present; skipping :sdk-private-core:assembleDebug"
+fi
 
 echo "[Leona closure] repo      : $ROOT_DIR"
 echo "[Leona closure] JAVA_HOME : $JAVA_HOME"
@@ -53,7 +58,11 @@ cd "$ROOT_DIR"
 echo
 echo "[Leona closure] build gates passed"
 echo "  - sdk JVM/unit parity tests"
-echo "  - private native core debug assemble"
+if [[ -d "$ROOT_DIR/private/sdk-private-core" ]]; then
+  echo "  - private native core debug assemble"
+else
+  echo "  - private native core debug assemble skipped (public-only checkout)"
+fi
 echo "  - sample app debug assemble"
 echo
 echo "[Leona closure] remaining manual gates"
