@@ -42,8 +42,7 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
 
-      - name: Run Android lint advisory
-        continue-on-error: true
+      - name: Run Android lint
         run: ./gradlew :sdk:lint --no-daemon
 
       - name: Run unit tests

@@ -4,6 +4,7 @@
  */
 package io.leonasec.leona.internal.identity
 
+import android.annotation.TargetApi
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
@@ -73,6 +74,7 @@ internal class LeonaIdentityStore(
         }.getOrNull()
     }
 
+    @TargetApi(Build.VERSION_CODES.M)
     private fun keystoreKey(): java.security.Key {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         keyStore.getKey(KEY_ALIAS, null)?.let { return it }

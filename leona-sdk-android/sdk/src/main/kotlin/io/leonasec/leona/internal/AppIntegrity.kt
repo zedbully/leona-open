@@ -2585,7 +2585,7 @@ internal object AppIntegrity {
                 component.exported.toString(),
                 permission,
                 component.processName.orEmpty(),
-                component.directBootAware.toString(),
+                directBootAware(component),
             ).joinToString("|")
             "$type:${component.name}" to sha256Hex(signature.toByteArray())
         }
@@ -2621,7 +2621,7 @@ internal object AppIntegrity {
                 component.name.orEmpty(),
                 component.enabled.toString(),
                 component.processName.orEmpty(),
-                component.directBootAware.toString(),
+                directBootAware(component),
             ).joinToString("|")
             "$type:${component.name}" to sha256Hex(signature.toByteArray())
         }
@@ -2637,7 +2637,7 @@ internal object AppIntegrity {
                 provider.enabled.toString(),
                 provider.exported.toString(),
                 provider.processName.orEmpty(),
-                provider.directBootAware.toString(),
+                directBootAware(provider),
                 provider.authority.orEmpty(),
                 provider.readPermission.orEmpty(),
                 provider.writePermission.orEmpty(),
@@ -2663,7 +2663,7 @@ internal object AppIntegrity {
                 "$base#exported" to component.exported.toString(),
                 "$base#permission" to permission,
                 "$base#processName" to component.processName.orEmpty(),
-                "$base#directBootAware" to component.directBootAware.toString(),
+                "$base#directBootAware" to directBootAware(component),
             )
         }
         ?.toMap()
@@ -2679,7 +2679,7 @@ internal object AppIntegrity {
                 "$base#enabled" to provider.enabled.toString(),
                 "$base#exported" to provider.exported.toString(),
                 "$base#processName" to provider.processName.orEmpty(),
-                "$base#directBootAware" to provider.directBootAware.toString(),
+                "$base#directBootAware" to directBootAware(provider),
                 "$base#grantUriPermissions" to provider.grantUriPermissions.toString(),
                 "$base#multiprocess" to provider.multiprocess.toString(),
                 "$base#initOrder" to provider.initOrder.toString(),
@@ -2690,6 +2690,9 @@ internal object AppIntegrity {
         }
         ?.toMap()
         .orEmpty()
+
+    private fun directBootAware(component: ComponentInfo): String =
+        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && component.directBootAware).toString()
 
     private fun collectProviderUriPermissionPatternFingerprints(info: PackageInfo?): Map<String, String> =
         info?.providers
@@ -2764,7 +2767,7 @@ internal object AppIntegrity {
                     add("enabled=${provider.enabled}")
                     add("exported=${provider.exported}")
                     add("processName=${provider.processName.orEmpty()}")
-                    add("directBootAware=${provider.directBootAware}")
+                    add("directBootAware=${directBootAware(provider)}")
                     add("grantUriPermissions=${provider.grantUriPermissions}")
                     add("multiprocess=${provider.multiprocess}")
                     add("initOrder=${provider.initOrder}")
@@ -2808,7 +2811,7 @@ internal object AppIntegrity {
                     "enabled=${provider.enabled}",
                     "exported=${provider.exported}",
                     "processName=${provider.processName.orEmpty()}",
-                    "directBootAware=${provider.directBootAware}",
+                    "directBootAware=${directBootAware(provider)}",
                     "multiprocess=${provider.multiprocess}",
                     "initOrder=${provider.initOrder}",
                 )
