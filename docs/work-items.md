@@ -128,3 +128,4 @@ Alpha 阶段目标：
 - 2026-04-29：提交 `bfb59fd docs: add codex work item tracker`。
 - 2026-04-29：已同步 `main` 到 GitHub `origin/main`；远端 fetch 后无新提交需要合并，首次 push 将远端从 `200cb18` 推进到 `9547be8`。
 - 2026-04-29：发现 GitHub workflow 放在 `leona-sdk-android/.github/workflows/`，真实仓库不会识别；已移动到 `.github/workflows/android.yml` 并调整运行路径。
+- 2026-04-29：首次触发 root workflow 时发现 job-level `runner.temp` 上下文解析失败；已改为固定 `/tmp/leona-*` 输出目录。

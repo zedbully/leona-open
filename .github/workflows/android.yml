@@ -132,7 +132,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.run_alpha_closure
     timeout-minutes: 45
     env:
-      OUTPUT_DIR: ${{ runner.temp }}/leona-alpha-closure
+      OUTPUT_DIR: /tmp/leona-alpha-closure
 
     steps:
       - uses: actions/checkout@v4
@@ -170,7 +170,7 @@ jobs:
           import json
           from pathlib import Path
 
-          report = Path("${{ runner.temp }}/leona-alpha-closure/report.json")
+          report = Path("/tmp/leona-alpha-closure/report.json")
           print("## Alpha closure")
           if not report.exists():
               print("")
@@ -203,7 +203,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: alpha-closure-artifacts
-          path: ${{ runner.temp }}/leona-alpha-closure
+          path: /tmp/leona-alpha-closure
           retention-days: 14
 
   live-emulator-e2e:
@@ -219,7 +219,7 @@ jobs:
       LEONA_FORMAL_VERDICT_BASE_URL: ${{ vars.LEONA_E2E_FORMAL_VERDICT_BASE_URL }}
       LEONA_CLOUD_CONFIG_ENDPOINT: ${{ vars.LEONA_E2E_CLOUD_CONFIG_ENDPOINT }}
       LEONA_DEMO_BACKEND_BASE_URL: ${{ vars.LEONA_E2E_DEMO_BACKEND_BASE_URL }}
-      OUTPUT_DIR: ${{ runner.temp }}/leona-e2e
+      OUTPUT_DIR: /tmp/leona-e2e
 
     steps:
       - uses: actions/checkout@v4
@@ -280,7 +280,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: emulator-e2e-artifacts
-          path: ${{ runner.temp }}/leona-e2e
+          path: /tmp/leona-e2e
           retention-days: 14
 
   live-attestation-e2e:
@@ -295,7 +295,7 @@ jobs:
       LEONA_REPORTING_ENDPOINT: ${{ vars.LEONA_E2E_REPORTING_ENDPOINT }}
       LEONA_SAMPLE_ATTESTATION_MODE: ${{ vars.LEONA_E2E_ATTESTATION_MODE }}
       LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER: ${{ vars.LEONA_E2E_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER }}
-      OUTPUT_DIR: ${{ runner.temp }}/leona-attestation-e2e
+      OUTPUT_DIR: /tmp/leona-attestation-e2e
 
     steps:
       - uses: actions/checkout@v4
@@ -363,7 +363,7 @@ jobs:
           import json
           from pathlib import Path
 
-          report = Path("${{ runner.temp }}/leona-attestation-e2e/attestation-e2e-report.json")
+          report = Path("/tmp/leona-attestation-e2e/attestation-e2e-report.json")
           print("## Live attestation summary E2E")
           if not report.exists():
               print("")
@@ -396,7 +396,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: attestation-e2e-artifacts
-          path: ${{ runner.temp }}/leona-attestation-e2e
+          path: /tmp/leona-attestation-e2e
           retention-days: 14
 
   publish-release:
