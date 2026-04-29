@@ -29,10 +29,13 @@ data class LeonaSupportBundle(
     val diagnosticSnapshot: LeonaDiagnosticSnapshot,
     val serverVerdict: LeonaServerVerdict?,
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
         .put("generatedAtMillis", generatedAtMillis)
         .put("sdkVersion", sdkVersion)
-        .put("tenantId", tenantId)
+        .put(
+            "tenantId",
+            if (view == LeonaDebugExportView.FULL_DEBUG) tenantId else LeonaJsonRedaction.hint(tenantId),
+        )
         .put("appId", appId)
         .put("region", region)
         .put("transportEnabled", transportEnabled)
@@ -40,15 +43,36 @@ data class LeonaSupportBundle(
         .put("syncInit", syncInit)
         .put("effectiveDisabledSignals", JSONArray(effectiveDisabledSignals.toList().sorted()))
         .put("effectiveDisableCollectionWindowMs", effectiveDisableCollectionWindowMs)
-        .put("effectiveTamperPolicy", effectiveTamperPolicy.toJsonObject())
-        .put("lastIntegritySnapshot", lastIntegritySnapshot.toJsonObject())
+        .put(
+            "effectiveTamperPolicy",
+            if (view == LeonaDebugExportView.FULL_DEBUG) {
+                effectiveTamperPolicy.toJsonObject()
+            } else {
+                LeonaJsonRedaction.stringMapSummary(effectiveTamperPolicy)
+            },
+        )
+        .put(
+            "lastIntegritySnapshot",
+            if (view == LeonaDebugExportView.FULL_DEBUG) {
+                lastIntegritySnapshot.toJsonObject()
+            } else {
+                LeonaJsonRedaction.stringMapSummary(lastIntegritySnapshot)
+            },
+        )
         .put("cloudConfigFetchedAtMillis", cloudConfigFetchedAtMillis)
-        .put("cloudConfigRaw", cloudConfigRawJson.toJsonValue())
-        .put("secureTransport", secureTransport?.toJsonObject())
-        .put("diagnosticSnapshot", diagnosticSnapshot.toJsonObject())
-        .put("serverVerdict", serverVerdict?.toJsonObject())
+        .put(
+            "cloudConfigRaw",
+            if (view == LeonaDebugExportView.FULL_DEBUG) {
+                cloudConfigRawJson.toJsonValue()
+            } else {
+                LeonaJsonRedaction.rawJsonSummary(cloudConfigRawJson)
+            },
+        )
+        .put("secureTransport", secureTransport?.toJsonObject(view))
+        .put("diagnosticSnapshot", diagnosticSnapshot.toJsonObject(view))
+        .put("serverVerdict", serverVerdict?.toJsonObject(view))
 
-    fun toJson(): String = toJsonObject().toString(2)
+    fun toJson(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): String = toJsonObject(view).toString(2)
 
     private fun Map<String, String>.toJsonObject(): JSONObject = JSONObject().also { json ->
         toSortedMap().forEach { (key, value) -> json.put(key, value) }

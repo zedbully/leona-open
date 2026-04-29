@@ -23,12 +23,16 @@ class LeonaServerVerdictTest {
             riskTags = setOf("trusted.device", "known.install"),
         )
 
-        val json = verdict.toJson()
+        val json = verdict.toJson(LeonaDebugExportView.FULL_DEBUG)
         val obj = JSONObject(json)
 
         assertEquals("box-1", obj.getString("boxId"))
         assertEquals("LOW", obj.getString("riskLevel"))
         assertEquals(8, obj.getInt("riskScore"))
         assertTrue(json.contains("\n"))
+
+        val redacted = JSONObject(verdict.toJson())
+        assertTrue(redacted.getString("boxId").startsWith("<redacted:"))
+        assertTrue(redacted.getString("canonicalDeviceId").startsWith("<redacted:"))
     }
 }

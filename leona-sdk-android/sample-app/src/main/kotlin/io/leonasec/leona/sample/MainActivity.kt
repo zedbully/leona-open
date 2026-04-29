@@ -250,7 +250,7 @@ class MainActivity : AppCompatActivity() {
         http.newCall(request).execute().use { response ->
             val payload = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                error("demo backend HTTP ${response.code}: $payload")
+                error("demo backend HTTP ${response.code}")
             }
             payload
         }
@@ -295,8 +295,7 @@ class MainActivity : AppCompatActivity() {
                     runId,
                     "demoVerdict",
                     JSONObject()
-                        .put("summary", demoSummary)
-                        .put("payload", demoJson),
+                        .put("summary", demoSummary),
                 )
                 emitE2E(runId, "postVerdict", withContext(Dispatchers.IO) { captureE2ESurfaces(boxId) })
 

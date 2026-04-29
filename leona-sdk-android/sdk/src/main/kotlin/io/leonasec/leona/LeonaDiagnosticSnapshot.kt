@@ -39,7 +39,15 @@ data class LeonaDiagnosticSnapshot(
     val serverRiskTags: Set<String>,
     val lastBoxId: String?,
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject =
+        when (view) {
+            LeonaDebugExportView.FULL_DEBUG -> fullJsonObject()
+            LeonaDebugExportView.REDACTED -> redactedJsonObject()
+        }
+
+    fun toJson(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): String = toJsonObject(view).toString(2)
+
+    private fun fullJsonObject(): JSONObject = JSONObject()
         .put("deviceId", deviceId)
         .put("installId", installId)
         .put("canonicalDeviceId", canonicalDeviceId)
@@ -65,5 +73,29 @@ data class LeonaDiagnosticSnapshot(
         .put("serverRiskTags", JSONArray(serverRiskTags.toList().sorted()))
         .put("lastBoxId", lastBoxId)
 
-    fun toJson(): String = toJsonObject().toString(2)
+    private fun redactedJsonObject(): JSONObject = JSONObject()
+        .put("deviceId", LeonaJsonRedaction.hint(deviceId))
+        .put("installId", LeonaJsonRedaction.hint(installId))
+        .put("canonicalDeviceId", LeonaJsonRedaction.hint(canonicalDeviceId))
+        .put("fingerprintHash", LeonaJsonRedaction.hint(fingerprintHash))
+        .put("packageName", packageName)
+        .put("appVersionName", appVersionName)
+        .put("appVersionCode", appVersionCode)
+        .put("installerPackage", installerPackage)
+        .put("androidIdPresent", !androidId.isNullOrBlank())
+        .put("signingCertSha256", LeonaJsonRedaction.stringListHints(signingCertSha256))
+        .put("localeTag", localeTag)
+        .put("timeZoneId", timeZoneId)
+        .put("screenSummary", screenSummary)
+        .put("localRiskSignals", JSONArray(localRiskSignals.toList().sorted()))
+        .put("nativeRiskTags", JSONArray(nativeRiskTags.toList().sorted()))
+        .put("nativeFindingIds", JSONArray(nativeFindingIds))
+        .put("nativeHighestSeverity", nativeHighestSeverity)
+        .put("nativeEventCount", nativeEventCount)
+        .put("serverDecision", serverDecision)
+        .put("serverAction", serverAction)
+        .put("serverRiskLevel", serverRiskLevel)
+        .put("serverRiskScore", serverRiskScore)
+        .put("serverRiskTags", JSONArray(serverRiskTags.toList().sorted()))
+        .put("lastBoxId", LeonaJsonRedaction.hint(lastBoxId))
 }

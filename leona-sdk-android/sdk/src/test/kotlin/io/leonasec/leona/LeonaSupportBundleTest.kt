@@ -114,7 +114,7 @@ class LeonaSupportBundleTest {
             serverVerdict = verdict,
         )
 
-        val json = bundle.toJson()
+        val json = bundle.toJson(LeonaDebugExportView.FULL_DEBUG)
         val obj = JSONObject(json)
 
         assertEquals("tenant-a", obj.getString("tenantId"))
@@ -158,5 +158,16 @@ class LeonaSupportBundleTest {
                 .getString("code"),
         )
         assertTrue(json.contains("\n"))
+
+        val redacted = JSONObject(bundle.toJson())
+        assertTrue(
+            redacted.getJSONObject("diagnosticSnapshot").getString("deviceId").startsWith("<redacted:"),
+        )
+        assertEquals(true, redacted.getJSONObject("cloudConfigRaw").getBoolean("present"))
+        assertEquals(
+            "object",
+            redacted.getJSONObject("cloudConfigRaw").getString("type"),
+        )
+        assertTrue(redacted.getJSONObject("lastIntegritySnapshot").has("valueSha256ByKey"))
     }
 }

@@ -22,15 +22,15 @@ data class LeonaSecureTransportSnapshot(
     val lastHandshakeErrorProvider: String? = null,
     val lastHandshakeRetryable: Boolean? = null,
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
         .put("engineAvailable", engineAvailable)
         .put("engineClassName", engineClassName)
         .put("endpointConfigured", endpointConfigured)
         .put("apiKeyConfigured", apiKeyConfigured)
         .put("attestationProviderConfigured", attestationProviderConfigured)
-        .put("deviceBinding", deviceBinding?.toJsonObject())
-        .put("session", session?.toJsonObject())
-        .put("lastAttestation", lastAttestation?.toJsonObject())
+        .put("deviceBinding", deviceBinding?.toJsonObject(view))
+        .put("session", session?.toJsonObject(view))
+        .put("lastAttestation", lastAttestation?.toJsonObject(view))
         .put("lastHandshakeAtMillis", lastHandshakeAtMillis)
         .put("lastHandshakeError", lastHandshakeError)
         .put("lastHandshakeErrorClass", lastHandshakeErrorClass)
@@ -38,7 +38,7 @@ data class LeonaSecureTransportSnapshot(
         .put("lastHandshakeErrorProvider", lastHandshakeErrorProvider)
         .put("lastHandshakeRetryable", lastHandshakeRetryable)
 
-    fun toJson(): String = toJsonObject().toString(2)
+    fun toJson(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): String = toJsonObject(view).toString(2)
 }
 
 data class LeonaDeviceBindingSnapshot(
@@ -49,10 +49,13 @@ data class LeonaDeviceBindingSnapshot(
     val signatureAlgorithm: String?,
     val hardwareBacked: Boolean?,
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
         .put("alias", alias)
         .put("present", present)
-        .put("publicKeySha256", publicKeySha256)
+        .put(
+            "publicKeySha256",
+            if (view == LeonaDebugExportView.FULL_DEBUG) publicKeySha256 else LeonaJsonRedaction.hint(publicKeySha256),
+        )
         .put("keyAlgorithm", keyAlgorithm)
         .put("signatureAlgorithm", signatureAlgorithm)
         .put("hardwareBacked", hardwareBacked)
@@ -66,11 +69,14 @@ data class LeonaSecureSessionSnapshot(
     val deviceBindingStatus: String? = null,
     val serverAttestation: LeonaServerAttestationSnapshot? = null,
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
         .put("sessionIdHint", sessionIdHint)
         .put("expiresAtMillis", expiresAtMillis)
         .put("hasServerTamperPolicy", hasServerTamperPolicy)
-        .put("canonicalDeviceId", canonicalDeviceId)
+        .put(
+            "canonicalDeviceId",
+            if (view == LeonaDebugExportView.FULL_DEBUG) canonicalDeviceId else LeonaJsonRedaction.hint(canonicalDeviceId),
+        )
         .put("deviceBindingStatus", deviceBindingStatus)
         .put("serverAttestation", serverAttestation?.toJsonObject())
 }
@@ -94,9 +100,12 @@ data class LeonaAttestationSnapshot(
     val tokenLength: Int,
     val collectedAtMillis: Long,
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
         .put("format", format)
-        .put("tokenSha256", tokenSha256)
+        .put(
+            "tokenSha256",
+            if (view == LeonaDebugExportView.FULL_DEBUG) tokenSha256 else LeonaJsonRedaction.hint(tokenSha256),
+        )
         .put("tokenLength", tokenLength)
         .put("collectedAtMillis", collectedAtMillis)
 }

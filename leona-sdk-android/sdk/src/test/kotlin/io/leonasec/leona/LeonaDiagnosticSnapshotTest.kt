@@ -40,7 +40,7 @@ class LeonaDiagnosticSnapshotTest {
             lastBoxId = "box-1",
         )
 
-        val json = snapshot.toJson()
+        val json = snapshot.toJson(LeonaDebugExportView.FULL_DEBUG)
         val obj = JSONObject(json)
 
         assertEquals("Tdevice", obj.getString("deviceId"))
@@ -48,5 +48,42 @@ class LeonaDiagnosticSnapshotTest {
         assertEquals(1, obj.getInt("nativeEventCount"))
         assertEquals("LOW", obj.getString("serverRiskLevel"))
         assertTrue(json.contains("\n"))
+    }
+
+    @Test
+    fun `diagnostic snapshot redacts stable identifiers by default`() {
+        val snapshot = LeonaDiagnosticSnapshot(
+            deviceId = "Tdevice-1234567890",
+            installId = "install-1234567890",
+            canonicalDeviceId = "Lcanonical-1234567890",
+            fingerprintHash = "fingerprint-1234567890",
+            packageName = "io.leonasec.demo",
+            appVersionName = "1.0.0",
+            appVersionCode = 1L,
+            installerPackage = "com.android.vending",
+            androidId = "android-1",
+            signingCertSha256 = listOf("abcdef1234567890"),
+            localeTag = "zh-CN",
+            timeZoneId = "Asia/Shanghai",
+            screenSummary = "1080x2400@440",
+            localRiskSignals = setOf("root.basic"),
+            nativeRiskTags = setOf("hook.frida.native"),
+            nativeFindingIds = listOf("injection.frida.known_library"),
+            nativeHighestSeverity = 3,
+            nativeEventCount = 1,
+            serverDecision = "allow",
+            serverAction = "allow",
+            serverRiskLevel = "LOW",
+            serverRiskScore = 12,
+            serverRiskTags = setOf("trusted.device"),
+            lastBoxId = "box-1234567890",
+        )
+
+        val obj = JSONObject(snapshot.toJson())
+
+        assertEquals("Tdev...7890", obj.getString("deviceId"))
+        assertEquals(true, obj.getBoolean("androidIdPresent"))
+        assertTrue(!obj.has("androidId"))
+        assertEquals("box-...7890", obj.getString("lastBoxId"))
     }
 }

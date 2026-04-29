@@ -16,14 +16,20 @@ data class LeonaServerVerdict(
     val riskScore: Int? = null,
     val riskTags: Set<String> = emptySet(),
 ) {
-    fun toJsonObject(): JSONObject = JSONObject()
-        .put("boxId", boxId)
-        .put("canonicalDeviceId", canonicalDeviceId)
+    fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
+        .put(
+            "boxId",
+            if (view == LeonaDebugExportView.FULL_DEBUG) boxId else LeonaJsonRedaction.hint(boxId),
+        )
+        .put(
+            "canonicalDeviceId",
+            if (view == LeonaDebugExportView.FULL_DEBUG) canonicalDeviceId else LeonaJsonRedaction.hint(canonicalDeviceId),
+        )
         .put("decision", decision)
         .put("action", action)
         .put("riskLevel", riskLevel)
         .put("riskScore", riskScore)
         .put("riskTags", JSONArray(riskTags.toList().sorted()))
 
-    fun toJson(): String = toJsonObject().toString(2)
+    fun toJson(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): String = toJsonObject(view).toString(2)
 }

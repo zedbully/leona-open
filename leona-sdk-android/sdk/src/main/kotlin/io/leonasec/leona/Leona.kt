@@ -212,7 +212,11 @@ object Leona {
 
     /** Returns the last standardized server verdict formatted as pretty JSON, if any. */
     @JvmStatic
-    fun getLastServerVerdictJson(): String? = getLastServerVerdict()?.toJson()
+    fun getLastServerVerdictJson(): String? = getLastServerVerdictJson(LeonaDebugExportView.REDACTED)
+
+    /** Returns the last standardized server verdict formatted as pretty JSON. */
+    @JvmStatic
+    fun getLastServerVerdictJson(view: LeonaDebugExportView): String? = getLastServerVerdict()?.toJson(view)
 
     /** Java-friendly async variant of [getLastServerVerdictJson]. */
     @JvmStatic
@@ -247,7 +251,11 @@ object Leona {
 
     /** Returns secure reporting transport diagnostics formatted as pretty JSON. */
     @JvmStatic
-    fun getSecureTransportSnapshotJson(): String = getSecureTransportSnapshot().toJson()
+    fun getSecureTransportSnapshotJson(): String = getSecureTransportSnapshotJson(LeonaDebugExportView.REDACTED)
+
+    /** Returns secure reporting transport diagnostics formatted as pretty JSON. */
+    @JvmStatic
+    fun getSecureTransportSnapshotJson(view: LeonaDebugExportView): String = getSecureTransportSnapshot().toJson(view)
 
     /** Java-friendly async variant of [getSecureTransportSnapshotJson]. */
     @JvmStatic
@@ -308,7 +316,11 @@ object Leona {
 
     /** Returns the current support bundle formatted as pretty JSON. */
     @JvmStatic
-    fun getSupportBundleJson(): String = getSupportBundle().toJson()
+    fun getSupportBundleJson(): String = getSupportBundleJson(LeonaDebugExportView.REDACTED)
+
+    /** Returns the current support bundle formatted as pretty JSON. */
+    @JvmStatic
+    fun getSupportBundleJson(view: LeonaDebugExportView): String = getSupportBundle().toJson(view)
 
     /** Java-friendly async variant of [getSupportBundleJson]. */
     @JvmStatic
@@ -336,7 +348,11 @@ object Leona {
 
     /** Returns the current diagnostic snapshot formatted as pretty JSON. */
     @JvmStatic
-    fun getDiagnosticSnapshotJson(): String = getDiagnosticSnapshot().toJson()
+    fun getDiagnosticSnapshotJson(): String = getDiagnosticSnapshotJson(LeonaDebugExportView.REDACTED)
+
+    /** Returns the current diagnostic snapshot formatted as pretty JSON. */
+    @JvmStatic
+    fun getDiagnosticSnapshotJson(view: LeonaDebugExportView): String = getDiagnosticSnapshot().toJson(view)
 
     /** Java-friendly async variant of [getDiagnosticSnapshotJson]. */
     @JvmStatic
