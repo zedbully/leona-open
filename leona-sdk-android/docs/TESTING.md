@@ -34,6 +34,24 @@ The sample app's logcat automation is a debug-only field-test helper. It only
 runs when the debug APK is built with `LEONA_E2E_TOKEN` and the launch intent
 provides the same token; release builds and normal launches ignore that path.
 
+To validate an already-installed debug sample without reinstalling it or reading
+the UI, run the installed-sample logcat smoke test:
+
+```bash
+ADB_SERIAL=<device-or-emulator-serial> \
+LEONA_E2E_TOKEN=<token-built-into-the-installed-debug-apk> \
+./scripts/run-installed-sample-logcat-smoke.sh
+```
+
+The script starts the existing app with the authorized debug intent, reads
+structured `LeonaE2E` logcat chunks, and writes decoded artifacts under
+`/tmp/leona-installed-sample-logcat-smoke-*`. It intentionally fails when
+multiple devices are connected and `ADB_SERIAL` is omitted. By default it
+force-stops the sample process before launch and clears the device logcat buffer
+so old events cannot be mistaken for the current run. Set
+`LEONA_SKIP_FORCE_STOP=1` or `LEONA_SKIP_LOGCAT_CLEAR=1` when you need a gentler
+diagnostic pass.
+
 ## Device Smoke Test
 
 1. Install the sample app built with hosted Leona configuration.
