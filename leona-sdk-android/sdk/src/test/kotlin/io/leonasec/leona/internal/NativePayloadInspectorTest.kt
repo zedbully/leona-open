@@ -90,6 +90,37 @@ class NativePayloadInspectorTest {
         assertTrue("runtime facts should not imply frida risk", "hook.frida.native" !in summary.riskTags)
     }
 
+    @Test
+    fun `inspect advances offsets by utf8 byte length`() {
+        val payload = buildPayload(
+            Event(
+                id = "environment.emulator.detected",
+                severity = 3,
+                category = 2,
+                message = "检测到模拟器环境",
+                evidence = "说明=包含非 ASCII 文本",
+            ),
+            Event(
+                id = "injection.frida.known_library",
+                severity = 3,
+                category = 1,
+                message = "frida agent",
+                evidence = "path=/memfd:frida-agent-64.so (deleted)",
+            ),
+        )
+
+        val summary = NativePayloadInspector.inspect(payload)
+
+        assertEquals(
+            listOf(
+                "environment.emulator.detected",
+                "injection.frida.known_library",
+            ),
+            summary.findingIds,
+        )
+        assertTrue("expected frida tag", "hook.frida.native" in summary.riskTags)
+    }
+
     private data class Event(
         val id: String,
         val severity: Int,

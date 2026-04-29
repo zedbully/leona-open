@@ -41,21 +41,21 @@ internal object NativePayloadInspector {
             val findings = buildList {
                 repeat(eventCount) {
                     val id = decoded.readString(offset)
-                    offset += 2 + id.length
+                    offset = id.nextOffset
                     val severity = decoded.u8(offset)
                     offset += 1
                     val category = decoded.u8(offset)
                     offset += 1
                     val message = decoded.readString(offset)
-                    offset += 2 + message.length
+                    offset = message.nextOffset
                     val evidence = decoded.readString(offset)
-                    offset += 2 + evidence.length
+                    offset = evidence.nextOffset
                     add(
                         NativeFinding(
-                            id = id,
+                            id = id.value,
                             severity = severity,
                             category = category,
-                            message = message,
+                            message = message.value,
                         ),
                     )
                 }
@@ -96,12 +96,20 @@ internal object NativePayloadInspector {
         return b0 or (b1 shl 8)
     }
 
-    private fun ByteArray.readString(offset: Int): String {
+    private data class ParsedString(
+        val value: String,
+        val nextOffset: Int,
+    )
+
+    private fun ByteArray.readString(offset: Int): ParsedString {
         val len = u16(offset)
         val start = offset + 2
         val end = start + len
         if (start < 0 || end > size) error("Malformed payload string")
-        return decodeToString(start, end)
+        return ParsedString(
+            value = decodeToString(start, end),
+            nextOffset = end,
+        )
     }
 
     private fun riskTagsFor(finding: NativeFinding): Set<String> {
