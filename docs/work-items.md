@@ -125,4 +125,4 @@ Alpha 阶段目标：
 - 2026-04-29：sample verdict 返回 `environment.emulator.detected`。
 - 2026-04-29：提交 `52a7a64 feat: add runtime emulator probes`。
 - 2026-04-29：提交 `bfb59fd docs: add codex work item tracker`。
-- 2026-04-29：准备同步 `main` 到 GitHub `origin/main`，远端 fetch 后无新提交需要合并。
+- 2026-04-29：已同步 `main` 到 GitHub `origin/main`；远端 fetch 后无新提交需要合并，首次 push 将远端从 `200cb18` 推进到 `9547be8`。
