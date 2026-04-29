@@ -46,5 +46,6 @@ class VerdictDecisionPolicyTest {
         assertEquals("challenge", VerdictDecisionPolicy.decision(risk, List.of(event)));
         assertEquals("review", VerdictDecisionPolicy.action(risk, List.of(event)));
         assertTrue(VerdictDecisionPolicy.riskTags(risk, List.of(event)).contains("environment.risky"));
+        assertTrue(VerdictDecisionPolicy.riskTags(risk, List.of(event)).contains("environment.emulator.detected"));
     }
 }

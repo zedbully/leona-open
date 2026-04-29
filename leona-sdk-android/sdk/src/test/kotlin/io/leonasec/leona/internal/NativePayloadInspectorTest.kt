@@ -34,17 +34,25 @@ class NativePayloadInspectorTest {
                 message = "java parent",
                 evidence = "parent=java",
             ),
+            Event(
+                id = "env.emulator.fs.virtio_9p_shared_mount",
+                severity = 3,
+                category = 2,
+                message = "virtio 9p shared mount",
+                evidence = "path=/proc/mounts",
+            ),
         )
 
         val summary = NativePayloadInspector.inspect(payload)
 
-        assertEquals(3, summary.eventCount)
+        assertEquals(4, summary.eventCount)
         assertEquals(4, summary.highestSeverity)
         assertEquals(
             listOf(
                 "injection.frida.known_library",
                 "tamper.signature.untrusted",
                 "unidbg.parent.non_zygote",
+                "env.emulator.fs.virtio_9p_shared_mount",
             ),
             summary.findingIds,
         )
@@ -52,6 +60,7 @@ class NativePayloadInspectorTest {
         assertTrue("expected tamper tag", "tamper.native" in summary.riskTags)
         assertTrue("expected signature tag", "signature.untrusted.native" in summary.riskTags)
         assertTrue("expected unidbg tag", "environment.unidbg.native" in summary.riskTags)
+        assertTrue("expected emulator tag", "environment.emulator.native" in summary.riskTags)
     }
 
     @Test

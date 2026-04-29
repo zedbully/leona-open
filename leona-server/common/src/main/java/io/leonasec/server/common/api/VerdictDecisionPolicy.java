@@ -98,6 +98,9 @@ public final class VerdictDecisionPolicy {
         if (value.contains("emulator") || value.contains("environment") || value.contains("root")) {
             tags.add("environment.risky");
         }
+        if (looksLikeEmulatorSignal(value)) {
+            tags.add("environment.emulator.detected");
+        }
     }
 
     private static boolean looksLikeInjectionSignal(String raw) {
@@ -111,5 +114,21 @@ public final class VerdictDecisionPolicy {
             || value.contains("zygisk")
             || value.contains("hook")
             || value.contains("injection");
+    }
+
+    private static boolean looksLikeEmulatorSignal(String value) {
+        return value.contains("emulator")
+            || value.contains("qemu")
+            || value.contains("goldfish")
+            || value.contains("ranchu")
+            || value.contains("vbox")
+            || value.contains("virtio")
+            || value.contains("dummy-virt")
+            || value.contains("mumu")
+            || value.contains("nemu")
+            || value.contains("bluestacks")
+            || value.contains("genymotion")
+            || value.contains("ldplayer")
+            || value.contains("nox");
     }
 }
