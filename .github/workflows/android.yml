@@ -102,17 +102,52 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install clang-tidy / clang-format
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-tidy clang-format
 
-      - name: clang-format advisory
-        continue-on-error: true
+      - name: clang-format check (changed files)
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          find sdk/src/main/cpp -name '*.cpp' -o -name '*.h' \
-            | xargs clang-format --dry-run --style=Google
+          set -euo pipefail
+          cd leona-sdk-android
+
+          BASE_SHA=""
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # For PRs, format-check only files changed relative to base branch.
+            git fetch --no-tags --prune --depth=1 origin "${GITHUB_BASE_REF}"
+            BASE_SHA="origin/${GITHUB_BASE_REF}"
+          else
+            # For pushes/tags/schedule/workflow_dispatch, compare against the previous commit when available.
+            BASE_SHA="${BEFORE_SHA:-}"
+          fi
+
+          if [[ -z "${BASE_SHA}" || "${BASE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              BASE_SHA="$(git rev-parse HEAD^)"
+              echo "No event base SHA; falling back to HEAD^=${BASE_SHA}"
+            else
+              echo "No base SHA available; skipping clang-format check."
+              exit 0
+            fi
+          fi
+
+          mapfile -t changed_files < <(
+            git diff --name-only "${BASE_SHA}"...HEAD -- "sdk/src/main/cpp" \
+              | grep -E '\\.(cpp|h)$' || true
+          )
+
+          if (( ${#changed_files[@]} == 0 )); then
+            echo "No native .cpp/.h changes; skipping clang-format check."
+            exit 0
+          fi
+
+          printf '%s\n' "${changed_files[@]}" | xargs clang-format --dry-run --style=Google
 
   publish-release:
     name: Publish release artifacts
