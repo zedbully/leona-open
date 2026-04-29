@@ -49,6 +49,9 @@ request_config d "$LEONA_OTHER_TENANT" "$LEONA_APP_ID" "fingerprint-alpha" "Tdev
 request_config e "$LEONA_TENANT" "$LEONA_OTHER_APP_ID" "fingerprint-alpha" "Tdevice-alpha-1" "install-alpha-1"
 request_config f "$LEONA_TENANT" "$LEONA_APP_ID" "fingerprint-provided" "Tdevice-provided-1" "install-provided-1" "Lserver-issued"
 request_config g "$LEONA_TENANT" "$LEONA_APP_ID" "" "Tdevice-provided-1" "install-provided-2"
+request_config h "$LEONA_TENANT" "$LEONA_APP_ID" "" "" "install-only"
+request_config i "$LEONA_OTHER_TENANT" "$LEONA_APP_ID" "" "" "install-only"
+request_config j "$LEONA_TENANT" "$LEONA_OTHER_APP_ID" "" "" "install-only"
 
 python3 - "$TMP_DIR" "$LEONA_DISABLED_SIGNAL_EXPECT" "$LEONA_DISABLE_COLLECTION_WINDOW_EXPECT" <<'PY'
 import json
@@ -87,6 +90,9 @@ d = load_json("d")
 e = load_json("e")
 f = load_json("f")
 g = load_json("g")
+h = load_json("h")
+i = load_json("i")
+j = load_json("j")
 
 canon_a = canonical(a)
 canon_b = canonical(b)
@@ -95,15 +101,20 @@ canon_d = canonical(d)
 canon_e = canonical(e)
 canon_f = canonical(f)
 canon_g = canonical(g)
+canon_h = canonical(h)
+canon_i = canonical(i)
+canon_j = canonical(j)
 
 assert canon_a == canon_b, f"same tenant/app/fingerprint should keep canonical stable: {canon_a} != {canon_b}"
 assert canon_a != canon_c, f"different fingerprint should diverge: {canon_a} == {canon_c}"
-assert canon_a != canon_d, f"different tenant should isolate canonical: {canon_a} == {canon_d}"
-assert canon_a != canon_e, f"different app should isolate canonical: {canon_a} == {canon_e}"
+assert canon_a == canon_d, f"fingerprint canonical should remain tenant-independent: {canon_a} != {canon_d}"
+assert canon_a == canon_e, f"fingerprint canonical should remain app-independent: {canon_a} != {canon_e}"
 assert canon_f == "Lserver-issued", f"provided canonical should echo back: {canon_f}"
 assert canon_g == canon_f, f"device fallback should backfill provided canonical: {canon_g} != {canon_f}"
+assert canon_h != canon_i, f"install-only canonical should isolate tenant: {canon_h} == {canon_i}"
+assert canon_h != canon_j, f"install-only canonical should isolate app: {canon_h} == {canon_j}"
 
-for obj in (a, b, c, d, e, f, g):
+for obj in (a, b, c, d, e, f, g, h, i, j):
     for expected_signal in expected_signals:
         assert expected_signal in obj.get("disabledSignals", []), f"disabledSignals missing {expected_signal}"
     assert obj.get("disableCollectionWindowMs") == expected_window, (
@@ -124,9 +135,9 @@ assert header_window == str(expected_window), f"header window mismatch: {header_
 
 print("[Leona cloud-config] stable canonical same tenant/app/fingerprint:", canon_a)
 print("[Leona cloud-config] divergent canonical new fingerprint          :", canon_c)
-print("[Leona cloud-config] divergent canonical other tenant            :", canon_d)
-print("[Leona cloud-config] divergent canonical other app               :", canon_e)
+print("[Leona cloud-config] shared canonical other tenant/app fingerprint:", canon_d, canon_e)
 print("[Leona cloud-config] provided canonical echoed/backfilled        :", canon_f)
+print("[Leona cloud-config] install-only tenant/app isolation           :", canon_h, canon_i, canon_j)
 print("[Leona cloud-config] disabled signals present                   :", ",".join(expected_signals) or "-")
 print("[Leona cloud-config] collection window ms                      :", expected_window)
 PY

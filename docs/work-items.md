@@ -139,3 +139,5 @@ Alpha 阶段目标：
 - 2026-04-29：GitHub run `25085752269` 失败点收敛为 `TamperCatalogParityTest` 在 public checkout 缺少 `private/sdk-private-core/src/main/cpp/private_tamper_catalog.h`；已改为 public catalog 与 detector 必测，private catalog 存在时再检查 public/private parity。
 - 2026-04-29：SDK manifest 已声明普通权限 `ACCESS_NETWORK_STATE`，用于被动 VPN/network evidence，lint 的 VPN 权限阻塞点已消除。
 - 2026-04-29：本地验证通过：`:sdk:testDebugUnitTest`、`scripts/verify-closure.sh`、public-only 临时 checkout 的 clean/no-build-cache `:sdk:testDebugUnitTest`。
+- 2026-04-29：GitHub run `25086064266` 中 `build-gate`、`Lint + Unit tests`、`Assemble AAR` 已通过；`cloud-config-smoke` 暴露 smoke 脚本与 demo-backend canonical 规则不一致。
+- 2026-04-29：`verify-demo-cloud-config.sh` 已对齐 demo-backend 规则：fingerprint/deviceId 作为设备级映射跨 tenant/app 稳定，install-only 仍按 tenant/app 隔离；本地单独 cloud smoke 与完整 `scripts/run-alpha-closure.sh` 均通过。
