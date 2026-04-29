@@ -106,16 +106,17 @@ jobs:
           fetch-depth: 0
 
       - name: Install clang-tidy / clang-format
+        working-directory: .
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-tidy clang-format
 
       - name: clang-format check (changed files)
+        working-directory: .
         env:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          cd leona-sdk-android
 
           BASE_SHA=""
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
@@ -137,9 +138,12 @@ jobs:
             fi
           fi
 
-          mapfile -t changed_files < <(
-            git diff --name-only "${BASE_SHA}"...HEAD -- "sdk/src/main/cpp" \
-              | grep -E '\\.(cpp|h)$' || true
+          changed_files=()
+          while IFS= read -r file; do
+            changed_files+=("${file}")
+          done < <(
+            git diff --name-only "${BASE_SHA}"...HEAD -- "leona-sdk-android/sdk/src/main/cpp" \
+              | grep -E '\.(cpp|h)$' || true
           )
 
           if (( ${#changed_files[@]} == 0 )); then
@@ -147,12 +151,12 @@ jobs:
             exit 0
           fi
 
-          printf '%s\n' "${changed_files[@]}" | xargs clang-format --dry-run --style=Google
+          printf '%s\n' "${changed_files[@]}" | xargs clang-format --dry-run --Werror --style=Google
 
   publish-release:
     name: Publish release artifacts
     runs-on: ubuntu-latest
-    needs: [lint-and-test, assemble]
+    needs: [lint-and-test, assemble, native-sanity]
     if: startsWith(github.ref, 'refs/tags/v')
     timeout-minutes: 30
 
