@@ -296,7 +296,7 @@ class MainActivity : AppCompatActivity() {
                     runId,
                     "demoVerdict",
                     JSONObject()
-                        .put("summary", demoSummary),
+                        .put("summary", redactVerdictSummaryForE2E(demoSummary)),
                 )
                 emitE2E(runId, "postVerdict", withContext(Dispatchers.IO) { captureE2ESurfaces(boxId) })
 
@@ -324,9 +324,9 @@ class MainActivity : AppCompatActivity() {
                     "error",
                     JSONObject()
                         .put("class", t.javaClass.name)
-                        .put("message", t.message ?: ""),
+                        .put("message", sanitizeE2EMessage(t.message ?: "")),
                 )
-                Log.e(E2E_LOG_TAG, "Leona logcat E2E failed", t)
+                Log.e(E2E_LOG_TAG, "Leona logcat E2E failed: ${t.javaClass.name}: ${sanitizeE2EMessage(t.message ?: "")}")
             } finally {
                 setBusy(false)
             }
@@ -402,6 +402,14 @@ class MainActivity : AppCompatActivity() {
             )
     }
 
+    private fun redactVerdictSummaryForE2E(summary: JSONObject): JSONObject {
+        val canonical = summary.optString("canonicalDeviceId").takeIf { it.isNotBlank() && it != "-" }
+        return JSONObject(summary.toString())
+            .removeAndReturn("canonicalDeviceId")
+            .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(canonical))
+            .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(canonical))
+    }
+
     private fun collectRiskTags(json: JSONObject): List<String> = buildSet {
         json.optJSONArray("riskTags").asStringList().forEach(::add)
         json.optJSONObject("verdict")?.optJSONArray("riskTags").asStringList().forEach(::add)
@@ -416,6 +424,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun sanitizeE2EMessage(message: String): String =
+        message
+            .replace(Regex("https?://[^\\s\\\"']+"), "http://<redacted>")
+            .replace(Regex("\\b(?:\\d{1,3}\\.){3}\\d{1,3}:\\d+\\b"), "<redacted-host>")
+            .replace(Regex("(?i)(api[_-]?key|secret|token|bearer)(['\\\":= ]+)([^\\s,'\\\"}]+)")) {
+                it.groupValues[1] + it.groupValues[2] + "<redacted>"
+            }
 
     private fun emitE2E(runId: String, event: String, payload: JSONObject) {
         val envelope = JSONObject()
@@ -690,4 +706,9 @@ class MainActivity : AppCompatActivity() {
         private const val EXTRA_E2E_AUTO_RUN = "io.leonasec.leona.sample.extra.E2E_AUTO_RUN"
         private const val EXTRA_E2E_TOKEN = "io.leonasec.leona.sample.extra.E2E_TOKEN"
     }
+}
+
+private fun JSONObject.removeAndReturn(name: String): JSONObject {
+    remove(name)
+    return this
 }

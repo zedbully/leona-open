@@ -113,15 +113,22 @@ from pathlib import Path
 path = Path(sys.argv[1])
 secret_patterns = [
     re.compile(r"(?i)(api[_-]?key|secret|token|bearer)(['\":= ]+)([^\s,'\"}]+)"),
-    re.compile(r"LEONA_[A-Z0-9_]+=[^\s]+"),
+    re.compile(r"(LEONA_[A-Z0-9_]+=)[^\s]+"),
+    re.compile(r"https?://[^\s,'\"}]+"),
+    re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}:\d+\b"),
 ]
 SENSITIVE_KEYS = {
+    "canonical",
     "canonicalDeviceId",
+    "diagnosticCanonical",
     "deviceId",
-    "resolvedDeviceId",
+    "bundleCanonical",
+    "transportCanonical",
+    "verdictCanonical",
     "id",
     "installId",
     "fingerprintHash",
+    "resolvedDeviceId",
     "reportingEndpoint",
     "cloudConfigEndpoint",
     "demoBackendEndpoint",
@@ -142,7 +149,12 @@ def hint(value):
 def redact_text(value):
     text = str(value)
     for pattern in secret_patterns:
-        text = pattern.sub(lambda match: match.group(1) + match.group(2) + "<redacted>", text)
+        if pattern.groups >= 2:
+            text = pattern.sub(lambda match: match.group(1) + match.group(2) + "<redacted>", text)
+        elif pattern.groups == 1:
+            text = pattern.sub(lambda match: match.group(1) + "<redacted>", text)
+        else:
+            text = pattern.sub("<redacted-endpoint>", text)
     return text
 
 def sanitize_payload(value):
@@ -342,12 +354,17 @@ def hint(value):
     return f"{text[:4]}...{text[-4:]}"
 
 SENSITIVE_KEYS = {
+    "canonical",
     "canonicalDeviceId",
+    "diagnosticCanonical",
     "deviceId",
-    "resolvedDeviceId",
+    "bundleCanonical",
+    "transportCanonical",
+    "verdictCanonical",
     "id",
     "installId",
     "fingerprintHash",
+    "resolvedDeviceId",
     "reportingEndpoint",
     "cloudConfigEndpoint",
     "demoBackendEndpoint",
