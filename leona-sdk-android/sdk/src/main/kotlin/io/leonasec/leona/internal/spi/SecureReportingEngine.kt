@@ -18,11 +18,38 @@ data class SecureDeviceContext(
     val nativeRiskTags: Set<String> = emptySet(),
     val nativeFindingIds: List<String> = emptyList(),
     val nativeHighestSeverity: Int? = null,
-    val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
     val installerPackage: String? = null,
     val signingCertSha256: List<String> = emptyList(),
     val sdkInt: Int? = null,
-)
+    val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
+) {
+    constructor(
+        installId: String,
+        resolvedDeviceId: String,
+        canonicalDeviceId: String? = null,
+        fingerprintHash: String,
+        riskSignals: Set<String> = emptySet(),
+        nativeRiskTags: Set<String> = emptySet(),
+        nativeFindingIds: List<String> = emptyList(),
+        nativeHighestSeverity: Int? = null,
+        installerPackage: String? = null,
+        signingCertSha256: List<String> = emptyList(),
+        sdkInt: Int? = null,
+    ) : this(
+        installId = installId,
+        resolvedDeviceId = resolvedDeviceId,
+        canonicalDeviceId = canonicalDeviceId,
+        fingerprintHash = fingerprintHash,
+        riskSignals = riskSignals,
+        nativeRiskTags = nativeRiskTags,
+        nativeFindingIds = nativeFindingIds,
+        nativeHighestSeverity = nativeHighestSeverity,
+        installerPackage = installerPackage,
+        signingCertSha256 = signingCertSha256,
+        sdkInt = sdkInt,
+        deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
+    )
+}
 
 data class SecureUploadResult(
     val boxId: BoxId,

@@ -91,6 +91,12 @@ verdict.
 Root-manager package matches are summarized by family and package-name hashes,
 not by raw package names.
 
+`derivedEvidence` is intentionally scoped to ROM, bootloader, build-channel,
+GSI/Treble, and root-manager posture. An empty value means no facts from those
+families were found; it does not prove the device is a clean physical handset.
+For emulators, cloud phones, or vendor-spoofed runtimes, attach an emulator
+supplement artifact from SDK/native evidence or server verdict results.
+
 ## Matrix Template
 
 Copy one row per device posture. Keep raw local notes outside committed docs if

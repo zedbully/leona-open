@@ -275,51 +275,19 @@ internal class DeviceIdentityManager(
     }
 
     private fun isEmulatorLikely(): Boolean {
-        val fingerprint = Build.FINGERPRINT.orEmpty().lowercase()
-        val model = Build.MODEL.orEmpty().lowercase()
-        val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
-        val hardware = Build.HARDWARE.orEmpty().lowercase()
-        val product = Build.PRODUCT.orEmpty().lowercase()
-        val brand = Build.BRAND.orEmpty().lowercase()
-        val device = Build.DEVICE.orEmpty().lowercase()
-        val board = Build.BOARD.orEmpty().lowercase()
-        return fingerprint.contains("generic") ||
-            fingerprint.contains("emulator") ||
-            fingerprint.contains("vbox") ||
-            fingerprint.contains("nemu") ||
-            fingerprint.contains("mumu") ||
-            model.contains("sdk_gphone") ||
-            model.contains("emulator") ||
-            model.contains("android sdk built for") ||
-            model.contains("mumu") ||
-            model.contains("nox") ||
-            model.contains("ldplayer") ||
-            model.contains("bluestacks") ||
-            manufacturer.contains("genymotion") ||
-            manufacturer.contains("netease") ||
-            manufacturer.contains("mumu") ||
-            hardware.contains("goldfish") ||
-            hardware.contains("ranchu") ||
-            hardware.contains("vbox86") ||
-            hardware.contains("qemu") ||
-            hardware.contains("nemu") ||
-            hardware.contains("dummy-virt") ||
-            product.contains("sdk") ||
-            product.contains("emulator") ||
-            product.contains("simulator") ||
-            product.contains("mumu") ||
-            product.contains("nemu") ||
-            brand.contains("generic") ||
-            device.contains("generic") ||
-            device.contains("mumu") ||
-            device.contains("nemu") ||
-            board.contains("qemu") ||
-            board.contains("goldfish") ||
-            board.contains("ranchu") ||
-            hasKnownEmulatorSystemProperties() ||
-            hasKnownEmulatorFiles() ||
-            hasKnownEmulatorMounts() ||
-            hasKnownEmulatorPackages()
+        return DeviceEmulatorHeuristics.isEmulatorLikely(
+            fingerprint = Build.FINGERPRINT,
+            model = Build.MODEL,
+            manufacturer = Build.MANUFACTURER,
+            hardware = Build.HARDWARE,
+            product = Build.PRODUCT,
+            device = Build.DEVICE,
+            board = Build.BOARD,
+            hasKnownRuntimeEvidence = hasKnownEmulatorSystemProperties() ||
+                hasKnownEmulatorFiles() ||
+                hasKnownEmulatorMounts() ||
+                hasKnownEmulatorPackages(),
+        )
     }
 
     private fun hasKnownEmulatorSystemProperties(): Boolean {
@@ -563,5 +531,58 @@ internal class DeviceIdentityManager(
 
         private fun base64UrlNoPadding(bytes: ByteArray): String =
             Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+    }
+}
+
+internal object DeviceEmulatorHeuristics {
+    fun isEmulatorLikely(
+        fingerprint: String?,
+        model: String?,
+        manufacturer: String?,
+        hardware: String?,
+        product: String?,
+        device: String?,
+        board: String?,
+        hasKnownRuntimeEvidence: Boolean,
+    ): Boolean {
+        val normalizedFingerprint = fingerprint.orEmpty().lowercase()
+        val normalizedModel = model.orEmpty().lowercase()
+        val normalizedManufacturer = manufacturer.orEmpty().lowercase()
+        val normalizedHardware = hardware.orEmpty().lowercase()
+        val normalizedProduct = product.orEmpty().lowercase()
+        val normalizedDevice = device.orEmpty().lowercase()
+        val normalizedBoard = board.orEmpty().lowercase()
+
+        return normalizedFingerprint.contains("emulator") ||
+            normalizedFingerprint.contains("vbox") ||
+            normalizedFingerprint.contains("nemu") ||
+            normalizedFingerprint.contains("mumu") ||
+            normalizedModel.contains("sdk_gphone") ||
+            normalizedModel.contains("emulator") ||
+            normalizedModel.contains("android sdk built for") ||
+            normalizedModel.contains("mumu") ||
+            normalizedModel.contains("nox") ||
+            normalizedModel.contains("ldplayer") ||
+            normalizedModel.contains("bluestacks") ||
+            normalizedManufacturer.contains("genymotion") ||
+            normalizedManufacturer.contains("netease") ||
+            normalizedManufacturer.contains("mumu") ||
+            normalizedHardware.contains("goldfish") ||
+            normalizedHardware.contains("ranchu") ||
+            normalizedHardware.contains("vbox86") ||
+            normalizedHardware.contains("qemu") ||
+            normalizedHardware.contains("nemu") ||
+            normalizedHardware.contains("dummy-virt") ||
+            normalizedProduct.contains("sdk") ||
+            normalizedProduct.contains("emulator") ||
+            normalizedProduct.contains("simulator") ||
+            normalizedProduct.contains("mumu") ||
+            normalizedProduct.contains("nemu") ||
+            normalizedDevice.contains("mumu") ||
+            normalizedDevice.contains("nemu") ||
+            normalizedBoard.contains("qemu") ||
+            normalizedBoard.contains("goldfish") ||
+            normalizedBoard.contains("ranchu") ||
+            hasKnownRuntimeEvidence
     }
 }
