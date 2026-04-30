@@ -104,6 +104,7 @@ sanitize_logcat() {
 
   python3 - "$log_file" <<'PY'
 import base64
+import hashlib
 import json
 import re
 import sys
@@ -114,6 +115,29 @@ secret_patterns = [
     re.compile(r"(?i)(api[_-]?key|secret|token|bearer)(['\":= ]+)([^\s,'\"}]+)"),
     re.compile(r"LEONA_[A-Z0-9_]+=[^\s]+"),
 ]
+SENSITIVE_KEYS = {
+    "canonicalDeviceId",
+    "deviceId",
+    "resolvedDeviceId",
+    "id",
+    "installId",
+    "fingerprintHash",
+    "reportingEndpoint",
+    "cloudConfigEndpoint",
+    "demoBackendEndpoint",
+}
+
+def digest(value):
+    text = str(value or "").strip()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] if text else ""
+
+def hint(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) <= 8:
+        return f"<redacted:{digest(text)[:8]}>"
+    return f"{text[:4]}...{text[-4:]}"
 
 def redact_text(value):
     text = str(value)
@@ -127,6 +151,9 @@ def sanitize_payload(value):
         for key, item in value.items():
             if re.search(r"(?i)(api.*key|secret|token|authorization)", str(key)):
                 sanitized[key] = "<redacted>"
+            elif key in SENSITIVE_KEYS and isinstance(item, str):
+                sanitized[key + "Hint"] = hint(item)
+                sanitized[key + "Sha256"] = digest(item)
             else:
                 sanitized[key] = sanitize_payload(item)
         return sanitized
@@ -146,20 +173,23 @@ for offset, line in enumerate(lines):
         item = json.loads(text)
     except json.JSONDecodeError:
         continue
-    if item.get("marker") != "leona-e2e-chunk" or item.get("event") != "error":
+    if item.get("marker") != "leona-e2e-chunk":
         continue
     try:
         run_id = str(item["runId"])
+        event = str(item["event"])
         total = int(item["total"])
         index = int(item["index"])
     except (KeyError, TypeError, ValueError):
         continue
-    bucket = chunks.setdefault(run_id, {"total": total, "parts": {}, "offsets": []})
+    bucket = chunks.setdefault((run_id, event), {"run_id": run_id, "event": event, "total": total, "parts": {}, "offsets": []})
     bucket["total"] = max(int(bucket["total"]), total)
     bucket["parts"][index] = str(item.get("data") or "")
     bucket["offsets"].append(offset)
 
-for run_id, bucket in chunks.items():
+for _, bucket in chunks.items():
+    run_id = bucket["run_id"]
+    event = bucket["event"]
     total = int(bucket["total"])
     parts = bucket["parts"]
     if any(index not in parts for index in range(total)):
@@ -175,7 +205,7 @@ for run_id, bucket in chunks.items():
     replacement = json.dumps({
         "marker": "leona-e2e-chunk",
         "runId": run_id,
-        "event": "error",
+        "event": event,
         "index": 0,
         "total": 1,
         "data": encoded,
@@ -199,6 +229,7 @@ parse_logcat_e2e() {
   REQUIRED_EVENTS="$LEONA_REQUIRED_EVENTS" \
   python3 - "$log_file" <<'PY'
 import base64
+import hashlib
 import json
 import os
 import shlex
@@ -298,6 +329,50 @@ def compact_list(value):
         return [str(item) for item in value if str(item)]
     return []
 
+def digest(value):
+    text = str(value or "").strip()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] if text else ""
+
+def hint(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) <= 8:
+        return f"<redacted:{digest(text)[:8]}>"
+    return f"{text[:4]}...{text[-4:]}"
+
+SENSITIVE_KEYS = {
+    "canonicalDeviceId",
+    "deviceId",
+    "resolvedDeviceId",
+    "id",
+    "installId",
+    "fingerprintHash",
+    "reportingEndpoint",
+    "cloudConfigEndpoint",
+    "demoBackendEndpoint",
+}
+
+def sanitize_decoded(value, parent_key=""):
+    if isinstance(value, dict):
+        sanitized = {}
+        for key, item in value.items():
+            if key in SENSITIVE_KEYS and isinstance(item, str):
+                sanitized[key + "Hint"] = hint(item)
+                sanitized[key + "Sha256"] = digest(item)
+            else:
+                sanitized[key] = sanitize_decoded(item, key)
+        return sanitized
+    if isinstance(value, list):
+        if parent_key == "mismatchedSurfaces":
+            return [
+                f"{str(item).split(':', 1)[0]}:{hint(str(item).split(':', 1)[1])}"
+                if ":" in str(item) else str(item)
+                for item in value
+            ]
+        return [sanitize_decoded(item, parent_key) for item in value]
+    return value
+
 sense = events.get("sense") or {}
 post = events.get("post") or {}
 complete = events.get("complete") or {}
@@ -306,11 +381,20 @@ demo = events.get("demoVerdict") or {}
 box_id = str(sense.get("boxId") or post.get("boxId") or complete.get("boxId") or "")
 formal_box_id = str(complete.get("formalBoxId") or events.get("formalSense", {}).get("boxId") or "")
 canonical = str(
-    complete.get("canonicalDeviceId")
+    complete.get("canonicalDeviceIdSha256")
+    or complete.get("canonicalDeviceId")
     or nested(post, "diagnostic", "canonicalDeviceId")
     or post.get("canonicalDeviceId")
     or ""
 )
+canonical_hint = str(
+    complete.get("canonicalDeviceIdHint")
+    or nested(post, "diagnostic", "canonicalDeviceIdHint")
+    or post.get("canonicalDeviceIdHint")
+    or hint(canonical)
+    or ""
+)
+canonical_hash = canonical if len(canonical) == 16 and all(c in "0123456789abcdef" for c in canonical.lower()) else digest(canonical)
 risk_tags = sorted(set(
     compact_list(nested(post, "diagnostic", "localRiskSignals"))
     + compact_list(nested(post, "diagnostic", "serverRiskTags"))
@@ -323,10 +407,11 @@ report = {
     "runId": selected_run_id,
     "boxId": box_id,
     "formalBoxId": formal_box_id,
-    "canonicalDeviceId": canonical,
+    "canonicalDeviceIdHint": canonical_hint,
+    "canonicalDeviceIdSha256": canonical_hash,
     "riskTags": risk_tags,
     "nativeFindingIds": native_findings,
-    "events": events,
+    "events": sanitize_decoded(events),
     "incompleteEvents": incomplete_by_run.get(selected_run_id) or {},
 }
 report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -334,7 +419,8 @@ summary_path.write_text(
     f"run_id={shlex.quote(selected_run_id)}\n"
     f"box_id={shlex.quote(box_id)}\n"
     f"formal_box_id={shlex.quote(formal_box_id)}\n"
-    f"canonical_device_id={shlex.quote(canonical)}\n"
+    f"canonical_device_id_hint={shlex.quote(canonical_hint)}\n"
+    f"canonical_device_id_sha256={shlex.quote(canonical_hash)}\n"
     f"risk_tags={shlex.quote(','.join(risk_tags))}\n"
     f"native_finding_ids={shlex.quote(','.join(native_findings))}\n",
     encoding="utf-8",
@@ -344,7 +430,8 @@ print(json.dumps({
     "runId": selected_run_id,
     "boxId": box_id,
     "formalBoxId": formal_box_id,
-    "canonicalDeviceId": canonical,
+    "canonicalDeviceIdHint": canonical_hint,
+    "canonicalDeviceIdSha256": canonical_hash,
     "riskTags": risk_tags,
     "nativeFindingIds": native_findings,
     "report": str(report_path),

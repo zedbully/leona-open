@@ -19,6 +19,7 @@ import com.google.android.material.button.MaterialButton
 import io.leonasec.leona.BoxId
 import io.leonasec.leona.Honeypot
 import io.leonasec.leona.Leona
+import io.leonasec.leona.LeonaDebugExportView
 import io.leonasec.leona.LeonaDiagnosticSnapshot
 import io.leonasec.leona.LeonaSecureTransportSnapshot
 import io.leonasec.leona.LeonaSupportBundle
@@ -314,7 +315,8 @@ class MainActivity : AppCompatActivity() {
                     JSONObject()
                         .put("boxId", boxId.toString())
                         .put("formalBoxId", formalBoxId.toString())
-                        .put("canonicalDeviceId", canonicalDeviceId),
+                        .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(canonicalDeviceId))
+                        .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(canonicalDeviceId)),
                 )
             } catch (t: Throwable) {
                 emitE2E(
@@ -345,11 +347,12 @@ class MainActivity : AppCompatActivity() {
         )
         return JSONObject()
             .put("boxId", boxId?.toString())
-            .put("canonicalDeviceId", diagnostic.canonicalDeviceId)
-            .put("diagnostic", diagnostic.toJsonObject())
-            .put("transport", transport.toJsonObject())
-            .put("supportBundle", supportBundle.toJsonObject())
-            .put("consistency", consistency.toJsonObject())
+            .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
+            .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
+            .put("diagnostic", diagnostic.toJsonObject(LeonaDebugExportView.REDACTED))
+            .put("transport", transport.toJsonObject(LeonaDebugExportView.REDACTED))
+            .put("supportBundle", supportBundle.toJsonObject(LeonaDebugExportView.REDACTED))
+            .put("consistency", consistency.toJsonObject(LeonaDebugExportView.REDACTED))
     }
 
     private fun summarizeVerdict(json: JSONObject): JSONObject {

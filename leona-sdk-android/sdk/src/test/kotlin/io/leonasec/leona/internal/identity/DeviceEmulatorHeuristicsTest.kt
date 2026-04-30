@@ -43,6 +43,22 @@ class DeviceEmulatorHeuristicsTest {
     }
 
     @Test
+    fun `custom product containing sdk substring is not enough for emulator evidence`() {
+        assertFalse(
+            DeviceEmulatorHeuristics.isEmulatorLikely(
+                fingerprint = "vendor/customsdkdevice/customsdkdevice:15/AP3A/user/release-keys",
+                model = "Custom SDK Device",
+                manufacturer = "Example",
+                hardware = "qcom",
+                product = "customsdkdevice",
+                device = "customsdkdevice",
+                board = "kalama",
+                hasKnownRuntimeEvidence = false,
+            ),
+        )
+    }
+
+    @Test
     fun `android studio emulator remains emulator`() {
         assertTrue(
             DeviceEmulatorHeuristics.isEmulatorLikely(

@@ -573,7 +573,11 @@ internal object DeviceEmulatorHeuristics {
             normalizedHardware.contains("qemu") ||
             normalizedHardware.contains("nemu") ||
             normalizedHardware.contains("dummy-virt") ||
-            normalizedProduct.contains("sdk") ||
+            normalizedProduct == "sdk" ||
+            normalizedProduct.startsWith("sdk_") ||
+            normalizedProduct.startsWith("sdk-") ||
+            normalizedProduct == "google_sdk" ||
+            normalizedProduct.startsWith("sdk_gphone") ||
             normalizedProduct.contains("emulator") ||
             normalizedProduct.contains("simulator") ||
             normalizedProduct.contains("mumu") ||
