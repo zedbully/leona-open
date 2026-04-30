@@ -33,8 +33,8 @@ Copy/paste a new row per sample:
 
 | Sample | Vendor/version | Android/ABI | ADB serial | Install path | boxId | Server verdict summary | Evidence highlights | Artifacts path | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| MuMu |  |  |  |  |  |  |  |  |  |
-| Android Studio Emulator |  |  |  |  |  |  |  |  |  |
+| MuMu | MuMu connected through ADB TCP | Android 12 / arm64-v8a | `127.0.0.1:16512` | Installed debug sample | `01KQBAEJW4RR75TSFJY62Z7EE3` | `environment.emulator.detected` in sample verdict | `nemud.*`, `nemu*` services, MuMu binary, QEMU/hypervisor style evidence from prior E2E; posture control reported `user/release-keys`, no root manager packages | `/tmp/leona-posture-mumu-20260430-next/device-posture.json` | Keep vendor-spoofing evidence separate from ROM/build evidence. |
+| Android Studio Emulator | AVD `sdk_gphone64_arm64` / ranchu | Android 14 / arm64-v8a | `emulator-5554` | Installed debug sample | `01KQFNYMG5K016BDPV36TC4GGQ` | `environment.emulator`, `environment.emulator.detected`, `environment.emulator.native`, `environment.risky`, `risk.critical` | `env.emulator.avd.ranchu`, `env.emulator.avd.sdk_gphone`, synthetic ARM CPU profile, QEMU boot/kernel flags; posture control reported `userdebug/dev-keys`, no root manager packages | `/tmp/leona-emulator5554-redaction-check-20260430-appside3/events.json`; posture `/tmp/leona-posture-ase-20260430-next/device-posture.json` | Logcat E2E export confirmed raw canonical/deviceId/installId and local endpoints are redacted. |
 | LDPlayer |  |  |  |  |  |  |  |  |  |
 | Nox |  |  |  |  |  |  |  |  |  |
 | BlueStacks |  |  |  |  |  |  |  |  |  |
@@ -70,4 +70,3 @@ LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
 
 Do not embed or ship server-side verdict secrets in the APK. Host-side scripts
 or your backend should hold any secrets needed to query or verify `/v1/verdict`.
-
