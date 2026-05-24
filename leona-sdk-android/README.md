@@ -96,6 +96,12 @@ resolution. Maven Central remains the preferred zero-token public consumer
 experience, but it is blocked until the project has a verified namespace,
 Central Portal publishing credentials, and signing material.
 
+The SDK Gradle publication has a public-safe `MavenCentral` repository path and
+in-memory PGP signing wiring. Credentials are read only from Gradle properties
+or environment variables such as `CENTRAL_PORTAL_USERNAME`,
+`CENTRAL_PORTAL_PASSWORD`, `SIGNING_KEY`, and `SIGNING_PASSWORD`; secret values
+must stay outside the public repository and outside public workflow logs.
+
 For the pre-Central release gate, run the public-safe readiness check:
 
 ```bash

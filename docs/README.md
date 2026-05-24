@@ -21,7 +21,18 @@ Not public:
 - private customer policy
 - secrets or environment-specific records
 
-Start here:
+Default read order for Codex / automation:
+
+- [Current work snapshot](work-items.md)
+- [v0.4 command board](v0.4-command-board.md)
+- [iOS work items](ios-work-items.md) for iOS execution
+- [Web Enterprise work items](web-work-items.md) for Web execution
+- [Web Enterprise command board](leona-web-command-board.md) only for Web product/architecture context
+- [Next version summary](next-version-plan.md)
+
+Do not bulk-read [`archive/longform-20260522/`](archive/longform-20260522/) during routine startup or heartbeat runs. It preserves full historical/design documents that were compacted for token hygiene.
+
+Public SDK docs:
 
 - [Open-source policy](open-source-policy.md)
 - [Public/private boundary matrix](open-vs-private-final-matrix.md)

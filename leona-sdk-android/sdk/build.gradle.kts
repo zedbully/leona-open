@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     id("maven-publish")
+    id("signing")
 }
 
 val releaseTagVersion = providers.environmentVariable("GITHUB_REF_NAME")
@@ -162,6 +163,46 @@ publishing {
                     .get()
             }
         }
+        maven {
+            name = "MavenCentral"
+            url = uri(
+                providers.gradleProperty("LEONA_MAVEN_CENTRAL_URL")
+                    .orElse(providers.environmentVariable("CENTRAL_PORTAL_URL"))
+                    .orElse("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
+                    .get(),
+            )
+            credentials {
+                username = providers.gradleProperty("centralPortalUsername")
+                    .orElse(providers.environmentVariable("CENTRAL_PORTAL_USERNAME"))
+                    .orElse("")
+                    .get()
+                password = providers.gradleProperty("centralPortalPassword")
+                    .orElse(providers.environmentVariable("CENTRAL_PORTAL_PASSWORD"))
+                    .orElse("")
+                    .get()
+            }
+        }
+    }
+}
+
+signing {
+    val signingKey = providers.gradleProperty("signingKey")
+        .orElse(providers.environmentVariable("SIGNING_KEY"))
+        .orNull
+    val signingPassword = providers.gradleProperty("signingPassword")
+        .orElse(providers.environmentVariable("SIGNING_PASSWORD"))
+        .orNull
+    val signingKeyId = providers.gradleProperty("signingKeyId")
+        .orElse(providers.environmentVariable("SIGNING_KEY_ID"))
+        .orNull
+
+    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        if (signingKeyId.isNullOrBlank()) {
+            useInMemoryPgpKeys(signingKey, signingPassword)
+        } else {
+            useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
+        }
+        sign(publishing.publications["release"])
     }
 }
 

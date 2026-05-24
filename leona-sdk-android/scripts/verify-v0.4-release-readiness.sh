@@ -100,6 +100,16 @@ run_optional_gate() {
   fi
 }
 
+ACQUISITION_ATTEMPT_ARGS=()
+if [[ -n "${LEONA_ANDROID_EXTERNAL_EMULATOR_INSTALL_ATTEMPTS:-}" ]]; then
+  IFS=',' read -r -a ACQUISITION_ATTEMPTS <<< "${LEONA_ANDROID_EXTERNAL_EMULATOR_INSTALL_ATTEMPTS}"
+  for attempt in "${ACQUISITION_ATTEMPTS[@]}"; do
+    if [[ -n "${attempt}" ]]; then
+      ACQUISITION_ATTEMPT_ARGS+=(--record-install-attempt "${attempt}")
+    fi
+  done
+fi
+
 cd "${REPO_DIR}"
 
 echo "[v0.4-readiness] Leona Android/Server public-safe gate"
@@ -323,6 +333,12 @@ require_executable "clean OEM ledger gate is executable" \
   "leona-sdk-android/scripts/verify-clean-oem-ledger.sh"
 require_executable "v0.4 Android matrix readiness gate is executable" \
   "leona-sdk-android/scripts/verify-v0.4-android-matrix-readiness.sh"
+require_executable "Android matrix external import gate is executable" \
+  "leona-sdk-android/scripts/import-android-matrix-external-sample.py"
+require_executable "Android external emulator acquisition preflight is executable" \
+  "leona-sdk-android/scripts/probe-android-external-emulator-acquisition.py"
+require_executable "attestation real-smoke preflight gate is executable" \
+  "leona-sdk-android/scripts/verify-v0.4-attestation-real-smoke-preflight.py"
 require_executable "Maven Central readiness gate is executable" \
   "leona-sdk-android/scripts/verify-maven-central-readiness.sh"
 require_executable "backend wrapper verification gate is executable" \
@@ -385,6 +401,30 @@ run_gate "v0.4 Android matrix readiness gate" \
   "android-matrix-readiness" \
   env LEONA_V04_ANDROID_MATRIX_OUT="${REPORT_DIR}/android-matrix" \
     "${ROOT_DIR}/scripts/verify-v0.4-android-matrix-readiness.sh"
+
+MATRIX_IMPORT_INPUT="${LEONA_ANDROID_MATRIX_EXTERNAL_IMPORT_DIR:-/tmp/leona-android-matrix-bootstrap-active}"
+if [[ -d "${MATRIX_IMPORT_INPUT}" ]]; then
+  run_gate "Android matrix external sample import gate" \
+    "android-matrix-external-import" \
+    "${ROOT_DIR}/scripts/import-android-matrix-external-sample.py" \
+      --input-dir "${MATRIX_IMPORT_INPUT}" \
+      --output-dir "${REPORT_DIR}/android-matrix-external-import" \
+      --source-label "release-readiness-import" \
+      --require-sample
+else
+  warn "Android matrix external sample import gate skipped; set LEONA_ANDROID_MATRIX_EXTERNAL_IMPORT_DIR to a collected matrix artifact directory."
+fi
+
+run_gate "Android external emulator acquisition preflight" \
+  "android-external-emulator-acquisition" \
+  "${ROOT_DIR}/scripts/probe-android-external-emulator-acquisition.py" \
+    --output-dir "${REPORT_DIR}/android-external-emulator-acquisition" \
+    "${ACQUISITION_ATTEMPT_ARGS[@]}"
+
+run_gate "attestation real-smoke preflight gate" \
+  "attestation-real-smoke-preflight" \
+  "${ROOT_DIR}/scripts/verify-v0.4-attestation-real-smoke-preflight.py" \
+    --output-dir "${REPORT_DIR}/attestation-real-smoke-preflight"
 
 run_gate "Maven Central readiness gate" \
   "maven-central-readiness" \
@@ -459,7 +499,7 @@ run_optional_gate "public post-release consumption smoke" \
   env LEONA_TARGET_RELEASE_VERSION="${VERSION}" \
     "${ROOT_DIR}/scripts/verify-v0.4-post-release-consumption.sh"
 
-blocker "Full v0.4 Android environment matrix still needs external emulator, custom ROM/GSI/unlocked, and extra hide-module samples."
+blocker "Full v0.4 Android environment matrix still needs external emulator, custom ROM/GSI/unlocked, and extra hide-module samples; acquisition preflight now records local OS/admin/GUI blockers."
 blocker "Real Play Integrity or OEM attestation provider smoke still needs provider credentials, allowlist, and server verifier configuration."
 blocker "Maven Central publish still needs Sonatype Central Portal namespace/token and PGP signing material."
 blocker "Authenticated homepage live ops smoke still needs deployment login credentials and formal connector/report environment variables."
