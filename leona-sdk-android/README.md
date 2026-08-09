@@ -273,6 +273,19 @@ The compatibility contract is stored in
 It preserves the product boundary: the Android SDK only collects and reports
 evidence; the customer backend owns all final business decisions.
 
+The public repository also contains a separately triggered GitHub-hosted
+boundary runtime workflow in
+[`../.github/workflows/android-cloud-runtime.yml`](../.github/workflows/android-cloud-runtime.yml).
+It builds one short-lived `cloudTest` APK candidate, runs direct `sense()` and
+public-hosted report transport on Google APIs x86_64 AVDs at API 23 and API 36,
+and uploads only redacted, hash-bound evidence. The fixture returns opaque
+identifiers but never an allow/deny decision, its credentials are generated
+ephemerally, and neither the APK nor the private environment file is uploaded.
+
+This boundary workflow strengthens Android 6/16 runtime coverage; it does not
+replace the complete API 23-36 matrix, clean physical/OEM coverage, Play
+Integrity or OEM attestation, and it never claims commercial admission.
+
 The Android tag publish workflow dry-run is:
 
 ```bash

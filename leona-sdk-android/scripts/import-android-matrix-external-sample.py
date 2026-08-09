@@ -29,6 +29,7 @@ SECRETISH = re.compile(
 RAW_ADB_SERIAL_LINE = re.compile(
     r"(?i)\b(?:adb serial|serial)\b\s*[:=]\s*(?!sha256|hash|absent|not_generated|not collected)([`'\"]?)([A-Za-z0-9_.:-]{5,})\1"
 )
+SHA256_HEX = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -130,6 +131,9 @@ def normalize_sample(
     environment_type = raw_environment_type if raw_environment_type and raw_environment_type != "unknown" else classify_environment(brand, model, derived, row_path)
     result = metadata.get("Pass / blocked / failed") or "unknown"
     box = metadata.get("BoxId") or metadata.get("Canonical hash or hint") or ""
+    apk_sha256 = (metadata.get("APK SHA-256") or device_env.get("apk_sha256") or "").strip().lower()
+    if not SHA256_HEX.fullmatch(apk_sha256):
+        apk_sha256 = ""
     reason = metadata.get("Reason") or ""
     trigger_match = re.search(r"generated through ([a-z-]+) trigger", reason, re.IGNORECASE)
     trigger_type = trigger_match.group(1).lower() if trigger_match else "unknown"
@@ -146,6 +150,7 @@ def normalize_sample(
         "serialHashHint": serial_hash[:16] if serial_hash else "",
         "androidIdHashHint": (device_env.get("android_id_sha256") or posture_env.get("android_id_hash") or "")[:16],
         "fingerprintHashHint": (device_env.get("fingerprint_sha256") or posture_env.get("fingerprint_hash") or "")[:16],
+        "apkSha256": apk_sha256,
         "boxIdHintOrHash": sanitize_hint(box),
         "result": result,
         "triggerType": trigger_type,

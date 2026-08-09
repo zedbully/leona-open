@@ -202,6 +202,16 @@ return a local trust verdict.
 
 ## CI
 
-GitHub Actions runs the public Android SDK build and unit-test gate. Internal
-backend, private runtime, and tenant policy validation are closed-source for
-security reasons and run outside this public repository.
+GitHub Actions runs the public Android SDK build and unit-test gate in
+`.github/workflows/android.yml`. The separately triggered
+`.github/workflows/android-cloud-runtime.yml` builds one ephemeral `cloudTest`
+APK and exercises direct `sense()` plus public-hosted reporting on API 23 and
+API 36 GitHub-managed AVDs. It publishes only redacted import, fixture receipt,
+provenance, and verifier summaries; the APK, AppKey, cloud-test token, raw
+BoxId, and raw device identifiers are not artifacts.
+
+The hosted AVD result is boundary runtime evidence only. It is not the complete
+API 23-36 runtime matrix, physical/OEM or real attestation evidence, a customer
+backend decision, or commercial admission. Internal backend, private runtime,
+and tenant policy validation remain closed-source and run outside this public
+repository.

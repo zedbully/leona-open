@@ -33,6 +33,7 @@ class MatrixImporterTest(unittest.TestCase):
                 "Model": "sdk_gphone64_arm64",
                 "Android version / API": "16 / 36",
                 "Serial hash": "a" * 64,
+                "APK SHA-256": "b" * 64,
                 **metadata,
             },
             {},
@@ -53,7 +54,12 @@ class MatrixImporterTest(unittest.TestCase):
         self.assertTrue(sample["senseTriggered"])
         self.assertTrue(sample["reportVerified"])
         self.assertTrue(sample["collectedAt"].endswith("+00:00"))
+        self.assertEqual("b" * 64, sample["apkSha256"])
         self.assertNotIn(TEST_BOX_ID, sample["boxIdHintOrHash"])
+
+    def test_invalid_apk_hash_is_not_imported(self) -> None:
+        sample = self.normalize({"APK SHA-256": "not-a-sha256"})
+        self.assertEqual("", sample["apkSha256"])
 
     def test_blocked_sample_cannot_claim_sense_or_report(self) -> None:
         sample = self.normalize(
