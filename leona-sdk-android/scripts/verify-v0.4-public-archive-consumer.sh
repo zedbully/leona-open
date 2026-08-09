@@ -73,6 +73,8 @@ required_file "leona-sdk-android/scripts/tests/test_github_hosted_runtime_workfl
 required_file "leona-sdk-android/scripts/tests/test_run_public_hosted_reporting_fixture.py"
 required_file "leona-sdk-android/scripts/tests/test_run_cloud_device_collection.py"
 required_file "leona-sdk-android/scripts/tests/test_verify_github_hosted_runtime_evidence.py"
+required_file "leona-sdk-android/scripts/tests/test_verify_v04_android_matrix_readiness.py"
+required_file "leona-sdk-android/scripts/tests/test_verify_v04_version_markers.py"
 required_file "leona-sdk-android/scripts/tests/test_verify_android_6_16_compatibility.py"
 required_file "leona-sdk-android/scripts/run-github-hosted-runtime-matrix.sh"
 required_file "leona-sdk-android/scripts/run-public-hosted-reporting-fixture.py"

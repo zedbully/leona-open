@@ -33,7 +33,14 @@ require_contains() {
   local label="$1"
   local path="$2"
   local pattern="$3"
-  if rg -n "${pattern}" "${ROOT_DIR}/${path}" > "${REPORT_DIR}/${label// /-}.txt" 2>&1; then
+  local output="${REPORT_DIR}/${label// /-}.txt"
+  local result=0
+  if command -v rg >/dev/null 2>&1; then
+    rg -n "${pattern}" "${ROOT_DIR}/${path}" > "${output}" 2>&1 || result=$?
+  else
+    grep -En "${pattern}" "${ROOT_DIR}/${path}" > "${output}" 2>&1 || result=$?
+  fi
+  if [[ ${result} -eq 0 ]]; then
     pass "${label}"
   else
     fail "${label}"

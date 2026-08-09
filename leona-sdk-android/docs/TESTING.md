@@ -215,3 +215,9 @@ API 23-36 runtime matrix, physical/OEM or real attestation evidence, a customer
 backend decision, or commercial admission. Internal backend, private runtime,
 and tenant policy validation remain closed-source and run outside this public
 repository.
+
+To bind a downloaded artifact into matrix readiness, set
+`LEONA_GITHUB_HOSTED_RUNTIME_ROOT` to its `leona-github-cloud-runtime`
+directory and run `scripts/verify-v0.4-android-matrix-readiness.sh`. The gate
+reruns the evidence verifier; it does not count this hosted boundary as a
+physical/OEM full-matrix sample.

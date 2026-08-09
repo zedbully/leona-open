@@ -286,6 +286,18 @@ This boundary workflow strengthens Android 6/16 runtime coverage; it does not
 replace the complete API 23-36 matrix, clean physical/OEM coverage, Play
 Integrity or OEM attestation, and it never claims commercial admission.
 
+After downloading the workflow artifact, consume the two API directories with
+the normal matrix readiness gate instead of trusting the uploaded summary:
+
+```bash
+LEONA_GITHUB_HOSTED_RUNTIME_ROOT=/path/to/leona-github-cloud-runtime \
+  ./scripts/verify-v0.4-android-matrix-readiness.sh
+```
+
+The gate reruns the fail-closed same-candidate verifier and records
+`github_hosted_boundary_runtime=pass`, while explicitly keeping
+`countsTowardFullExternalMatrix=false`.
+
 The Android tag publish workflow dry-run is:
 
 ```bash
