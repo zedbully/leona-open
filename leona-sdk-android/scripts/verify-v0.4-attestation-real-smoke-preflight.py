@@ -36,12 +36,14 @@ EXPECTED_BLOCKER_CODES = {
     "play_integrity": {
         "play_integrity_dependency",
         "play_integrity_cloud_project",
+        "play_integrity_server_verifier_contract",
         "play_integrity_package_name",
         "play_integrity_certificate_allowlist",
         "play_integrity_application_default_credentials",
         "play_integrity_device_token_artifact",
     },
     "oem": {
+        "oem_server_verifier_contract",
         "oem_trusted_provider_allowlist",
         "oem_private_verifier",
         "oem_provider_namespace",
@@ -81,9 +83,10 @@ def main() -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    checks = run_local_checks()
+    private_server_root = attestation_server_root()
+    checks = run_local_checks(private_server_root)
     provider_replay = run_provider_replay_checks()
-    blockers = run_external_material_checks(args.target)
+    blockers = run_external_material_checks(args.target, private_server_root)
     failures = [check for check in checks if check["status"] == "fail"]
     if failures or provider_replay["failureCount"]:
         status = "failed"
@@ -114,6 +117,7 @@ def main() -> int:
         "providerReplayPassCount": provider_replay["passCount"],
         "providerReplayFailureCount": provider_replay["failureCount"],
         "realProviderContacted": False,
+        "privateServerContractAvailable": server_contract_available(args.target, private_server_root),
         "checks": checks,
         "localCheckCount": len(checks),
         "localPassCount": sum(1 for check in checks if check["status"] == "pass"),
@@ -136,7 +140,7 @@ def main() -> int:
     return 0 if status != "failed" else 1
 
 
-def run_local_checks() -> list[dict[str, str]]:
+def run_local_checks(private_server_root: Path) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
     checks.append(require_pattern(
         "sdk play integrity scaffold exists",
@@ -173,36 +177,37 @@ def run_local_checks() -> list[dict[str, str]]:
         SDK_DIR / "sample-app/MAINLAND_ATTESTATION_BRIDGE_TEMPLATE.md",
         r"oem_bridge|LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
     ))
-    checks.append(require_pattern(
-        "server OEM verifier bridge is optional/private",
-        REPO_DIR / "leona-server/ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/OemAttestationVerifiers.java",
-        r"PrivateOemAttestationVerifier|OEM_ATTESTATION_VERIFIER_MISSING",
-    ))
-    checks.append(require_pattern(
-        "server Play Integrity verifier bridge is optional/private",
-        REPO_DIR / "leona-server/ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/PlayIntegrityAttestationVerifiers.java",
-        r"PrivatePlayIntegrityAttestationVerifier|PLAY_INTEGRITY_VERIFIER_MISSING",
-    ))
-    checks.append(require_pattern(
-        "private Play Integrity verifier binds package certificate and request hash",
-        REPO_DIR / "leona-server/private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivatePlayIntegrityAttestationVerifier.java",
-        r"LEONA_PLAY_INTEGRITY_PACKAGE_NAME[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS[\s\S]*PLAY_INTEGRITY_CHALLENGE_MISMATCH",
-    ))
-    checks.append(require_pattern(
-        "private Play Integrity decoder uses official Google endpoint and OAuth scope",
-        REPO_DIR / "leona-server/private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/GooglePlayIntegrityTokenDecoder.java",
-        r"https://www\.googleapis\.com/auth/playintegrity[\s\S]*https://playintegrity\.googleapis\.com[\s\S]*decodeIntegrityToken",
-    ))
-    checks.append(require_pattern(
-        "handshake keeps attestation evidence-only by default",
-        REPO_DIR / "leona-server/ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java",
-        r"leona\.handshake\.attestation\.enforce:false",
-    ))
-    checks.append(require_pattern(
-        "server deployment template carries fail-closed attestation inputs and safe defaults",
-        REPO_DIR / "leona-server/deploy/prod-homeleona/.env.example",
-        r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
-    ))
+    if private_server_root.is_dir():
+        checks.append(require_pattern(
+            "server OEM verifier bridge is optional/private",
+            private_server_root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/OemAttestationVerifiers.java",
+            r"PrivateOemAttestationVerifier|OEM_ATTESTATION_VERIFIER_MISSING",
+        ))
+        checks.append(require_pattern(
+            "server Play Integrity verifier bridge is optional/private",
+            private_server_root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/PlayIntegrityAttestationVerifiers.java",
+            r"PrivatePlayIntegrityAttestationVerifier|PLAY_INTEGRITY_VERIFIER_MISSING",
+        ))
+        checks.append(require_pattern(
+            "private Play Integrity verifier binds package certificate and request hash",
+            private_server_root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivatePlayIntegrityAttestationVerifier.java",
+            r"LEONA_PLAY_INTEGRITY_PACKAGE_NAME[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS[\s\S]*PLAY_INTEGRITY_CHALLENGE_MISMATCH",
+        ))
+        checks.append(require_pattern(
+            "private Play Integrity decoder uses official Google endpoint and OAuth scope",
+            private_server_root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/GooglePlayIntegrityTokenDecoder.java",
+            r"https://www\.googleapis\.com/auth/playintegrity[\s\S]*https://playintegrity\.googleapis\.com[\s\S]*decodeIntegrityToken",
+        ))
+        checks.append(require_pattern(
+            "handshake keeps attestation evidence-only by default",
+            private_server_root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java",
+            r"leona\.handshake\.attestation\.enforce:false",
+        ))
+        checks.append(require_pattern(
+            "server deployment template carries fail-closed attestation inputs and safe defaults",
+            private_server_root / "deploy/prod-homeleona/.env.example",
+            r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
+        ))
     checks.append(require_pattern(
         "sample release guard rejects attestation debug/test properties",
         SDK_DIR / "sample-app/build.gradle.kts",
@@ -264,9 +269,11 @@ def replay_fixture(provider: str, format_value: str, token_material: str) -> dic
     }
 
 
-def run_external_material_checks(target: str) -> list[dict[str, str]]:
+def run_external_material_checks(target: str, private_server_root: Path) -> list[dict[str, str]]:
     blockers: list[dict[str, str]] = []
     if target in {"both", "play_integrity"}:
+        if not play_server_contract_available(private_server_root):
+            blockers.append(blocker("play_integrity_server_verifier_contract", "mount the private Play Integrity server contract outside the public checkout"))
         dep_enabled = os.environ.get("LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP", "").lower() == "true"
         cloud_project = (
             os.environ.get("LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER")
@@ -293,6 +300,8 @@ def run_external_material_checks(target: str) -> list[dict[str, str]]:
             blockers.append(blocker("play_integrity_device_token_artifact", "provide a mode-0600 private token artifact generated by the real device bridge outside the repository"))
 
     if target in {"both", "oem"}:
+        if not oem_server_contract_available(private_server_root):
+            blockers.append(blocker("oem_server_verifier_contract", "mount the private OEM server contract outside the public checkout"))
         trusted = [item.strip() for item in os.environ.get("LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS", "").split(",") if item.strip()]
         non_demo_trusted = [item for item in trusted if item != "sample_mainland_debug"]
         private_verifier_ready = os.environ.get("LEONA_OEM_ATTESTATION_PRIVATE_VERIFIER_READY") == "1"
@@ -307,6 +316,33 @@ def run_external_material_checks(target: str) -> list[dict[str, str]]:
         if not bridge_ready:
             blockers.append(blocker("oem_device_bridge", "install a host-app OEM bridge backed by a real OEM SDK"))
     return blockers
+
+
+def attestation_server_root() -> Path:
+    configured = os.environ.get("LEONA_ATTESTATION_SERVER_ROOT", "").strip()
+    return Path(configured).expanduser() if configured else REPO_DIR / "leona-server"
+
+
+def play_server_contract_available(root: Path) -> bool:
+    return all(path.is_file() for path in (
+        root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/PlayIntegrityAttestationVerifiers.java",
+        root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivatePlayIntegrityAttestationVerifier.java",
+        root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/GooglePlayIntegrityTokenDecoder.java",
+        root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java",
+        root / "deploy/prod-homeleona/.env.example",
+    ))
+
+
+def oem_server_contract_available(root: Path) -> bool:
+    return (root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/OemAttestationVerifiers.java").is_file()
+
+
+def server_contract_available(target: str, root: Path) -> bool:
+    if target == "play_integrity":
+        return play_server_contract_available(root)
+    if target == "oem":
+        return oem_server_contract_available(root)
+    return play_server_contract_available(root) and oem_server_contract_available(root)
 
 
 def application_default_credentials_ready() -> bool:
@@ -413,6 +449,7 @@ def write_report(output_dir: Path, report: dict[str, Any]) -> None:
         f"- provider replay pass count: {report['providerReplayPassCount']}",
         f"- provider replay failure count: {report['providerReplayFailureCount']}",
         f"- real provider contacted: {str(report['realProviderContacted']).lower()}",
+        f"- private server contract available: {str(report['privateServerContractAvailable']).lower()}",
         f"- external blocker count: {report['externalBlockerCount']}",
         f"- Play Integrity blocker count: {report['externalBlockerCountsByProvider']['play_integrity']}",
         f"- OEM blocker count: {report['externalBlockerCountsByProvider']['oem']}",
