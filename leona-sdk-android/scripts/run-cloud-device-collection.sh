@@ -173,7 +173,8 @@ write_matrix_row_template() {
   local verdict_json="${OUT_DIR}/server-verdict.json"
   local brand manufacturer model release sdk abi serial_hash android_id_hash fingerprint_hash
   local install_result app_debuggable harness_present harness_notes box_id canonical_hint canonical_sha
-  local server_level server_score authoritative_events contributing_events actual_status reason follow_up
+  local server_level="" server_score="" authoritative_events="" contributing_events=""
+  local actual_status reason follow_up
   brand="$(prop_value "${summary}" "brand")"
   manufacturer="$(prop_value "${summary}" "manufacturer")"
   model="$(prop_value "${summary}" "model")"
