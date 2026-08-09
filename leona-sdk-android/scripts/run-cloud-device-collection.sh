@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADB="${ADB:-adb}"
 SERIAL="${ANDROID_SERIAL:-${ADB_SERIAL:-}}"
 APK="${LEONA_APK:-}"
@@ -24,6 +25,10 @@ SENSE_TAP_Y="${LEONA_SENSE_TAP_Y:-435}"
 SENSE_WAIT_SECONDS="${LEONA_SENSE_WAIT_SECONDS:-18}"
 CLOUD_TEST_SENSE_ACTION="${LEONA_CLOUD_TEST_SENSE_ACTION:-io.leonasec.leona.sample.CLOUD_TEST_SENSE}"
 CLOUD_TEST_TOKEN="${LEONA_CLOUD_TEST_TOKEN:-}"
+CLOUD_TEST_RUN_ID="${LEONA_CLOUD_TEST_RUN_ID:-}"
+CLOUD_TEST_RUN_ID_SHA256=""
+CLOUD_TEST_RESULT_PARSER="${LEONA_CLOUD_TEST_RESULT_PARSER:-${SCRIPT_DIR}/parse-cloud-test-sense-result.py}"
+WETEST_COMMAND_TIMEOUT_SECONDS="${WETEST_COMMAND_TIMEOUT_SECONDS:-$((SENSE_WAIT_SECONDS + 35))}"
 
 sha256_file() {
   if command -v shasum >/dev/null 2>&1; then
@@ -45,9 +50,47 @@ redact_secret_file() {
   local file="$1"
   local secret="$2"
   if [[ -n "${secret}" && -f "${file}" ]]; then
-    local escaped
-    escaped="$(printf '%s' "${secret}" | sed 's/[\/&]/\\&/g')"
-    sed -i.bak "s/${escaped}/<redacted>/g" "${file}" && rm -f "${file}.bak"
+    # Webshell terminals can echo a value with CR/LF line wrapping and ANSI
+    # control sequences between its characters.  Match the terminal rendering,
+    # rather than only the exact byte sequence, and then fail closed if an
+    # eight-character (or whole short-secret) fragment remains.
+    if ! LEONA_REDACTION_SECRET="${secret}" python3 - "${file}" <<'PY'
+import os
+import re
+import sys
+
+path = sys.argv[1]
+secret = os.environ["LEONA_REDACTION_SECRET"]
+text = open(path, "r", encoding="utf-8", errors="surrogateescape").read()
+
+# CSI covers standard terminal colour/cursor sequences; CR/LF covers wrapping.
+ansi = r"\x1b\[[0-?]*[ -/]*[@-~]"
+separator = r"(?:(?:\r\n|\r|\n)|" + ansi + r")*"
+rendered_secret = separator.join(re.escape(char) for char in secret)
+redacted, count = re.subn(rendered_secret, "<redacted>", text)
+if count == 0:
+    redacted = text
+
+# Do not print the fragment or secret: this exit status is deliberately the
+# only evidence of a residual token.  A short secret is checked in full.
+fragment_length = min(8, len(secret))
+if fragment_length:
+    for start in range(len(secret) - fragment_length + 1):
+        fragment = separator.join(
+            re.escape(char) for char in secret[start:start + fragment_length]
+        )
+        if re.search(fragment, redacted):
+            open(path, "w", encoding="utf-8", errors="surrogateescape").write(
+                "<redaction-failed: residual token removed>\n"
+            )
+            sys.exit(1)
+
+open(path, "w", encoding="utf-8", errors="surrogateescape").write(redacted)
+PY
+    then
+      echo "Secret redaction left a residual token fragment in ${file}; refusing to continue." >&2
+      return 1
+    fi
   fi
 }
 
@@ -55,6 +98,27 @@ redact_sensitive_patterns_file() {
   local file="$1"
   if [[ -f "${file}" ]]; then
     sed -E -i.bak 's/ct_[A-Za-z0-9]{20,}/<redacted>/g' "${file}" && rm -f "${file}.bak"
+  fi
+}
+
+redact_box_ids_file() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    python3 - "${file}" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", errors="surrogateescape").read()
+text = re.sub(
+    r"\b(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b",
+    "<box-id-redacted>",
+    text,
+    flags=re.IGNORECASE,
+)
+open(path, "w", encoding="utf-8", errors="surrogateescape").write(text)
+PY
   fi
 }
 
@@ -70,6 +134,62 @@ redact_sensitive_file() {
 
 single_quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+json_field() {
+  local file="$1"
+  local field="$2"
+  python3 - "${file}" "${field}" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+try:
+    value = json.load(open(sys.argv[1], encoding="utf-8")).get(sys.argv[2])
+except (OSError, ValueError, AttributeError):
+    value = None
+if value is True:
+    print("true")
+elif value is False:
+    print("false")
+elif value is not None:
+    print(value)
+PY
+}
+
+normalize_cloud_test_result() {
+  local normalized="${OUT_DIR}/sense-result.normalized.json"
+  local parser_log="${OUT_DIR}/sense-result-parser.log"
+  local candidate temporary
+  rm -f "${normalized}"
+  : > "${parser_log}"
+  if [[ ! -f "${CLOUD_TEST_RESULT_PARSER}" ]]; then
+    echo "cloudTest result parser unavailable" >> "${parser_log}"
+    return 1
+  fi
+  for candidate in "$@"; do
+    [[ -s "${candidate}" ]] || continue
+    temporary="${normalized}.tmp"
+    local parser_status=0
+    rm -f "${temporary}"
+    if [[ -n "${CLOUD_TEST_RUN_ID_SHA256}" ]]; then
+      python3 "${CLOUD_TEST_RESULT_PARSER}" \
+        --input "${candidate}" \
+        --output "${temporary}" \
+        --expected-run-id-sha256 "${CLOUD_TEST_RUN_ID_SHA256}" \
+        >> "${parser_log}" 2>&1 || parser_status=$?
+    else
+      python3 "${CLOUD_TEST_RESULT_PARSER}" \
+        --input "${candidate}" \
+        --output "${temporary}" \
+        >> "${parser_log}" 2>&1 || parser_status=$?
+    fi
+    if [[ "${parser_status}" == "0" ]]; then
+      mv "${temporary}" "${normalized}"
+      return 0
+    fi
+    rm -f "${temporary}"
+  done
+  return 1
 }
 
 adb_cmd() {
@@ -130,6 +250,7 @@ Optional:
   LEONA_VERDICT_RESULT_JSON=/path/server-verdict.json  Optional redacted result from your backend's BoxId verdict query.
   LEONA_TRIGGER_SENSE=direct|ui|none    direct uses cloudTest BroadcastReceiver; ui taps sample UI.
   LEONA_CLOUD_TEST_TOKEN=<token>         Required for LEONA_TRIGGER_SENSE=direct.
+  LEONA_CLOUD_TEST_RUN_ID=<ephemeral>    Optional; generated automatically and persisted only as a digest.
   LEONA_CLICK_SENSE=1                   Deprecated alias for LEONA_TRIGGER_SENSE=ui.
   LEONA_CLOUD_TEST_SENSE_ACTION=...     Broadcast action for direct cloudTest sense().
   UI mode locates buttonSense by resource-id, then falls back to LEONA_SENSE_TAP_X/Y.
@@ -163,6 +284,12 @@ if [[ "${TRIGGER_SENSE}" == "direct" && -z "${CLOUD_TEST_TOKEN}" ]]; then
   echo "LEONA_CLOUD_TEST_TOKEN is required when LEONA_TRIGGER_SENSE=direct." >&2
   exit 2
 fi
+if [[ "${TRIGGER_SENSE}" == "direct" ]]; then
+  if [[ -z "${CLOUD_TEST_RUN_ID}" ]]; then
+    CLOUD_TEST_RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+  fi
+  CLOUD_TEST_RUN_ID_SHA256="$(sha256_text "${CLOUD_TEST_RUN_ID}" | cut -c1-16)"
+fi
 
 write_matrix_row_template() {
   local row="$1"
@@ -172,9 +299,9 @@ write_matrix_row_template() {
   local logcat="${OUT_DIR}/logcat.leona.txt"
   local verdict_json="${OUT_DIR}/server-verdict.json"
   local brand manufacturer model release sdk abi serial_hash android_id_hash fingerprint_hash
-  local install_result app_debuggable harness_present harness_notes box_id canonical_hint canonical_sha
+  local install_result app_debuggable harness_present harness_notes box_id_hash box_id_display canonical_hint canonical_sha
   local server_level="" server_score="" authoritative_events="" contributing_events=""
-  local actual_status reason follow_up
+  local actual_status reason follow_up terminal_status reporting_configured api_key_configured observed_run_id_hash correlation_matches expected_run_id_hash
   brand="$(prop_value "${summary}" "brand")"
   manufacturer="$(prop_value "${summary}" "manufacturer")"
   model="$(prop_value "${summary}" "model")"
@@ -199,23 +326,44 @@ write_matrix_row_template() {
     harness_present="$(grep -Eq '^global\.(adb_enabled|development_settings_enabled)=1$' "${posture}" 2>/dev/null && echo yes || echo no)"
     harness_notes="$([[ "${harness_present}" == "yes" ]] && echo "ADB/dev-settings enabled during test." || echo "")"
   fi
-  box_id="$(grep -Eo '"boxId":"[^"]+"' "${logcat}" 2>/dev/null | head -1 | cut -d'"' -f4 || true)"
-  canonical_hint="$(grep -Eo '"canonicalDeviceIdHint":"[^"]+"' "${logcat}" 2>/dev/null | head -1 | cut -d'"' -f4 || true)"
-  canonical_sha="$(grep -Eo '"canonicalDeviceIdSha256":"[^"]+"' "${logcat}" 2>/dev/null | head -1 | cut -d'"' -f4 || true)"
-  if [[ -n "${box_id}" && -f "${verdict_json}" ]]; then
+  box_id_hash="$(json_field "${OUT_DIR}/sense-result.normalized.json" "boxIdSha256")"
+  if [[ -n "${box_id_hash}" ]]; then
+    box_id_display="sha256:${box_id_hash}"
+  else
+    box_id_display="not_generated"
+  fi
+  terminal_status="$(json_field "${OUT_DIR}/sense-result.normalized.json" "status")"
+  reporting_configured="$(json_field "${OUT_DIR}/sense-result.normalized.json" "reportingEndpointConfigured")"
+  api_key_configured="$(json_field "${OUT_DIR}/sense-result.normalized.json" "apiKeyConfigured")"
+  observed_run_id_hash="$(json_field "${OUT_DIR}/sense-result.normalized.json" "runIdSha256")"
+  expected_run_id_hash="${CLOUD_TEST_RUN_ID_SHA256:-}"
+  canonical_hint="$(json_field "${OUT_DIR}/sense-result.normalized.json" "canonicalDeviceIdHint")"
+  canonical_sha="$(json_field "${OUT_DIR}/sense-result.normalized.json" "canonicalDeviceIdSha256")"
+  correlation_matches="yes"
+  if [[ "${TRIGGER_SENSE}" == "direct" && ( -z "${expected_run_id_hash}" || "${observed_run_id_hash}" != "${expected_run_id_hash}" ) ]]; then
+    correlation_matches="no"
+  fi
+  if [[ -n "${box_id_hash}" && -f "${verdict_json}" ]]; then
     server_level="$(ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); puts (j["riskLevel"] || j.dig("risk", "level") || j.dig("verdict", "riskLevel")).to_s' "${verdict_json}" 2>/dev/null || true)"
     server_score="$(ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); puts (j["riskScore"] || j.dig("risk", "score") || j.dig("verdict", "riskScore")).to_s' "${verdict_json}" 2>/dev/null || true)"
     authoritative_events="$(ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); a=j["authoritativeEventIds"] || j.dig("provenance", "authoritativeEventIds") || []; puts a.join(", ")' "${verdict_json}" 2>/dev/null || true)"
     contributing_events="$(ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); a=j["contributingEventIds"] || j.dig("policyExplanation", "contributingEventIds") || j.dig("provenance", "contributingEventIds") || []; puts a.join(", ")' "${verdict_json}" 2>/dev/null || true)"
   fi
-  if [[ -n "${box_id}" ]]; then
+  if [[ "${terminal_status}" == "success" && -n "${box_id_hash}" && "${reporting_configured}" == "true" && "${api_key_configured}" == "true" && "${correlation_matches}" == "yes" ]]; then
     actual_status="pass"
-    reason="BoxId generated through ${TRIGGER_SENSE} trigger."
+    reason="BoxId generated through ${TRIGGER_SENSE} trigger and returned by the configured reporting path."
     follow_up="$([[ -n "${server_level}" ]] && echo "Review business backend verdict details." || echo "Query this BoxId through your backend verdict integration and attach a redacted result if needed.")"
   else
     actual_status="blocked"
-    reason="$(grep -E 'LeonaCloudTest.*"event":"error"|SSLHandshake|SocketTimeout|Trust anchor|CertPath' "${logcat}" 2>/dev/null | tail -1 | sed -E 's/[[:space:]]+/ /g' | cut -c1-220 || true)"
-    [[ -z "${reason}" ]] && reason="No BoxId found in LeonaCloudTest logs."
+    if [[ "${terminal_status}" == "error" ]]; then
+      reason="The current correlated cloudTest receiver returned an error; inspect the hash-only normalized result."
+    elif [[ "${correlation_matches}" != "yes" ]]; then
+      reason="No terminal result matched the current direct-trigger correlation."
+    elif [[ "${reporting_configured}" != "true" || "${api_key_configured}" != "true" ]]; then
+      reason="The cloudTest APK did not confirm both reporting endpoint and AppKey configuration."
+    else
+      reason="No current normalized BoxId result was observed."
+    fi
     follow_up="Retry transport/network or inspect app logs."
   fi
   cat > "${row}" <<EOF
@@ -249,10 +397,11 @@ write_matrix_row_template() {
 - Install channel: ${LEONA_INSTALL_CHANNEL:-unknown}
 - Harness telemetry present: ${harness_present}
 - Harness notes: ${harness_notes}
+- Run correlation hash: ${observed_run_id_hash:-not_observed}
 
 ## Leona Result
 
-- BoxId: ${box_id:-not_generated}
+- BoxId: ${box_id_display}
 - Canonical hash or hint: ${canonical_hint}${canonical_sha:+ / sha256 ${canonical_sha}}
 - Verdict id:
 - Attestation provider:
@@ -401,14 +550,23 @@ run_adb_collection() {
   echo "[5/7] Launch sample"
   adb_cmd logcat -c || true
   if [[ "${TRIGGER_SENSE}" == "direct" ]]; then
-    adb_cmd shell am start -n "${ACTIVITY}" > "${OUT_DIR}/am-start.log" || true
+    if ! adb_cmd shell am start -n "${ACTIVITY}" > "${OUT_DIR}/am-start.log" 2>&1; then
+      redact_sensitive_file "${OUT_DIR}/am-start.log" "${CLOUD_TEST_TOKEN}" "${CLOUD_TEST_RUN_ID}" "${E2E_TOKEN}"
+      echo "Sample activity launch failed." >&2
+      return 5
+    fi
     sleep 2
-    adb_cmd shell am broadcast \
+    if ! adb_cmd shell am broadcast \
       -a "${CLOUD_TEST_SENSE_ACTION}" \
       -n "${PACKAGE}/.CloudTestSenseReceiver" \
       --es io.leonasec.leona.sample.CLOUD_TEST_TOKEN "${CLOUD_TEST_TOKEN}" \
-      >> "${OUT_DIR}/am-start.log" || true
-    redact_sensitive_file "${OUT_DIR}/am-start.log" "${CLOUD_TEST_TOKEN}" "${E2E_TOKEN}"
+      --es io.leonasec.leona.sample.CLOUD_TEST_RUN_ID "${CLOUD_TEST_RUN_ID}" \
+      >> "${OUT_DIR}/am-start.log" 2>&1; then
+      redact_sensitive_file "${OUT_DIR}/am-start.log" "${CLOUD_TEST_TOKEN}" "${CLOUD_TEST_RUN_ID}" "${E2E_TOKEN}"
+      echo "cloudTest broadcast failed." >&2
+      return 5
+    fi
+    redact_sensitive_file "${OUT_DIR}/am-start.log" "${CLOUD_TEST_TOKEN}" "${CLOUD_TEST_RUN_ID}" "${E2E_TOKEN}"
     sleep "${SENSE_WAIT_SECONDS}"
   elif [[ -n "${E2E_TOKEN}" ]]; then
     adb_cmd shell am start -n "${ACTIVITY}" \
@@ -437,9 +595,13 @@ run_adb_collection() {
 
   echo "[6/7] Collect logs"
   local logcat_tmp="${OUT_DIR}/logcat.tmp.txt"
+  adb_cmd logcat -d -v raw -s LeonaCloudTest:I '*:S' > "${OUT_DIR}/cloud-result.txt" || true
+  adb_cmd shell cat "/sdcard/Android/data/${PACKAGE}/files/leona-cloudtest-sense-result.json" \
+    > "${OUT_DIR}/sense-result.device.txt" 2>/dev/null || true
   adb_cmd logcat -d -v threadtime > "${logcat_tmp}" || true
+  cat "${OUT_DIR}/cloud-result.txt" > "${OUT_DIR}/logcat.leona.txt"
   grep -Ei 'Leona|LeonaE2E|LeonaCloudTest|leonasec|BoxId|canonical|verdict|risk|evidence|attestation|SSLHandshake|CertPath|Trust anchor' \
-    "${logcat_tmp}" | grep -Ev 'AccessibilityNodeInfoDumper' > "${OUT_DIR}/logcat.leona.txt" || true
+    "${logcat_tmp}" | grep -Ev 'AccessibilityNodeInfoDumper' >> "${OUT_DIR}/logcat.leona.txt" || true
   if [[ "${KEEP_FULL_LOGCAT}" == "1" ]]; then
     mv "${logcat_tmp}" "${OUT_DIR}/logcat.full.txt"
   else
@@ -463,7 +625,7 @@ run_wetest_webshell_collection() {
   echo "[1/7] Device via WeTest webshell"
   local webshell_launch_cmd="launch=am start -n ${ACTIVITY}; sleep 2"
   if [[ "${TRIGGER_SENSE}" == "direct" ]]; then
-    webshell_launch_cmd="launch=logcat -c; am start -n ${ACTIVITY}; sleep 2; am broadcast -a ${CLOUD_TEST_SENSE_ACTION} -n ${PACKAGE}/.CloudTestSenseReceiver --es io.leonasec.leona.sample.CLOUD_TEST_TOKEN $(single_quote "${CLOUD_TEST_TOKEN}"); sleep ${SENSE_WAIT_SECONDS}"
+    webshell_launch_cmd="launch=logcat -c; am start -n ${ACTIVITY}; sleep 2; am broadcast -a ${CLOUD_TEST_SENSE_ACTION} -n ${PACKAGE}/.CloudTestSenseReceiver --es io.leonasec.leona.sample.CLOUD_TEST_TOKEN $(single_quote "${CLOUD_TEST_TOKEN}") --es io.leonasec.leona.sample.CLOUD_TEST_RUN_ID $(single_quote "${CLOUD_TEST_RUN_ID}"); broadcast_rc=\$?; echo LEONA_BROADCAST_EXIT=\$broadcast_rc; [ \$broadcast_rc -eq 0 ] || exit \$broadcast_rc; sleep ${SENSE_WAIT_SECONDS}"
   elif [[ "${TRIGGER_SENSE}" == "ui" ]]; then
     webshell_launch_cmd="${webshell_launch_cmd}; i=0; while [ \$i -lt ${PRE_SENSE_SWIPES} ]; do input swipe 540 2050 540 500 800; sleep 1; i=\$((i+1)); done; bounds=\$(uiautomator dump /dev/tty 2>/dev/null | tr '\r' '\n' | sed -n 's/.*resource-id=\"${PACKAGE}:id\\/buttonSense\"[^>]*bounds=\"\\[\\([0-9][0-9]*\\),\\([0-9][0-9]*\\)\\]\\[\\([0-9][0-9]*\\),\\([0-9][0-9]*\\)\\]\".*/\\1 \\2 \\3 \\4/p' | head -1); set -- \$bounds; if [ \$# -eq 4 ]; then input tap \$(((\$1+\$3)/2)) \$(((\$2+\$4)/2)); else input tap ${SENSE_TAP_X} ${SENSE_TAP_Y}; fi; sleep ${SENSE_WAIT_SECONDS}"
   else
@@ -476,16 +638,23 @@ run_wetest_webshell_collection() {
     --test-id "${WETEST_TEST_ID}" \
     --web-shell-key "${WETEST_WEB_SHELL_KEY}" \
     --out "${OUT_DIR}/webshell-raw" \
+    --command-timeout "${WETEST_COMMAND_TIMEOUT_SECONDS}" \
     --cmd 'props=for p in ro.product.brand ro.product.manufacturer ro.product.model ro.product.device ro.product.name ro.product.cpu.abi ro.build.version.release ro.build.version.sdk ro.build.type ro.build.tags ro.boot.verifiedbootstate ro.boot.vbmeta.device_state ro.boot.flash.locked ro.boot.veritymode ro.debuggable ro.secure; do echo "$p=$(getprop $p)"; done' \
     --cmd 'settings=echo "global.adb_enabled=$(settings get global adb_enabled 2>/dev/null)"; echo "global.development_settings_enabled=$(settings get global development_settings_enabled 2>/dev/null)"' \
     --cmd 'identity_hashes=fp=$(getprop ro.build.fingerprint); android_id=$(settings get secure android_id 2>/dev/null); if command -v sha256sum >/dev/null 2>&1; then echo "fingerprint_sha256=$(printf "%s" "$fp" | sha256sum | cut -d" " -f1)"; echo "android_id_sha256=$(printf "%s" "$android_id" | sha256sum | cut -d" " -f1)"; else echo "fingerprint_sha256=unavailable"; echo "android_id_sha256=unavailable"; fi' \
     --cmd "packages=pm list packages 2>/dev/null | grep -Ei '${RISK_PACKAGE_REGEX}' || true" \
     --cmd "${webshell_launch_cmd}" \
+    --cmd "sense_result=cat /sdcard/Android/data/${PACKAGE}/files/leona-cloudtest-sense-result.json 2>/dev/null || true" \
     --cmd "package=dumpsys package ${PACKAGE} | head -180" \
+    --cmd "cloud_result=logcat -d -v raw -s LeonaCloudTest:I '*:S'" \
     --cmd 'logcat=logcat -d -v threadtime -t 1200' \
     > "${OUT_DIR}/webshell-helper.log" 2>&1
-  for launch_artifact in "${OUT_DIR}"/webshell-raw/launch* "${OUT_DIR}/webshell-helper.log"; do
-    redact_sensitive_file "${launch_artifact}" "${CLOUD_TEST_TOKEN}" "${E2E_TOKEN}"
+  for launch_artifact in \
+    "${OUT_DIR}"/webshell-raw/launch* \
+    "${OUT_DIR}"/webshell-raw/sense_result* \
+    "${OUT_DIR}"/webshell-raw/cloud_result* \
+    "${OUT_DIR}/webshell-helper.log"; do
+    redact_sensitive_file "${launch_artifact}" "${WETEST_WEB_SHELL_KEY}" "${CLOUD_TEST_TOKEN}" "${CLOUD_TEST_RUN_ID}" "${E2E_TOKEN}"
   done
 
   {
@@ -494,12 +663,13 @@ run_wetest_webshell_collection() {
   } > "${OUT_DIR}/posture.env"
   grep -E '^package:' "${OUT_DIR}/webshell-raw/packages.txt" > "${OUT_DIR}/risk-package-filter.txt" || true
   clean_package_dump "${OUT_DIR}/webshell-raw/package.txt" > "${OUT_DIR}/package.txt"
-  redact_sensitive_file "${OUT_DIR}/webshell-raw/launch.txt" "${CLOUD_TEST_TOKEN}" "${E2E_TOKEN}"
+  redact_sensitive_file "${OUT_DIR}/webshell-raw/launch.txt" "${WETEST_WEB_SHELL_KEY}" "${CLOUD_TEST_TOKEN}" "${CLOUD_TEST_RUN_ID}" "${E2E_TOKEN}"
   cp "${OUT_DIR}/webshell-raw/launch.txt" "${OUT_DIR}/am-start.log"
-  redact_sensitive_file "${OUT_DIR}/am-start.log" "${CLOUD_TEST_TOKEN}" "${E2E_TOKEN}"
+  redact_sensitive_file "${OUT_DIR}/am-start.log" "${WETEST_WEB_SHELL_KEY}" "${CLOUD_TEST_TOKEN}" "${CLOUD_TEST_RUN_ID}" "${E2E_TOKEN}"
 
+  cat "${OUT_DIR}/webshell-raw/cloud_result.txt" > "${OUT_DIR}/logcat.leona.txt" 2>/dev/null || true
   grep -Ei 'Leona|LeonaE2E|LeonaCloudTest|leonasec|BoxId|canonical|verdict|risk|evidence|attestation|SSLHandshake|CertPath|Trust anchor' \
-    "${OUT_DIR}/webshell-raw/logcat.txt" | grep -Ev 'AccessibilityNodeInfoDumper' > "${OUT_DIR}/logcat.leona.txt" || true
+    "${OUT_DIR}/webshell-raw/logcat.txt" | grep -Ev 'AccessibilityNodeInfoDumper' >> "${OUT_DIR}/logcat.leona.txt" || true
   if [[ "${KEEP_FULL_LOGCAT}" == "1" ]]; then
     cp "${OUT_DIR}/webshell-raw/logcat.txt" "${OUT_DIR}/logcat.full.txt"
   else
@@ -550,7 +720,27 @@ esac
 
 echo "[7/7] Report"
 collect_verdict_result
+normalize_cloud_test_result \
+  "${OUT_DIR}/cloud-result.txt" \
+  "${OUT_DIR}/webshell-raw/cloud_result.txt" \
+  "${OUT_DIR}/logcat.leona.txt" \
+  "${OUT_DIR}/sense-result.device.txt" \
+  "${OUT_DIR}/webshell-raw/sense_result.txt" \
+  || true
 write_matrix_row_template "${OUT_DIR}/matrix-row.md"
+for private_result_artifact in \
+  "${OUT_DIR}/cloud-result.txt" \
+  "${OUT_DIR}/sense-result.device.txt" \
+  "${OUT_DIR}/logcat.leona.txt" \
+  "${OUT_DIR}/logcat.full.txt" \
+  "${OUT_DIR}/am-start.log" \
+  "${OUT_DIR}/server-verdict.json" \
+  "${OUT_DIR}"/webshell-raw/launch* \
+  "${OUT_DIR}"/webshell-raw/sense_result* \
+  "${OUT_DIR}"/webshell-raw/cloud_result* \
+  "${OUT_DIR}"/webshell-raw/logcat*; do
+  redact_box_ids_file "${private_result_artifact}"
+done
 {
   echo "# Leona Cloud Device Collection"
   echo
@@ -576,6 +766,7 @@ write_matrix_row_template "${OUT_DIR}/matrix-row.md"
   echo "- logcat.full.txt"
   echo "- package.txt"
   echo "- matrix-row.md"
+  echo "- sense-result.normalized.json (when a current terminal receiver result was observed)"
 } > "${OUT_DIR}/report.md"
 
 echo "Collection complete: ${OUT_DIR}"

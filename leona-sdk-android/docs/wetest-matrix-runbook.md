@@ -294,6 +294,12 @@ LEONA_CLOUD_TEST_TOKEN="$LEONA_CLOUD_TEST_TOKEN" \
 ./scripts/run-cloud-device-collection.sh
 ```
 
+The collector generates a fresh per-run correlation value automatically. The
+receiver persists and logs only its short SHA-256 digest, and the host parser
+rejects terminal results from an earlier run. Both UUID and ULID BoxId formats
+are accepted, but only a full SHA-256 of the BoxId is retained in the generated
+matrix row. Do not reuse or publish the generated correlation value.
+
 Use UI triggering only for manual UI smoke tests:
 
 ```bash
@@ -329,6 +335,8 @@ Each device row must preserve a directory with these files:
 | `logcat.leona.txt` | Script | Leona-related logcat lines, redacted if copied into reports |
 | `logcat.full.txt` | Script | Local-only diagnostic evidence; do not publish externally |
 | `package.txt` | Script | Installed package flags, version, requested permissions |
+| `sense-result.normalized.json` | Host parser | Current-run status, configuration flags, correlation digest, and BoxId SHA-256 only |
+| `sense-result-parser.log` | Host parser | Rejection reasons only; no raw BoxId, token, or error message |
 | `server-verdict.json` | Host-side query | Verdict/explain response for the BoxId, if online API succeeds |
 | `matrix-row.md` | Script/template | Filled report row generated from collected posture, logcat, and recent BoxID data |
 

@@ -22,7 +22,15 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
         self.apk_sha = "a" * 64
         self.commit_sha = "b" * 40
 
-    def write_api(self, api: int, *, direct: bool = True, same_apk: bool = True, decision: bool = False) -> None:
+    def write_api(
+        self,
+        api: int,
+        *,
+        direct: bool = True,
+        same_apk: bool = True,
+        decision: bool = False,
+        box_id_value: str = "1234...abcd",
+    ) -> None:
         api_dir = self.root / f"api-{api}"
         redacted = api_dir / "redacted"
         redacted.mkdir(parents=True)
@@ -41,7 +49,7 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
                 "senseTriggered": True,
                 "reportVerified": True,
                 "apkSha256": apk_sha,
-                "boxIdHintOrHash": "1234...abcd",
+                "boxIdHintOrHash": box_id_value,
             }],
         }
         receipt = {
@@ -84,8 +92,8 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
         return failures, results
 
     def test_boundary_evidence_passes_for_same_candidate(self) -> None:
-        self.write_api(23)
-        self.write_api(36)
+        self.write_api(23, box_id_value="sha256:" + "1" * 64)
+        self.write_api(36, box_id_value="sha256:" + "2" * 64)
         failures, results = self.verify([23, 36])
         self.assertEqual([], failures)
         self.assertEqual(["pass", "pass"], [item["status"] for item in results])

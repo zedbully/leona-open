@@ -19,6 +19,7 @@ from typing import Any
 
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+BOX_ID_SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 RAW_BOX_ID = re.compile(
     r"\b(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
@@ -111,7 +112,11 @@ def verify_api(root: Path, api: int, failures: list[str]) -> dict[str, Any]:
     apk_sha = sample.get("apkSha256")
     expect(isinstance(apk_sha, str) and bool(SHA256.fullmatch(apk_sha)), failures, f"API {api}: apkSha256 must be 64 lowercase hex")
     box_hint = sample.get("boxIdHintOrHash")
-    expect(isinstance(box_hint, str) and "..." in box_hint, failures, f"API {api}: BoxId must be redacted to a hint")
+    expect(
+        isinstance(box_hint, str) and ("..." in box_hint or bool(BOX_ID_SHA256.fullmatch(box_hint))),
+        failures,
+        f"API {api}: BoxId must be redacted to a hint or SHA-256",
+    )
 
     expect(receipt.get("schemaVersion") == 1, failures, f"API {api}: receipt schemaVersion mismatch")
     expect(receipt.get("status") == "pass", failures, f"API {api}: receipt status must be pass")
