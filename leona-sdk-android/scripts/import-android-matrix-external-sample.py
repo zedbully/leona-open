@@ -130,7 +130,13 @@ def normalize_sample(
     environment_type = raw_environment_type if raw_environment_type and raw_environment_type != "unknown" else classify_environment(brand, model, derived, row_path)
     result = metadata.get("Pass / blocked / failed") or "unknown"
     box = metadata.get("BoxId") or metadata.get("Canonical hash or hint") or ""
+    reason = metadata.get("Reason") or ""
+    trigger_match = re.search(r"generated through ([a-z-]+) trigger", reason, re.IGNORECASE)
+    trigger_type = trigger_match.group(1).lower() if trigger_match else "unknown"
+    sense_triggered = result == "pass" and trigger_type in {"direct", "ui"}
+    report_verified = result == "pass" and bool(box) and box != "not_generated"
     artifact = str(row_path.parent)
+    collected_at = datetime.fromtimestamp(row_path.stat().st_mtime, timezone.utc).isoformat()
     return {
         "sampleHash": short_hash(serial_hash or artifact),
         "environmentType": environment_type,
@@ -142,6 +148,10 @@ def normalize_sample(
         "fingerprintHashHint": (device_env.get("fingerprint_sha256") or posture_env.get("fingerprint_hash") or "")[:16],
         "boxIdHintOrHash": sanitize_hint(box),
         "result": result,
+        "triggerType": trigger_type,
+        "senseTriggered": sense_triggered,
+        "reportVerified": report_verified,
+        "collectedAt": collected_at,
         "derivedEvidence": split_csv(derived),
         "artifactPath": artifact,
     }

@@ -44,12 +44,12 @@ tasks.register("guardSampleReleaseBuild") {
 
 android {
     namespace = "io.leonasec.leona.sample"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.leonasec.leona.sample"
         minSdk = if (leonaSampleEnableRealPlayIntegrityDep) 23 else 21
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "0.4.0"
         buildConfigField("String", "LEONA_API_KEY", "\"\"")

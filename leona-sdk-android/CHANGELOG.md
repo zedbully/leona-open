@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Android 6.0 / API 23 through Android 16 / API 36 compatibility contract,
+  redacted-import manifest builder, build verifier, fail-closed direct-runtime
+  gate, and negative unit coverage. Build success remains separate from
+  runtime acceptance.
 - v0.4 Android evidence and privacy boundary documentation for the commercial
   pilot track. The SDK contract remains evidence-only: Android apps receive
   BoxIds, diagnostics, and redacted support material; customer backends own
@@ -84,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for signed evidence lookup, support bundle export, and feedback submission.
 
 ### Validation notes
+- Android API 36 compile/target wiring now uses Android Gradle Plugin 8.9.1,
+  Gradle 8.11.1, Platform 36, and Build Tools 36.0.0. Strict API 23-36 runtime
+  acceptance still requires one current, redacted direct sample per API.
 - The v0.4 public-safe readiness gate currently passes local checks and reports
   remaining external blockers without embedding sensitive material.
 - Public archive consumer smoke extracts the generated Android archive, checks

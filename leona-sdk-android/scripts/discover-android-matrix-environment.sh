@@ -183,6 +183,34 @@ def wetest_env_presence():
     ]
     return [{"name": key, "present": True} for key in sorted(relevant)]
 
+def compatibility_system_images(candidates):
+    sdk_root = next(
+        (Path(item["path"]).expanduser() for item in candidates if item["exists"]),
+        None,
+    )
+    rows = []
+    for api in range(23, 37):
+        image_dir = (
+            sdk_root / "system-images" / f"android-{api}" / "google_apis" / "arm64-v8a"
+            if sdk_root else None
+        )
+        system_image = image_dir / "system.img" if image_dir else None
+        ramdisk = image_dir / "ramdisk.img" if image_dir else None
+        complete = bool(
+            system_image and ramdisk
+            and system_image.is_file() and system_image.stat().st_size > 100_000_000
+            and ramdisk.is_file() and ramdisk.stat().st_size > 100_000
+        )
+        rows.append({
+            "apiLevel": api,
+            "package": f"system-images;android-{api};google_apis;arm64-v8a",
+            "metadataPresent": bool(image_dir and image_dir.is_dir()),
+            "complete": complete,
+            "systemImageBytes": system_image.stat().st_size if system_image and system_image.is_file() else 0,
+            "ramdiskBytes": ramdisk.stat().st_size if ramdisk and ramdisk.is_file() else 0,
+        })
+    return rows
+
 sdk_candidates = android_sdk_candidates()
 adb = command_path("adb")
 emulator = command_path("emulator")
@@ -214,6 +242,7 @@ avds = avd_list(emulator)
 apps = installed_emulator_apps()
 processes = running_emulator_processes()
 wetest_env = wetest_env_presence()
+compatibility_images = compatibility_system_images(sdk_candidates)
 
 collection_candidates = []
 for device in devices.get("devices", []):
@@ -262,6 +291,7 @@ summary = {
     "installedEmulatorApps": apps,
     "runningEmulatorProcesses": processes,
     "wetestEnvPresence": wetest_env,
+    "android6To16SystemImages": compatibility_images,
     "collectionCandidates": collection_candidates,
 }
 
@@ -290,6 +320,11 @@ lines.append(f"- AVD definitions: {len(avds.get('avds', []))}")
 lines.append(f"- Installed emulator apps: {len(apps)}")
 lines.append(f"- Running emulator-like processes: {len(processes)}")
 lines.append(f"- WeTest/WDB env names present: {len(wetest_env)}")
+complete_apis = [row["apiLevel"] for row in compatibility_images if row["complete"]]
+incomplete_apis = [row["apiLevel"] for row in compatibility_images if not row["complete"]]
+lines.append(f"- Android 6-16 complete Google APIs arm64 images: {len(complete_apis)}/14")
+lines.append(f"- Complete image APIs: {', '.join(map(str, complete_apis)) or 'none'}")
+lines.append(f"- Missing/incomplete image APIs: {', '.join(map(str, incomplete_apis)) or 'none'}")
 
 if collection_candidates:
     lines.extend(["", "## Collection Candidates", ""])

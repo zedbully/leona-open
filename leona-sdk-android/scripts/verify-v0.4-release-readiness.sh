@@ -135,6 +135,9 @@ require_contains "root README documents current SDK dependency" \
 require_contains "SDK README documents current SDK dependency" \
   "leona-sdk-android/README.md" \
   "leona-sdk-android:${VERSION}"
+require_contains "SDK README documents Android 6-16 compatibility gate" \
+  "leona-sdk-android/README.md" \
+  "verify-android-6-16-compatibility\.py"
 require_contains "SDK README documents v0.4 release readiness gate" \
   "leona-sdk-android/README.md" \
   "verify-v0\\.4-release-readiness\\.sh"
@@ -335,6 +338,10 @@ require_executable "clean OEM ledger gate is executable" \
   "leona-sdk-android/scripts/verify-clean-oem-ledger.sh"
 require_executable "v0.4 Android matrix readiness gate is executable" \
   "leona-sdk-android/scripts/verify-v0.4-android-matrix-readiness.sh"
+require_executable "Android 6-16 compatibility gate is executable" \
+  "leona-sdk-android/scripts/verify-android-6-16-compatibility.py"
+require_executable "Android 6-16 runtime manifest builder is executable" \
+  "leona-sdk-android/scripts/build-android-6-16-runtime-manifest.py"
 require_executable "Android matrix external import gate is executable" \
   "leona-sdk-android/scripts/import-android-matrix-external-sample.py"
 require_executable "Android external emulator acquisition preflight is executable" \
@@ -402,6 +409,36 @@ require_absent "release readiness avoids login-shell environment leakage" \
 run_gate "clean OEM ledger gate" \
   "clean-oem-ledger" \
   "${ROOT_DIR}/scripts/verify-clean-oem-ledger.sh"
+
+if [[ -n "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE:-}" ]]; then
+  if [[ "${LEONA_REQUIRE_ANDROID_6_16_RUNTIME:-0}" == "1" ]]; then
+    run_gate "Android 6-16 strict compatibility gate" \
+      "android-6-16-compatibility" \
+      "${ROOT_DIR}/scripts/verify-android-6-16-compatibility.py" \
+        --runtime-evidence "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE}" \
+        --strict-runtime \
+        --output-dir "${REPORT_DIR}/android-6-16-compatibility"
+  else
+    run_gate "Android 6-16 compatibility gate" \
+      "android-6-16-compatibility" \
+      "${ROOT_DIR}/scripts/verify-android-6-16-compatibility.py" \
+        --runtime-evidence "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE}" \
+        --output-dir "${REPORT_DIR}/android-6-16-compatibility"
+  fi
+else
+  if [[ "${LEONA_REQUIRE_ANDROID_6_16_RUNTIME:-0}" == "1" ]]; then
+    run_gate "Android 6-16 strict compatibility gate" \
+      "android-6-16-compatibility" \
+      "${ROOT_DIR}/scripts/verify-android-6-16-compatibility.py" \
+        --strict-runtime \
+        --output-dir "${REPORT_DIR}/android-6-16-compatibility"
+  else
+    run_gate "Android 6-16 build compatibility gate" \
+      "android-6-16-compatibility" \
+      "${ROOT_DIR}/scripts/verify-android-6-16-compatibility.py" \
+        --output-dir "${REPORT_DIR}/android-6-16-compatibility"
+  fi
+fi
 
 run_gate "v0.4 Android matrix readiness gate" \
   "android-matrix-readiness" \
@@ -515,6 +552,9 @@ run_optional_gate "public post-release consumption smoke" \
     "${ROOT_DIR}/scripts/verify-v0.4-post-release-consumption.sh"
 
 blocker "Full v0.4 Android environment matrix still needs external emulator, custom ROM/GSI/unlocked, and extra hide-module samples; acquisition preflight now records local OS/admin/GUI blockers."
+if [[ "${LEONA_REQUIRE_ANDROID_6_16_RUNTIME:-0}" != "1" || -z "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE:-}" ]]; then
+  blocker "Android 6-16 strict compatibility acceptance requires one current redacted direct sense/report sample for every API 23-36."
+fi
 blocker "Real Play Integrity or OEM attestation provider smoke still needs provider credentials, allowlist, and server verifier configuration."
 blocker "Maven Central publish still needs Sonatype Central Portal namespace/token and PGP signing material."
 blocker "Authenticated homepage live ops smoke still needs deployment login credentials and formal connector/report environment variables."

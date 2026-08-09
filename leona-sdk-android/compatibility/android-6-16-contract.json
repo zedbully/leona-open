@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "contractId": "leona-android-6-16-api23-36-v1",
+  "scope": {
+    "minimumApi": 23,
+    "maximumApi": 36,
+    "apiLevels": [
+      { "apiLevel": 23, "androidVersion": "6.0" },
+      { "apiLevel": 24, "androidVersion": "7.0" },
+      { "apiLevel": 25, "androidVersion": "7.1" },
+      { "apiLevel": 26, "androidVersion": "8.0" },
+      { "apiLevel": 27, "androidVersion": "8.1" },
+      { "apiLevel": 28, "androidVersion": "9" },
+      { "apiLevel": 29, "androidVersion": "10" },
+      { "apiLevel": 30, "androidVersion": "11" },
+      { "apiLevel": 31, "androidVersion": "12" },
+      { "apiLevel": 32, "androidVersion": "12L" },
+      { "apiLevel": 33, "androidVersion": "13" },
+      { "apiLevel": 34, "androidVersion": "14" },
+      { "apiLevel": 35, "androidVersion": "15" },
+      { "apiLevel": 36, "androidVersion": "16" }
+    ]
+  },
+  "buildContract": {
+    "sdkGradleFile": "sdk/build.gradle.kts",
+    "sampleGradleFile": "sample-app/build.gradle.kts",
+    "versionCatalogFile": "gradle/libs.versions.toml",
+    "gradleWrapperFile": "gradle/wrapper/gradle-wrapper.properties",
+    "minimumCompileSdk": 36,
+    "minimumTargetSdk": 36,
+    "maximumMinSdk": 23,
+    "minimumAgp": "8.9.1",
+    "minimumGradle": "8.11.1",
+    "requiredPlatform": "platforms;android-36",
+    "requiredBuildTools": "build-tools;36.0.0"
+  },
+  "runtimeContract": {
+    "requiredEvidenceClass": "current-direct-runtime",
+    "requiredResult": "pass",
+    "requiredArtifactType": "redacted-matrix-import-summary-v1",
+    "maximumEvidenceAgeHours": 720,
+    "artifactPathPrefixes": [
+      "/tmp/leona-",
+      "/private/tmp/leona-"
+    ],
+    "requiresSenseTriggered": true,
+    "requiresReportVerified": true,
+    "requiresRedactedArtifact": true,
+    "requiresNoRawIdentifiers": true
+  },
+  "decisionBoundary": {
+    "sdkRole": "collect-and-report-evidence-only",
+    "finalDecisionOwner": "customer-backend"
+  }
+}

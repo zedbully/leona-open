@@ -17,7 +17,7 @@ version = sdkVersionName
 
 android {
     namespace = "io.leonasec.leona"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = "26.3.11579264"
 
     defaultConfig {

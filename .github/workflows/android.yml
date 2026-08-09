@@ -46,6 +46,16 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
 
+      - name: Install Android 16 SDK
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Verify Android 6-16 build contract
+        run: |
+          python3 -m unittest discover -v -s scripts/tests -p 'test_*.py'
+          python3 scripts/verify-android-6-16-compatibility.py \
+            --android-sdk-root "$ANDROID_HOME" \
+            --output-dir "$RUNNER_TEMP/leona-android-6-16-build-contract"
+
       - name: Run Android lint
         run: ./gradlew :sdk:lint --no-daemon
 
@@ -57,7 +67,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-report
-          path: leona-sdk-android/sdk/build/reports/tests/
+          path: |
+            leona-sdk-android/sdk/build/reports/tests/
+            ${{ runner.temp }}/leona-android-6-16-build-contract/
           retention-days: 7
 
   assemble:
@@ -81,6 +93,9 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
 
+      - name: Install Android 16 SDK
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install NDK r26d
         run: |
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
@@ -91,6 +106,9 @@ jobs:
 
       - name: Assemble release
         run: ./gradlew :sdk:assembleRelease --no-daemon
+
+      - name: Assemble API 36 sample
+        run: ./gradlew :sample-app:assembleDebug :sample-app:assembleRelease --no-daemon
 
       - name: Upload AAR artifacts
         uses: actions/upload-artifact@v4
@@ -179,6 +197,9 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
 
+      - name: Install Android 16 SDK
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install NDK r26d
         run: |
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
@@ -227,6 +248,9 @@ jobs:
 
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
+
+      - name: Install Android 16 SDK
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install NDK r26d
         run: |
