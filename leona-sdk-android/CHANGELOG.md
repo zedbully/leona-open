@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strict API 23–36 runtime evidence now requires one identical valid APK
   SHA-256 across every API row and binds each manifest row back to its hashed
   redacted import artifact; mixed or missing candidate hashes fail closed.
+- Physical/OEM closure verification now binds a redacted two-OEM/two-API
+  direct `sense()` and report summary to that exact API 23–36 APK candidate,
+  rejects raw BoxIds and mixed candidates, and explicitly avoids commercial
+  admission or customer business-decision claims.
+- Attestation real-smoke preflight now verifies the server-only Play Integrity
+  decoder/verifier bridge, dynamic package/certificate/request-hash binding,
+  safe evidence-only handshake defaults, and private mode-0600 ADC/token
+  inputs without contacting a provider or exposing private paths or values.
 - WeTest webshell collection now retains only numeric launch exit markers and
   SHA-256 connection correlation fields, withholding command transcripts,
   connection addresses, device/test identifiers, and control keys.
@@ -138,8 +146,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   memory before any release bump commit is written.
 
 ### Planned
-- Real custom ROM, GSI, unlocked-device, and broader external emulator sample
-  runs for the environment matrix.
+- Additional custom ROM, GSI, unlocked-device, and external emulator samples
+  as non-admission regression strengthening.
 - Real Play Integrity/OEM provider smoke with production-like provider
   material.
 - Maven Central publishing after namespace, credential, and signing material
@@ -147,12 +155,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Separate build-time tools: `leona-so-protector` and `leona-dex-packer`.
 
 ### External blockers
-- Complete Android environment matrix samples for custom ROM, GSI, unlocked
-  bootloader, additional external emulators, and additional hide-module
-  combinations.
 - At least one real Play Integrity or OEM attestation provider smoke with
   provider credentials and allowlist material.
 - Maven Central namespace approval, publishing token, and PGP signing material.
+- A non-public customer evidence/backend-wrapper pilot and real customer
+  feedback export/report path.
 - Authenticated live operations smoke with deployment-provided credentials and
   formal connector configuration.
 - Real backend wrapper endpoint smoke using server-side SecretKey material.

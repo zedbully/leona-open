@@ -342,6 +342,8 @@ require_executable "Android 6-16 compatibility gate is executable" \
   "leona-sdk-android/scripts/verify-android-6-16-compatibility.py"
 require_executable "Android 6-16 runtime manifest builder is executable" \
   "leona-sdk-android/scripts/build-android-6-16-runtime-manifest.py"
+require_executable "Android physical/OEM closure verifier is executable" \
+  "leona-sdk-android/scripts/verify-android-physical-oem-closure.py"
 require_executable "Android matrix external import gate is executable" \
   "leona-sdk-android/scripts/import-android-matrix-external-sample.py"
 require_executable "Android external emulator acquisition preflight is executable" \
@@ -437,6 +439,19 @@ else
       "android-6-16-compatibility" \
       "${ROOT_DIR}/scripts/verify-android-6-16-compatibility.py" \
         --output-dir "${REPORT_DIR}/android-6-16-compatibility"
+  fi
+fi
+
+PHYSICAL_OEM_CLOSURE_VERIFIED=0
+if [[ -n "${LEONA_ANDROID_PHYSICAL_OEM_CLOSURE_SUMMARY:-}" && -n "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE:-}" ]]; then
+  run_gate "Android physical/OEM same-candidate closure gate" \
+    "android-physical-oem-closure" \
+    "${ROOT_DIR}/scripts/verify-android-physical-oem-closure.py" \
+      --physical-summary "${LEONA_ANDROID_PHYSICAL_OEM_CLOSURE_SUMMARY}" \
+      --runtime-evidence "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE}" \
+      --output-dir "${REPORT_DIR}/android-physical-oem-closure"
+  if grep -Eq '"status"[[:space:]]*:[[:space:]]*"pass"' "${REPORT_DIR}/android-physical-oem-closure/summary.json" 2>/dev/null; then
+    PHYSICAL_OEM_CLOSURE_VERIFIED=1
   fi
 fi
 
@@ -551,14 +566,16 @@ run_optional_gate "public post-release consumption smoke" \
   env LEONA_TARGET_RELEASE_VERSION="${VERSION}" \
     "${ROOT_DIR}/scripts/verify-v0.4-post-release-consumption.sh"
 
-blocker "Full v0.4 Android environment matrix still needs external emulator, custom ROM/GSI/unlocked, and extra hide-module samples; acquisition preflight now records local OS/admin/GUI blockers."
+if [[ "${PHYSICAL_OEM_CLOSURE_VERIFIED}" != "1" ]]; then
+  blocker "Android physical/OEM closure requires a redacted two-OEM/two-API direct sense/report summary bound to the same API 23-36 APK candidate; emulator/custom-ROM/hide-module rows remain support evidence only."
+fi
 if [[ "${LEONA_REQUIRE_ANDROID_6_16_RUNTIME:-0}" != "1" || -z "${LEONA_ANDROID_6_16_RUNTIME_EVIDENCE:-}" ]]; then
   blocker "Android 6-16 strict compatibility acceptance requires one current redacted direct sense/report sample for every API 23-36."
 fi
-blocker "Real Play Integrity or OEM attestation provider smoke still needs provider credentials, allowlist, and server verifier configuration."
+blocker "Real Play Integrity or OEM attestation provider smoke still needs Play cloud project/ADC/package/certificate/device-token material or the corresponding OEM allowlist/namespace/private bridge; the server Play verifier implementation is present."
 blocker "Maven Central publish still needs Sonatype Central Portal namespace/token and PGP signing material."
-blocker "Authenticated homepage live ops smoke still needs deployment login credentials and formal connector/report environment variables."
-blocker "Real backend wrapper endpoint smoke still needs a pilot endpoint and server-side SecretKey in a non-public environment."
+blocker "A non-public customer evidence/backend-wrapper pilot still needs its endpoint, server-side SecretKey, connector/auth configuration, and a testable BoxId."
+blocker "Production feedback acceptance still needs a real customer feedback export/report path; local generated labels remain semantic support evidence only."
 
 {
   echo "# Leona v0.4 Android/Server Release Readiness"

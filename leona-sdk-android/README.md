@@ -146,8 +146,24 @@ public-safe readiness gate:
 
 It composes the clean OEM ledger, Android matrix readiness, Maven Central
 readiness, backend wrapper mock HTTP smoke, and optional Gradle/consumer gates.
-External samples, provider credentials, Maven Central credentials, and live ops
-credentials are reported as blockers instead of being printed or embedded.
+Real provider material, Maven Central credentials, and non-public customer
+pilot inputs are reported as blockers instead of being printed or embedded.
+
+The attestation preflight is no-contact by default. It verifies the public
+SDK/sample bridge, the optional private server verifier contract, package and
+certificate binding, request-hash binding, and evidence-only handshake defaults:
+
+```bash
+python3 scripts/verify-v0.4-attestation-real-smoke-preflight.py \
+  --output-dir /tmp/leona-v0.4-attestation-preflight
+```
+
+Real Play Integrity smoke additionally requires a cloud project number,
+package name, certificate SHA-256 allowlist, mode-0600 Application Default
+Credentials JSON, and a mode-0600 device token artifact. Both private files
+must be outside the repository. The report records blocker codes and hashes,
+not credential values, token contents, or private paths. OEM provider material
+uses the corresponding private allowlist/namespace/verifier/device bridge.
 
 After a release is published, run the public consumption smoke:
 
@@ -269,6 +285,32 @@ python3 scripts/verify-android-6-16-compatibility.py \
   --runtime-evidence /tmp/leona-android-6-16-runtime-manifest/runtime-evidence.json \
   --strict-runtime \
   --output-dir /tmp/leona-android-6-16-strict
+```
+
+When a redacted physical/OEM closure summary is available, independently bind
+it to that complete API 23-36 candidate:
+
+```bash
+python3 scripts/verify-android-physical-oem-closure.py \
+  --physical-summary /path/to/redacted-physical-summary.json \
+  --runtime-evidence /tmp/leona-android-6-16-runtime-manifest/runtime-evidence.json \
+  --output-dir /tmp/leona-android-physical-oem-closure
+```
+
+The physical closure verifier requires at least two distinct OEMs and two API
+levels, direct `sense()` plus verified report transport, hash-only BoxIds,
+redaction flags, and the same APK SHA-256 as all 14 runtime rows. It fails
+closed on raw identifiers or mixed candidates. This is runtime compatibility
+evidence only; it does not make a customer business decision or claim
+commercial admission.
+
+The aggregate readiness wrapper can run both strict gates together:
+
+```bash
+LEONA_ANDROID_6_16_RUNTIME_EVIDENCE=/path/to/runtime-evidence.json \
+LEONA_ANDROID_PHYSICAL_OEM_CLOSURE_SUMMARY=/path/to/redacted-physical-summary.json \
+LEONA_REQUIRE_ANDROID_6_16_RUNTIME=1 \
+  ./scripts/verify-v0.4-release-readiness.sh
 ```
 
 The compatibility contract is stored in

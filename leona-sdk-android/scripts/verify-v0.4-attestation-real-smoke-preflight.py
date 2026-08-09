@@ -36,7 +36,10 @@ EXPECTED_BLOCKER_CODES = {
     "play_integrity": {
         "play_integrity_dependency",
         "play_integrity_cloud_project",
-        "play_integrity_server_verifier",
+        "play_integrity_package_name",
+        "play_integrity_certificate_allowlist",
+        "play_integrity_application_default_credentials",
+        "play_integrity_device_token_artifact",
     },
     "oem": {
         "oem_trusted_provider_allowlist",
@@ -45,6 +48,10 @@ EXPECTED_BLOCKER_CODES = {
         "oem_device_bridge",
     },
 }
+
+PACKAGE_NAME = re.compile(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+")
+CERTIFICATE_DIGEST = re.compile(r"(?:[0-9A-Fa-f]{64}|[A-Za-z0-9_-]{43})")
+ADC_TYPES = {"service_account", "external_account", "authorized_user"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,7 +85,7 @@ def main() -> int:
     provider_replay = run_provider_replay_checks()
     blockers = run_external_material_checks(args.target)
     failures = [check for check in checks if check["status"] == "fail"]
-    if failures:
+    if failures or provider_replay["failureCount"]:
         status = "failed"
     elif blockers and args.require_real_provider:
         status = "failed"
@@ -89,8 +96,12 @@ def main() -> int:
 
     blocker_codes = [item["code"] for item in blockers]
     expected_codes = expected_blocker_codes(args.target)
-    missing_expected_blockers = sorted(expected_codes.difference(blocker_codes))
+    # These codes are the complete allowlist of conditional blockers, not a
+    # requirement that every blocker remain present after material is supplied.
+    missing_expected_blockers: list[str] = []
     unexpected_blockers = sorted(set(blocker_codes).difference(expected_codes))
+    if unexpected_blockers:
+        status = "failed"
     blocker_counts = blocker_counts_by_provider(blockers)
     report: dict[str, Any] = {
         "status": status,
@@ -102,6 +113,7 @@ def main() -> int:
         "providerReplayFixtureCount": provider_replay["fixtureCount"],
         "providerReplayPassCount": provider_replay["passCount"],
         "providerReplayFailureCount": provider_replay["failureCount"],
+        "realProviderContacted": False,
         "checks": checks,
         "localCheckCount": len(checks),
         "localPassCount": sum(1 for check in checks if check["status"] == "pass"),
@@ -167,9 +179,29 @@ def run_local_checks() -> list[dict[str, str]]:
         r"PrivateOemAttestationVerifier|OEM_ATTESTATION_VERIFIER_MISSING",
     ))
     checks.append(require_pattern(
-        "server deployment template carries OEM trusted provider allowlist",
+        "server Play Integrity verifier bridge is optional/private",
+        REPO_DIR / "leona-server/ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/PlayIntegrityAttestationVerifiers.java",
+        r"PrivatePlayIntegrityAttestationVerifier|PLAY_INTEGRITY_VERIFIER_MISSING",
+    ))
+    checks.append(require_pattern(
+        "private Play Integrity verifier binds package certificate and request hash",
+        REPO_DIR / "leona-server/private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivatePlayIntegrityAttestationVerifier.java",
+        r"LEONA_PLAY_INTEGRITY_PACKAGE_NAME[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS[\s\S]*PLAY_INTEGRITY_CHALLENGE_MISMATCH",
+    ))
+    checks.append(require_pattern(
+        "private Play Integrity decoder uses official Google endpoint and OAuth scope",
+        REPO_DIR / "leona-server/private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/GooglePlayIntegrityTokenDecoder.java",
+        r"https://www\.googleapis\.com/auth/playintegrity[\s\S]*https://playintegrity\.googleapis\.com[\s\S]*decodeIntegrityToken",
+    ))
+    checks.append(require_pattern(
+        "handshake keeps attestation evidence-only by default",
+        REPO_DIR / "leona-server/ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java",
+        r"leona\.handshake\.attestation\.enforce:false",
+    ))
+    checks.append(require_pattern(
+        "server deployment template carries fail-closed attestation inputs and safe defaults",
         REPO_DIR / "leona-server/deploy/prod-homeleona/.env.example",
-        r"LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
+        r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
     ))
     checks.append(require_pattern(
         "sample release guard rejects attestation debug/test properties",
@@ -241,16 +273,24 @@ def run_external_material_checks(target: str) -> list[dict[str, str]]:
             or os.environ.get("LEONA_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER")
             or ""
         ).strip()
-        server_ready = (
-            os.environ.get("LEONA_PLAY_INTEGRITY_SERVER_VERIFIER_READY") == "1"
-            or bool(os.environ.get("LEONA_PLAY_INTEGRITY_VERIFIER_CREDENTIALS"))
-        )
+        package_name = os.environ.get("LEONA_PLAY_INTEGRITY_PACKAGE_NAME", "").strip()
+        certificate_digests = [
+            item.strip()
+            for item in os.environ.get("LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS", "").split(",")
+            if item.strip()
+        ]
         if not dep_enabled:
             blockers.append(blocker("play_integrity_dependency", "set LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP=true for the real sample lane"))
-        if not cloud_project.isdigit():
+        if not cloud_project.isdigit() or int(cloud_project) <= 0:
             blockers.append(blocker("play_integrity_cloud_project", "provide a numeric Play Integrity cloud project number"))
-        if not server_ready:
-            blockers.append(blocker("play_integrity_server_verifier", "install/configure private server verifier material outside the public repo"))
+        if not PACKAGE_NAME.fullmatch(package_name):
+            blockers.append(blocker("play_integrity_package_name", "provide the dynamically configured Play package name"))
+        if not certificate_digests or any(not CERTIFICATE_DIGEST.fullmatch(item) for item in certificate_digests):
+            blockers.append(blocker("play_integrity_certificate_allowlist", "provide a valid SHA-256 signing certificate digest allowlist"))
+        if not application_default_credentials_ready():
+            blockers.append(blocker("play_integrity_application_default_credentials", "mount a private Application Default Credentials JSON file outside the repository"))
+        if not private_token_artifact_ready():
+            blockers.append(blocker("play_integrity_device_token_artifact", "provide a mode-0600 private token artifact generated by the real device bridge outside the repository"))
 
     if target in {"both", "oem"}:
         trusted = [item.strip() for item in os.environ.get("LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS", "").split(",") if item.strip()]
@@ -267,6 +307,51 @@ def run_external_material_checks(target: str) -> list[dict[str, str]]:
         if not bridge_ready:
             blockers.append(blocker("oem_device_bridge", "install a host-app OEM bridge backed by a real OEM SDK"))
     return blockers
+
+
+def application_default_credentials_ready() -> bool:
+    raw_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+    if not raw_path:
+        return False
+    path = Path(raw_path).expanduser()
+    if not private_regular_file(path):
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and payload.get("type") in ADC_TYPES
+
+
+def private_token_artifact_ready() -> bool:
+    raw_path = os.environ.get("LEONA_PLAY_INTEGRITY_DEVICE_TOKEN_ARTIFACT", "").strip()
+    if not raw_path:
+        return False
+    path = Path(raw_path).expanduser()
+    if not private_regular_file(path):
+        return False
+    try:
+        return 16 <= path.stat().st_size <= 1024 * 1024
+    except OSError:
+        return False
+
+
+def private_regular_file(path: Path) -> bool:
+    try:
+        resolved = path.resolve(strict=True)
+        if not resolved.is_file() or is_within(resolved, REPO_DIR.resolve()):
+            return False
+        return (resolved.stat().st_mode & 0o077) == 0
+    except OSError:
+        return False
+
+
+def is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 def expected_blocker_codes(target: str) -> set[str]:
@@ -327,6 +412,7 @@ def write_report(output_dir: Path, report: dict[str, Any]) -> None:
         f"- provider replay fixture count: {report['providerReplayFixtureCount']}",
         f"- provider replay pass count: {report['providerReplayPassCount']}",
         f"- provider replay failure count: {report['providerReplayFailureCount']}",
+        f"- real provider contacted: {str(report['realProviderContacted']).lower()}",
         f"- external blocker count: {report['externalBlockerCount']}",
         f"- Play Integrity blocker count: {report['externalBlockerCountsByProvider']['play_integrity']}",
         f"- OEM blocker count: {report['externalBlockerCountsByProvider']['oem']}",
