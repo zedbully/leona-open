@@ -246,19 +246,22 @@ That command may report `build-pass-runtime-incomplete`; a successful Gradle
 build never creates runtime evidence. Full acceptance requires a redacted
 runtime manifest with exactly one fresh, collection-timestamp-bound,
 hash-verified, direct `sense()` and report sample for every API from 23 through
-36. Build that manifest only from
+36. Every sample must carry the same valid APK SHA-256 so a mixed-candidate
+matrix fails closed. Build that manifest only from
 the redacted importer summaries (repeat `--sample` for each API):
 
 ```bash
 python3 scripts/build-android-6-16-runtime-manifest.py \
   --sample 23=/path/to/api23-import/summary.json \
   --sample 36=/path/to/api36-import/summary.json \
+  --require-complete \
   --output-dir /tmp/leona-android-6-16-runtime-manifest
 ```
 
-The builder stays `partial` until all 14 APIs are supplied and rejects samples
-that do not prove a direct trigger and verified report. Then run strict
-acceptance:
+Without `--require-complete`, the builder stays `partial` until all 14 APIs are
+supplied. It rejects samples that do not prove a direct trigger, verified
+report, valid APK SHA-256, and one identical candidate across the matrix. Then
+run strict acceptance:
 
 ```bash
 python3 scripts/verify-android-6-16-compatibility.py \

@@ -117,6 +117,12 @@ def validate_contract(contract: dict[str, Any], checks: list[dict[str, Any]]) ->
         and boundary.get("finalDecisionOwner") == "customer-backend",
         "SDK must collect/report evidence only and customer backend must own final decisions",
     )
+    add_check(
+        checks,
+        "contract.same-apk-runtime",
+        contract.get("runtimeContract", {}).get("requiresSameApkSha256AcrossMatrix") is True,
+        "runtime evidence must prove the same APK SHA-256 across API23..36",
+    )
     return rows
 
 
@@ -194,7 +200,7 @@ def parse_utc(value: str) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def verify_redacted_import_artifact(artifact: Path, api: int, collected_at: str) -> bool:
+def verify_redacted_import_artifact(artifact: Path, api: int, collected_at: str, apk_sha256: str) -> bool:
     try:
         report = json.loads(read_text(artifact))
     except (OSError, json.JSONDecodeError):
@@ -222,6 +228,7 @@ def verify_redacted_import_artifact(artifact: Path, api: int, collected_at: str)
         and source.get("senseTriggered") is True
         and source.get("reportVerified") is True
         and source.get("collectedAt") == collected_at
+        and source.get("apkSha256") == apk_sha256
     )
 
 
@@ -270,6 +277,26 @@ def verify_runtime(
     add_check(checks, "runtime.unique-api-rows", not duplicates, "exactly one sample is allowed per API")
     add_check(checks, "runtime.no-extra-apis", not extras, "runtime manifest must not contain APIs outside 23..36")
 
+    supplied_samples = [sample for sample in samples if isinstance(sample, dict)]
+    supplied_apk_hashes = [str(sample.get("apkSha256") or "").strip().lower() for sample in supplied_samples]
+    valid_apk_hashes = [value for value in supplied_apk_hashes if SHA256_RE.fullmatch(value)]
+    same_apk = bool(supplied_samples) and len(valid_apk_hashes) == len(supplied_samples) and len(set(valid_apk_hashes)) == 1
+    if not supplied_samples:
+        checks.append({
+            "id": "runtime.same-apk-candidate",
+            "status": "incomplete",
+            "detail": "no runtime samples were supplied to establish one APK candidate",
+        })
+    else:
+        add_check(
+            checks,
+            "runtime.same-apk-candidate",
+            same_apk,
+            "every supplied runtime row must carry the same valid APK SHA-256",
+        )
+    result["sameApkAcrossMatrix"] = same_apk
+    result["apkSha256"] = valid_apk_hashes[0] if same_apk else ""
+
     runtime = contract["runtimeContract"]
     max_age = float(runtime["maximumEvidenceAgeHours"])
     passing: list[int] = []
@@ -288,6 +315,8 @@ def verify_runtime(
         prefix_ok = bool(artifact) and any(str(artifact).startswith(prefix) for prefix in runtime["artifactPathPrefixes"])
         expected_hash = sample.get("artifactSha256", "")
         hash_ok = isinstance(expected_hash, str) and SHA256_RE.fullmatch(expected_hash) is not None
+        apk_sha256 = str(sample.get("apkSha256") or "").strip().lower()
+        apk_hash_ok = SHA256_RE.fullmatch(apk_sha256) is not None
         actual_hash_ok = False
         artifact_semantics_ok = False
         if artifact and artifact.is_file() and hash_ok:
@@ -297,6 +326,7 @@ def verify_runtime(
                 artifact,
                 api,
                 sample.get("collectedAt", ""),
+                apk_sha256,
             )
         fields_ok = (
             sample.get("androidVersion") == versions[api]
@@ -307,6 +337,8 @@ def verify_runtime(
             and sample.get("reportVerified") is True
             and sample.get("redacted") is True
             and sample.get("rawIdentifiersPrinted") is False
+            and apk_hash_ok
+            and same_apk
             and collected is not None
             and 0 <= age_hours <= max_age
             and prefix_ok
@@ -368,6 +400,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
             "- required APIs: " + ", ".join(map(str, summary["runtime"]["requiredApis"])),
             "- passing APIs: " + (", ".join(map(str, summary["runtime"]["passingApis"])) or "none"),
             "- missing APIs: " + (", ".join(map(str, summary["runtime"]["missingApis"])) or "none"),
+            "- same APK across matrix: " + str(summary["runtime"].get("sameApkAcrossMatrix") is True).lower(),
         ]
     )
     return "\n".join(lines) + "\n"

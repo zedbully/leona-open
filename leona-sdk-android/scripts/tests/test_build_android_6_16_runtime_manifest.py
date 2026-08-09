@@ -25,7 +25,7 @@ class RuntimeManifestBuilderTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def write_import(self, api: int, trigger: str = "direct") -> Path:
+    def write_import(self, api: int, trigger: str = "direct", apk_sha256: str = "b" * 64) -> Path:
         path = self.root / f"api{api}.json"
         version = MODULE.VERSIONS[api]
         path.write_text(
@@ -44,6 +44,7 @@ class RuntimeManifestBuilderTest(unittest.TestCase):
                             "triggerType": trigger,
                             "senseTriggered": trigger == "direct",
                             "reportVerified": True,
+                            "apkSha256": apk_sha256,
                             "boxIdHintOrHash": "01AR...5FAV",
                         }
                     ],
@@ -74,6 +75,8 @@ class RuntimeManifestBuilderTest(unittest.TestCase):
         self.assertEqual("current-direct-runtime", manifest["samples"][0]["evidenceClass"])
         self.assertEqual("redacted-matrix-import-summary-v1", manifest["samples"][0]["artifactType"])
         self.assertEqual("2026-08-09T11:59:00+00:00", manifest["samples"][0]["collectedAt"])
+        self.assertEqual("b" * 64, manifest["samples"][0]["apkSha256"])
+        self.assertTrue(summary["sameApkAcrossMatrix"])
 
     def test_non_direct_import_is_rejected(self) -> None:
         path = self.write_import(23, trigger="ui")
@@ -99,6 +102,29 @@ class RuntimeManifestBuilderTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("pass", summary["status"])
         self.assertEqual([], summary["missingApis"])
+        self.assertTrue(summary["sameApkAcrossMatrix"])
+
+    def test_mixed_apk_candidates_fail_closed(self) -> None:
+        first = self.write_import(23, apk_sha256="b" * 64)
+        second = self.write_import(24, apk_sha256="c" * 64)
+
+        code, summary = self.run_builder([(23, first), (24, second)])
+
+        self.assertEqual(1, code)
+        self.assertEqual("fail", summary["status"])
+        self.assertFalse(summary["sameApkAcrossMatrix"])
+        self.assertIn("matrix:apk-sha256-mismatch", summary["failures"])
+
+    def test_missing_apk_hash_is_rejected(self) -> None:
+        path = self.write_import(23)
+        report = json.loads(path.read_text(encoding="utf-8"))
+        report["samples"][0].pop("apkSha256")
+        path.write_text(json.dumps(report), encoding="utf-8")
+
+        code, summary = self.run_builder([(23, path)])
+
+        self.assertEqual(1, code)
+        self.assertIn("api23:sample-apk-sha256-invalid", summary["failures"])
 
 
 if __name__ == "__main__":

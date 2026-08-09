@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   redacted-import manifest builder, build verifier, fail-closed direct-runtime
   gate, and negative unit coverage. Build success remains separate from
   runtime acceptance.
+- Strict API 23–36 runtime evidence now requires one identical valid APK
+  SHA-256 across every API row and binds each manifest row back to its hashed
+  redacted import artifact; mixed or missing candidate hashes fail closed.
+- WeTest webshell collection now retains only numeric launch exit markers and
+  SHA-256 connection correlation fields, withholding command transcripts,
+  connection addresses, device/test identifiers, and control keys.
 - v0.4 Android evidence and privacy boundary documentation for the commercial
   pilot track. The SDK contract remains evidence-only: Android apps receive
   BoxIds, diagnostics, and redacted support material; customer backends own

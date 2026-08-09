@@ -46,7 +46,8 @@
     "requiresSenseTriggered": true,
     "requiresReportVerified": true,
     "requiresRedactedArtifact": true,
-    "requiresNoRawIdentifiers": true
+    "requiresNoRawIdentifiers": true,
+    "requiresSameApkSha256AcrossMatrix": true
   },
   "decisionBoundary": {
     "sdkRole": "collect-and-report-evidence-only",

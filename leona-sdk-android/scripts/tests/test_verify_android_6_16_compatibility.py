@@ -47,6 +47,7 @@ class CompatibilityVerifierTest(unittest.TestCase):
         (self.sdk / "build-tools" / "36.0.0").mkdir(parents=True)
         (self.sdk / "build-tools" / "36.0.0" / "aapt2").write_text("ok", encoding="utf-8")
         self.now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        self.apk_sha256 = "b" * 64
         self.artifacts: list[Path] = []
 
     def tearDown(self) -> None:
@@ -98,6 +99,7 @@ class CompatibilityVerifierTest(unittest.TestCase):
                                 "triggerType": "direct",
                                 "senseTriggered": True,
                                 "reportVerified": True,
+                                "apkSha256": self.apk_sha256,
                             }
                         ],
                     }
@@ -115,6 +117,7 @@ class CompatibilityVerifierTest(unittest.TestCase):
                     "artifactType": "redacted-matrix-import-summary-v1",
                     "senseTriggered": True,
                     "reportVerified": True,
+                    "apkSha256": self.apk_sha256,
                     "redacted": True,
                     "rawIdentifiersPrinted": False,
                     "artifactPath": str(artifact.resolve()),
@@ -172,6 +175,33 @@ class CompatibilityVerifierTest(unittest.TestCase):
         manifest = self.complete_manifest()
         manifest["samples"][0]["artifactSha256"] = "0" * 64
         code, summary = self.run_verifier(manifest, strict=True)
+        self.assertEqual(1, code)
+        self.assertIn(23, summary["runtime"]["missingApis"])
+
+    def test_mixed_apk_candidates_fail_closed(self) -> None:
+        manifest = self.complete_manifest()
+        manifest["samples"][0]["apkSha256"] = "c" * 64
+        artifact = Path(manifest["samples"][0]["artifactPath"])
+        report = json.loads(artifact.read_text(encoding="utf-8"))
+        report["samples"][0]["apkSha256"] = "c" * 64
+        artifact.write_text(json.dumps(report), encoding="utf-8")
+        manifest["samples"][0]["artifactSha256"] = hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+        code, summary = self.run_verifier(manifest, strict=True)
+
+        self.assertEqual(1, code)
+        self.assertFalse(summary["runtime"]["sameApkAcrossMatrix"])
+        self.assertEqual(
+            "fail",
+            next(c for c in summary["checks"] if c["id"] == "runtime.same-apk-candidate")["status"],
+        )
+
+    def test_missing_apk_hash_fails(self) -> None:
+        manifest = self.complete_manifest()
+        manifest["samples"][0].pop("apkSha256")
+
+        code, summary = self.run_verifier(manifest, strict=True)
+
         self.assertEqual(1, code)
         self.assertIn(23, summary["runtime"]["missingApis"])
 

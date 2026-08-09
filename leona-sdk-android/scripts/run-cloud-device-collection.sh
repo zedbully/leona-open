@@ -132,6 +132,66 @@ redact_sensitive_file() {
   redact_sensitive_patterns_file "${file}"
 }
 
+sanitize_webshell_launch_artifacts() {
+  local activity_exit="unobserved"
+  local broadcast_exit="unobserved"
+  local candidate observed
+
+  # The interactive WeTest terminal echoes the submitted command. Depending
+  # on terminal width it may retain both a complete credential and truncated
+  # credential fragments. The launch transcript is not evidence: extract only
+  # our numeric exit markers, then destroy the transcript before any generic
+  # redaction or report generation can inspect or copy it.
+  for candidate in "${OUT_DIR}"/webshell-raw/launch.txt "${OUT_DIR}"/webshell-raw/launch.raw; do
+    [[ -s "${candidate}" ]] || continue
+    observed="$(grep -Eo 'LEONA_ACTIVITY_START_EXIT=[0-9]+' "${candidate}" 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+    if [[ -n "${observed}" ]]; then
+      activity_exit="${observed}"
+    fi
+    observed="$(grep -Eo 'LEONA_BROADCAST_EXIT=[0-9]+' "${candidate}" 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+    if [[ -n "${observed}" ]]; then
+      broadcast_exit="${observed}"
+    fi
+  done
+
+  for candidate in "${OUT_DIR}"/webshell-raw/launch*; do
+    [[ -f "${candidate}" ]] || continue
+    {
+      echo "webshell launch transcript withheld"
+      echo "LEONA_ACTIVITY_START_EXIT=${activity_exit}"
+      if [[ "${TRIGGER_SENSE}" == "direct" ]]; then
+        echo "LEONA_BROADCAST_EXIT=${broadcast_exit}"
+      fi
+    } > "${candidate}"
+  done
+
+  if [[ "${activity_exit}" != "0" ]]; then
+    echo "Sample activity launch did not return a current successful exit marker." >&2
+    return 1
+  fi
+  if [[ "${TRIGGER_SENSE}" == "direct" && "${broadcast_exit}" != "0" ]]; then
+    echo "cloudTest broadcast did not return a current successful exit marker." >&2
+    return 1
+  fi
+}
+
+sanitize_webshell_connection_artifact() {
+  local artifact="${OUT_DIR}/webshell-raw/webshell-url.redacted.txt"
+  [[ -f "${artifact}" ]] || return 0
+
+  # The helper's redacted URL still contains the raw WeTest host, device ID,
+  # and test ID. Those values are connection credentials/identifiers rather
+  # than collection evidence. Replace the URL before any artifact can be
+  # handed off, retaining only stable digests for correlation.
+  {
+    echo "webshell connection metadata withheld"
+    echo "web_shell_addr_sha256=$(sha256_text "${WETEST_WEB_SHELL_ADDR}")"
+    echo "device_id_sha256=$(sha256_text "${WETEST_DEVICE_ID}")"
+    echo "test_id_sha256=$(sha256_text "${WETEST_TEST_ID}")"
+    echo "control_key=<redacted>"
+  } > "${artifact}"
+}
+
 single_quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
@@ -623,9 +683,9 @@ run_wetest_webshell_collection() {
   fi
 
   echo "[1/7] Device via WeTest webshell"
-  local webshell_launch_cmd="launch=am start -n ${ACTIVITY}; sleep 2"
+  local webshell_launch_cmd="launch=am start -n ${ACTIVITY}; activity_rc=\$?; echo LEONA_ACTIVITY_START_EXIT=\$activity_rc; [ \$activity_rc -eq 0 ] || exit \$activity_rc; sleep 2"
   if [[ "${TRIGGER_SENSE}" == "direct" ]]; then
-    webshell_launch_cmd="launch=logcat -c; am start -n ${ACTIVITY}; sleep 2; am broadcast -a ${CLOUD_TEST_SENSE_ACTION} -n ${PACKAGE}/.CloudTestSenseReceiver --es io.leonasec.leona.sample.CLOUD_TEST_TOKEN $(single_quote "${CLOUD_TEST_TOKEN}") --es io.leonasec.leona.sample.CLOUD_TEST_RUN_ID $(single_quote "${CLOUD_TEST_RUN_ID}"); broadcast_rc=\$?; echo LEONA_BROADCAST_EXIT=\$broadcast_rc; [ \$broadcast_rc -eq 0 ] || exit \$broadcast_rc; sleep ${SENSE_WAIT_SECONDS}"
+    webshell_launch_cmd="launch=logcat -c; am start -n ${ACTIVITY}; activity_rc=\$?; echo LEONA_ACTIVITY_START_EXIT=\$activity_rc; [ \$activity_rc -eq 0 ] || exit \$activity_rc; sleep 2; am broadcast -a ${CLOUD_TEST_SENSE_ACTION} -n ${PACKAGE}/.CloudTestSenseReceiver --es io.leonasec.leona.sample.CLOUD_TEST_TOKEN $(single_quote "${CLOUD_TEST_TOKEN}") --es io.leonasec.leona.sample.CLOUD_TEST_RUN_ID $(single_quote "${CLOUD_TEST_RUN_ID}"); broadcast_rc=\$?; echo LEONA_BROADCAST_EXIT=\$broadcast_rc; [ \$broadcast_rc -eq 0 ] || exit \$broadcast_rc; sleep ${SENSE_WAIT_SECONDS}"
   elif [[ "${TRIGGER_SENSE}" == "ui" ]]; then
     webshell_launch_cmd="${webshell_launch_cmd}; i=0; while [ \$i -lt ${PRE_SENSE_SWIPES} ]; do input swipe 540 2050 540 500 800; sleep 1; i=\$((i+1)); done; bounds=\$(uiautomator dump /dev/tty 2>/dev/null | tr '\r' '\n' | sed -n 's/.*resource-id=\"${PACKAGE}:id\\/buttonSense\"[^>]*bounds=\"\\[\\([0-9][0-9]*\\),\\([0-9][0-9]*\\)\\]\\[\\([0-9][0-9]*\\),\\([0-9][0-9]*\\)\\]\".*/\\1 \\2 \\3 \\4/p' | head -1); set -- \$bounds; if [ \$# -eq 4 ]; then input tap \$(((\$1+\$3)/2)) \$(((\$2+\$4)/2)); else input tap ${SENSE_TAP_X} ${SENSE_TAP_Y}; fi; sleep ${SENSE_WAIT_SECONDS}"
   else
@@ -649,6 +709,8 @@ run_wetest_webshell_collection() {
     --cmd "cloud_result=logcat -d -v raw -s LeonaCloudTest:I '*:S'" \
     --cmd 'logcat=logcat -d -v threadtime -t 1200' \
     > "${OUT_DIR}/webshell-helper.log" 2>&1
+  sanitize_webshell_launch_artifacts
+  sanitize_webshell_connection_artifact
   for launch_artifact in \
     "${OUT_DIR}"/webshell-raw/launch* \
     "${OUT_DIR}"/webshell-raw/sense_result* \

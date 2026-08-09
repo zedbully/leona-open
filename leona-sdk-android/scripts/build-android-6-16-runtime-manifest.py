@@ -30,6 +30,7 @@ VERSIONS = {
     36: "16",
 }
 FULL_BOX_ID_RE = re.compile(r"\b01[0-9A-HJKMNP-TV-Z]{24}\b")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 CREDENTIAL_RE = re.compile(
     r"(?i)(?:lk_(?:live|dev)_(?:app_|sec_)?|ct_)[A-Za-z0-9_-]{12,}|"
     r"bearer\s+[A-Za-z0-9._~+/=-]{12,}|BEGIN (?:RSA |OPENSSH |PGP )?PRIVATE KEY"
@@ -107,6 +108,9 @@ def validate_import(api: int, path: Path) -> tuple[dict[str, Any] | None, str | 
         return None, "sample-trigger-not-direct"
     if sample.get("reportVerified") is not True:
         return None, "sample-report-not-verified"
+    apk_sha256 = str(sample.get("apkSha256") or "").strip().lower()
+    if SHA256_RE.fullmatch(apk_sha256) is None:
+        return None, "sample-apk-sha256-invalid"
     if not parse_timestamp(sample.get("collectedAt")):
         return None, "sample-collected-at-invalid"
     if not parse_timestamp(report.get("generatedAt")):
@@ -121,6 +125,7 @@ def validate_import(api: int, path: Path) -> tuple[dict[str, Any] | None, str | 
         "artifactType": "redacted-matrix-import-summary-v1",
         "senseTriggered": True,
         "reportVerified": True,
+        "apkSha256": apk_sha256,
         "redacted": True,
         "rawIdentifiersPrinted": False,
         "artifactPath": str(artifact),
@@ -138,6 +143,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
             f"- runtime evidence: `{summary['runtimeEvidencePath']}`",
             f"- passing APIs: {', '.join(map(str, summary['passingApis'])) or 'none'}",
             f"- missing APIs: {', '.join(map(str, summary['missingApis'])) or 'none'}",
+            f"- same APK across matrix: {str(summary['sameApkAcrossMatrix']).lower()}",
             f"- failures: {', '.join(summary['failures']) or 'none'}",
             "- secret values printed: false",
             "- raw identifiers printed: false",
@@ -175,6 +181,10 @@ def main(argv: list[str] | None = None) -> int:
 
     passing = [sample["apiLevel"] for sample in runtime_samples]
     missing = [api for api in VERSIONS if api not in passing]
+    apk_hashes = {sample["apkSha256"] for sample in runtime_samples}
+    same_apk = bool(runtime_samples) and len(apk_hashes) == 1
+    if len(runtime_samples) > 1 and not same_apk:
+        failures.append("matrix:apk-sha256-mismatch")
     if failures or (args.require_complete and missing):
         status = "fail"
     elif missing:
@@ -194,6 +204,8 @@ def main(argv: list[str] | None = None) -> int:
         "runtimeEvidencePath": str(runtime_path),
         "passingApis": passing,
         "missingApis": missing,
+        "sameApkAcrossMatrix": same_apk,
+        "apkSha256": next(iter(apk_hashes)) if same_apk else "",
         "failures": failures,
         "secretValuesPrinted": False,
         "rawIdentifiersPrinted": False,

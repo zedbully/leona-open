@@ -90,6 +90,99 @@ redact_secret_file {str(artifact)!r} {secret!r}
             self.assertIn("<redaction-failed: residual token removed>", output)
             self.assertNotIn(fragment, output)
 
+    def test_webshell_launch_transcript_is_destroyed_after_exit_marker_extraction(self) -> None:
+        secret = "synthetic-token-8F3K9P2Q"
+        fragment = secret[4:12]
+        with tempfile.TemporaryDirectory(prefix="leona-launch-transcript-") as temp:
+            root = Path(temp)
+            raw = root / "webshell-raw"
+            raw.mkdir()
+            for name in ("launch.raw", "launch.txt"):
+                (raw / name).write_text(
+                    f"command={secret}\npartial={fragment}\n"
+                    "LEONA_ACTIVITY_START_EXIT=0\nLEONA_BROADCAST_EXIT=0\n",
+                    encoding="utf-8",
+                )
+            program = f"""
+set -euo pipefail
+OUT_DIR={str(root)!r}
+TRIGGER_SENSE=direct
+{extract_redaction_functions()}
+sanitize_webshell_launch_artifacts
+"""
+            result = subprocess.run(
+                ["bash", "-c", program], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            for name in ("launch.raw", "launch.txt"):
+                output = (raw / name).read_text(encoding="utf-8")
+                self.assertIn("webshell launch transcript withheld", output)
+                self.assertIn("LEONA_ACTIVITY_START_EXIT=0", output)
+                self.assertIn("LEONA_BROADCAST_EXIT=0", output)
+                self.assertNotIn(secret, output)
+                self.assertNotIn(fragment, output)
+
+    def test_webshell_launch_transcript_missing_marker_fails_after_destruction(self) -> None:
+        secret = "synthetic-token-8F3K9P2Q"
+        with tempfile.TemporaryDirectory(prefix="leona-launch-transcript-missing-") as temp:
+            root = Path(temp)
+            raw = root / "webshell-raw"
+            raw.mkdir()
+            artifact = raw / "launch.txt"
+            artifact.write_text(f"command={secret}\n", encoding="utf-8")
+            program = f"""
+set -euo pipefail
+OUT_DIR={str(root)!r}
+TRIGGER_SENSE=direct
+{extract_redaction_functions()}
+sanitize_webshell_launch_artifacts
+"""
+            result = subprocess.run(
+                ["bash", "-c", program], check=False, capture_output=True, text=True
+            )
+            self.assertNotEqual(0, result.returncode)
+            output = artifact.read_text(encoding="utf-8")
+            self.assertIn("webshell launch transcript withheld", output)
+            self.assertNotIn(secret, output)
+
+    def test_webshell_connection_artifact_retains_only_hashes(self) -> None:
+        addr = "synthetic.wetest.invalid/private/webshell"
+        device_id = "synthetic-device-id"
+        test_id = "synthetic-test-id"
+        control_key = "synthetic-control-key"
+        with tempfile.TemporaryDirectory(prefix="leona-webshell-connection-") as temp:
+            root = Path(temp)
+            raw = root / "webshell-raw"
+            raw.mkdir()
+            artifact = raw / "webshell-url.redacted.txt"
+            artifact.write_text(
+                f"wss://{addr}?device_id={device_id}&test_id={test_id}"
+                f"&control_key={control_key}\n",
+                encoding="utf-8",
+            )
+            program = f"""
+set -euo pipefail
+OUT_DIR={str(root)!r}
+WETEST_WEB_SHELL_ADDR={addr!r}
+WETEST_DEVICE_ID={device_id!r}
+WETEST_TEST_ID={test_id!r}
+sha256_text() {{ printf '%s' "$1" | shasum -a 256 | awk '{{print $1}}'; }}
+{extract_redaction_functions()}
+sanitize_webshell_connection_artifact
+"""
+            result = subprocess.run(
+                ["bash", "-c", program], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            output = artifact.read_text(encoding="utf-8")
+            self.assertIn("webshell connection metadata withheld", output)
+            self.assertIn("web_shell_addr_sha256=", output)
+            self.assertIn("device_id_sha256=", output)
+            self.assertIn("test_id_sha256=", output)
+            self.assertIn("control_key=<redacted>", output)
+            for raw_value in (addr, device_id, test_id, control_key):
+                self.assertNotIn(raw_value, output)
+
     def test_box_id_redaction_handles_uuid_and_lowercase_ulid(self) -> None:
         uuid_box_id = "123e4567-e89b-42d3-a456-426614174000"
         lowercase_ulid_box_id = "01kq5j7y7ns9x5c6m8f3w81b2z"
