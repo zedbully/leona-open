@@ -101,11 +101,13 @@ run_optional_gate() {
 }
 
 ACQUISITION_ATTEMPT_ARGS=()
+ACQUISITION_ATTEMPT_COUNT=0
 if [[ -n "${LEONA_ANDROID_EXTERNAL_EMULATOR_INSTALL_ATTEMPTS:-}" ]]; then
   IFS=',' read -r -a ACQUISITION_ATTEMPTS <<< "${LEONA_ANDROID_EXTERNAL_EMULATOR_INSTALL_ATTEMPTS}"
   for attempt in "${ACQUISITION_ATTEMPTS[@]}"; do
     if [[ -n "${attempt}" ]]; then
       ACQUISITION_ATTEMPT_ARGS+=(--record-install-attempt "${attempt}")
+      ACQUISITION_ATTEMPT_COUNT=$((ACQUISITION_ATTEMPT_COUNT + 1))
     fi
   done
 fi
@@ -393,6 +395,10 @@ require_absent "public Android docs do not expose private/deployment terms" \
   leona-sdk-android/docs/v0.4-tag-release-runbook.md \
   leona-sdk-android/CHANGELOG.md
 
+require_absent "release readiness avoids login-shell environment leakage" \
+  'bash[[:space:]]+-l(c|[[:space:]])' \
+  leona-sdk-android/scripts/verify-v0.4-release-readiness.sh
+
 run_gate "clean OEM ledger gate" \
   "clean-oem-ledger" \
   "${ROOT_DIR}/scripts/verify-clean-oem-ledger.sh"
@@ -415,11 +421,20 @@ else
   warn "Android matrix external sample import gate skipped; set LEONA_ANDROID_MATRIX_EXTERNAL_IMPORT_DIR to a collected matrix artifact directory."
 fi
 
-run_gate "Android external emulator acquisition preflight" \
-  "android-external-emulator-acquisition" \
-  "${ROOT_DIR}/scripts/probe-android-external-emulator-acquisition.py" \
-    --output-dir "${REPORT_DIR}/android-external-emulator-acquisition" \
-    "${ACQUISITION_ATTEMPT_ARGS[@]}"
+if (( ACQUISITION_ATTEMPT_COUNT > 0 )); then
+  run_gate "Android external emulator acquisition preflight" \
+    "android-external-emulator-acquisition" \
+    "${ROOT_DIR}/scripts/probe-android-external-emulator-acquisition.py" \
+      --output-dir "${REPORT_DIR}/android-external-emulator-acquisition" \
+      "${ACQUISITION_ATTEMPT_ARGS[@]}"
+else
+  # Bash 3.2 treats an empty-array expansion as an unbound variable under
+  # `set -u`, so omit the optional arguments entirely on the default path.
+  run_gate "Android external emulator acquisition preflight" \
+    "android-external-emulator-acquisition" \
+    "${ROOT_DIR}/scripts/probe-android-external-emulator-acquisition.py" \
+      --output-dir "${REPORT_DIR}/android-external-emulator-acquisition"
+fi
 
 run_gate "attestation real-smoke preflight gate" \
   "attestation-real-smoke-preflight" \
@@ -491,7 +506,7 @@ run_gate "v0.4 Android version bump dry-run gate" \
 run_optional_gate "public Gradle gate" \
   "public-gradle-gate" \
   "${LEONA_RUN_PUBLIC_GRADLE_GATE:-0}" \
-  bash -lc "cd '${ROOT_DIR}' && ./gradlew :sdk:lint :sdk:testDebugUnitTest :sdk:assembleRelease :sample-app:assembleRelease --no-daemon"
+  bash -c "cd '${ROOT_DIR}' && exec ./gradlew :sdk:lint :sdk:testDebugUnitTest :sdk:assembleRelease :sample-app:assembleRelease --no-daemon"
 
 run_optional_gate "public post-release consumption smoke" \
   "public-consumption" \
