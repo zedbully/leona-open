@@ -45,6 +45,8 @@ EXPECTED_BLOCKER_CODES = {
     "oem": {
         "oem_server_verifier_contract",
         "oem_trusted_provider_allowlist",
+        "oem_provider_public_keys",
+        "oem_package_name_allowlist",
         "oem_private_verifier",
         "oem_provider_namespace",
         "oem_device_bridge",
@@ -184,6 +186,16 @@ def run_local_checks(private_server_root: Path) -> list[dict[str, str]]:
             r"PrivateOemAttestationVerifier|OEM_ATTESTATION_VERIFIER_MISSING",
         ))
         checks.append(require_pattern(
+            "private OEM verifier requires out-of-band ES256 provider keys",
+            private_server_root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationJwsVerifier.java",
+            r"ES256[\s\S]*OEM_ATTESTATION_KEY_NOT_CONFIGURED[\s\S]*forbiddenDynamicKeyHeaderPresent",
+        ))
+        checks.append(require_pattern(
+            "private OEM verifier binds provider signature package challenge and install",
+            private_server_root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationVerifier.java",
+            r"jwsVerifier\.authenticate[\s\S]*attestation_challenge_mismatch[\s\S]*attestation_install_mismatch[\s\S]*attestation_package_untrusted",
+        ))
+        checks.append(require_pattern(
             "server Play Integrity verifier bridge is optional/private",
             private_server_root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/PlayIntegrityAttestationVerifiers.java",
             r"PrivatePlayIntegrityAttestationVerifier|PLAY_INTEGRITY_VERIFIER_MISSING",
@@ -206,7 +218,7 @@ def run_local_checks(private_server_root: Path) -> list[dict[str, str]]:
         checks.append(require_pattern(
             "server deployment template carries fail-closed attestation inputs and safe defaults",
             private_server_root / "deploy/prod-homeleona/.env.example",
-            r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
+            r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES=",
         ))
     checks.append(require_pattern(
         "sample release guard rejects attestation debug/test properties",
@@ -304,14 +316,24 @@ def run_external_material_checks(target: str, private_server_root: Path) -> list
             blockers.append(blocker("oem_server_verifier_contract", "mount the private OEM server contract outside the public checkout"))
         trusted = [item.strip() for item in os.environ.get("LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS", "").split(",") if item.strip()]
         non_demo_trusted = [item for item in trusted if item != "sample_mainland_debug"]
+        provider_keys_ready = oem_public_key_config_ready(non_demo_trusted)
+        package_names = [
+            item.strip()
+            for item in os.environ.get("LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES", "").split(",")
+            if item.strip()
+        ]
         private_verifier_ready = os.environ.get("LEONA_OEM_ATTESTATION_PRIVATE_VERIFIER_READY") == "1"
         provider_namespace = os.environ.get("LEONA_OEM_ATTESTATION_PROVIDER_NAMESPACE", "").strip()
         bridge_ready = os.environ.get("LEONA_OEM_ATTESTATION_BRIDGE_READY") == "1"
         if not non_demo_trusted:
             blockers.append(blocker("oem_trusted_provider_allowlist", "configure at least one non-demo OEM trusted provider"))
+        if not provider_keys_ready:
+            blockers.append(blocker("oem_provider_public_keys", "configure out-of-band P-256 provider public keys for every trusted provider/key id"))
+        if not package_names or any(not PACKAGE_NAME.fullmatch(item) for item in package_names):
+            blockers.append(blocker("oem_package_name_allowlist", "configure at least one valid Android package name for the OEM lane"))
         if not private_verifier_ready:
             blockers.append(blocker("oem_private_verifier", "install private OEM verifier module on the server runtime classpath"))
-        if not provider_namespace:
+        if not provider_namespace or provider_namespace not in non_demo_trusted:
             blockers.append(blocker("oem_provider_namespace", "provide the OEM provider namespace/channel for smoke attribution"))
         if not bridge_ready:
             blockers.append(blocker("oem_device_bridge", "install a host-app OEM bridge backed by a real OEM SDK"))
@@ -334,7 +356,34 @@ def play_server_contract_available(root: Path) -> bool:
 
 
 def oem_server_contract_available(root: Path) -> bool:
-    return (root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/OemAttestationVerifiers.java").is_file()
+    return all(path.is_file() for path in (
+        root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/OemAttestationVerifiers.java",
+        root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationVerifier.java",
+        root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationJwsVerifier.java",
+        root / "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationToken.java",
+    ))
+
+
+def oem_public_key_config_ready(trusted_providers: list[str]) -> bool:
+    raw = os.environ.get("LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS", "").strip()
+    if not raw or not trusted_providers:
+        return False
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    for provider in trusted_providers:
+        keys = payload.get(provider)
+        if not isinstance(keys, dict) or not keys:
+            return False
+        for kid, encoded in keys.items():
+            if not isinstance(kid, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,128}", kid):
+                return False
+            if not isinstance(encoded, str) or not re.fullmatch(r"[A-Za-z0-9_-]{80,512}", encoded):
+                return False
+    return True
 
 
 def server_contract_available(target: str, root: Path) -> bool:

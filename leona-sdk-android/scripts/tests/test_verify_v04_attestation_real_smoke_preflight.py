@@ -25,6 +25,8 @@ MATERIAL_ENV_KEYS = {
     "LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS",
     "LEONA_PLAY_INTEGRITY_DEVICE_TOKEN_ARTIFACT",
     "LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS",
+    "LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS",
+    "LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES",
     "LEONA_OEM_ATTESTATION_PRIVATE_VERIFIER_READY",
     "LEONA_OEM_ATTESTATION_PROVIDER_NAMESPACE",
     "LEONA_OEM_ATTESTATION_BRIDGE_READY",
@@ -81,6 +83,12 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
                 "PrivatePlayIntegrityAttestationVerifier PLAY_INTEGRITY_VERIFIER_MISSING\n",
             "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivatePlayIntegrityAttestationVerifier.java":
                 "LEONA_PLAY_INTEGRITY_PACKAGE_NAME LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS PLAY_INTEGRITY_CHALLENGE_MISMATCH\n",
+            "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationJwsVerifier.java":
+                "ES256 OEM_ATTESTATION_KEY_NOT_CONFIGURED forbiddenDynamicKeyHeaderPresent\n",
+            "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationVerifier.java":
+                "jwsVerifier.authenticate attestation_challenge_mismatch attestation_install_mismatch attestation_package_untrusted\n",
+            "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/PrivateOemAttestationToken.java":
+                "PrivateOemAttestationToken\n",
             "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/GooglePlayIntegrityTokenDecoder.java":
                 "https://www.googleapis.com/auth/playintegrity https://playintegrity.googleapis.com decodeIntegrityToken\n",
             "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java":
@@ -91,6 +99,8 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
                 "LEONA_PLAY_INTEGRITY_PACKAGE_NAME=\n"
                 "LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=\n"
                 "LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS=\n"
+                "LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS=\n"
+                "LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES=\n"
             ),
         }
         for relative, content in files.items():
@@ -104,12 +114,12 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("local-pass-with-external-blockers", report["status"])
-        self.assertEqual(14, report["localCheckCount"])
-        self.assertEqual(14, report["localPassCount"])
+        self.assertEqual(16, report["localCheckCount"])
+        self.assertEqual(16, report["localPassCount"])
         self.assertEqual(0, report["localFailureCount"])
-        self.assertEqual(10, report["externalBlockerCount"])
+        self.assertEqual(12, report["externalBlockerCount"])
         self.assertEqual(
-            {"play_integrity": 6, "oem": 4, "other": 0},
+            {"play_integrity": 6, "oem": 6, "other": 0},
             report["externalBlockerCountsByProvider"],
         )
         self.assertEqual([], report["missingExpectedExternalBlockers"])
@@ -129,7 +139,7 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
         self.assertEqual("local-pass-with-external-blockers", report["status"])
         self.assertEqual(8, report["localCheckCount"])
         self.assertEqual(8, report["localPassCount"])
-        self.assertEqual(12, report["externalBlockerCount"])
+        self.assertEqual(14, report["externalBlockerCount"])
         self.assertIn("play_integrity_server_verifier_contract", report["externalBlockerCodes"])
         self.assertIn("oem_server_verifier_contract", report["externalBlockerCodes"])
         self.assertFalse(report["privateServerContractAvailable"])
@@ -213,6 +223,32 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual("failed", report["status"])
         self.assertEqual(6, report["externalBlockerCount"])
+        self.assertFalse(report["realProviderContacted"])
+
+    def test_oem_lane_requires_signed_provider_keys_and_package_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            result, report = self.run_preflight(
+                root / "report",
+                target="oem",
+                extra_env={
+                    "LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS": "leona_self_hosted_domestic",
+                    "LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS": json.dumps({
+                        "leona_self_hosted_domestic": {
+                            "provider-key-2026-01": "A" * 96,
+                        }
+                    }),
+                    "LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES": "io.leonasec.leona.sample",
+                    "LEONA_OEM_ATTESTATION_PRIVATE_VERIFIER_READY": "1",
+                    "LEONA_OEM_ATTESTATION_PROVIDER_NAMESPACE": "leona_self_hosted_domestic",
+                    "LEONA_OEM_ATTESTATION_BRIDGE_READY": "1",
+                },
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("ready-for-real-smoke", report["status"])
+        self.assertEqual([], report["externalBlockerCodes"])
+        self.assertEqual(0, report["externalBlockerCount"])
         self.assertFalse(report["realProviderContacted"])
 
 

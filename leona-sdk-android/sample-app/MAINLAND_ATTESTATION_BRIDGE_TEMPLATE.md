@@ -26,6 +26,9 @@ This emits a synthetic token with:
 
 Only use this for local testing.
 
+The production private verifier intentionally rejects this unsigned fixture.
+Never add `sample_mainland_debug` to a production trusted-provider allowlist.
+
 ## 2. Real OEM bridge mode
 
 Use this when your distribution channel relies on a mainland OEM attestation
@@ -36,29 +39,22 @@ class SampleApp : Application() {
     override fun onCreate() {
         SampleMainlandAttestation.installBridge(
             SampleMainlandAttestation.Bridge { request ->
-                // Replace this block with the selected OEM SDK call.
-                // Return a raw JSON token shaped like the oem_attestation envelope.
-                """
-                {
-                  "version": 1,
-                  "provider": "huawei_safetyshield",
-                  "trustTier": "oem_attested",
-                  "issuedAtMillis": ${'$'}{request.issuedAtMillis},
-                  "challenge": "${'$'}{request.challenge}",
-                  "installIdSha256": "${'$'}{request.installIdSha256}",
-                  "packageName": "${'$'}{request.packageName}",
-                  "evidenceLabels": ["boot_locked", "tee_key"],
-                  "claims": {
-                    "manufacturer": "${'$'}{request.manufacturer}",
-                    "model": "${'$'}{request.model}",
-                    "sdkInt": "${'$'}{request.sdkInt}"
-                  }
-                }
-                """.trimIndent()
+                // 1. Call the selected OEM SDK and obtain its opaque proof.
+                // 2. Send that proof plus request.challenge/installIdSha256/packageName
+                //    to your private provider over an authenticated channel.
+                // 3. The private provider verifies the OEM proof and returns a compact
+                //    ES256 JWS. Return that JWS here.
+                //
+                // Never embed the provider signing key or a server SecretKey in the APK.
+                exchangeWithYourPrivateProvider(request)
             }
         )
         super.onCreate()
     }
+
+    private fun exchangeWithYourPrivateProvider(
+        request: SampleMainlandAttestation.Request
+    ): String = error("Implement the private OEM SDK/provider exchange")
 }
 ```
 
@@ -74,20 +70,27 @@ Run with:
 ## 3. Server requirement
 
 For real mainland OEM verification, the server must have the private verifier
-installed and a trusted provider allowlist configured:
+installed and all trust inputs configured out of band:
 
 - `leona.handshake.attestation.oem.trusted-providers`
-- or `LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS`
+- `leona.handshake.attestation.oem.provider-public-keys`
+- `leona.handshake.attestation.oem.package-names`
 
-Example:
+Equivalent environment variables are:
 
 ```bash
-export LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS=huawei_safetyshield,xiaomi_guard
+LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS
+LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS
+LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES
 ```
+
+Do not place real values in public source or documentation.
 
 ## 4. Expected handshake outcomes
 
-- `oem_debug_fake`: useful only with permissive / staging verification
-- `oem_bridge`: should produce server status like `oem_attestation/oem_attested`
+- `oem_debug_fake`: local collection/transport fixture; production result is `OEM_ATTESTATION_AUTHENTICATION_REQUIRED`
+- `oem_bridge`: produces `oem_attestation/oem_attested` only after signature, package, challenge, install, freshness, and upstream OEM evidence checks pass
 - missing private verifier: `OEM_ATTESTATION_VERIFIER_MISSING`
 - untrusted provider: `OEM_ATTESTATION_PROVIDER_UNTRUSTED`
+- missing provider key: `OEM_ATTESTATION_KEY_NOT_CONFIGURED`
+- unauthenticated upstream OEM evidence: `OEM_ATTESTATION_UPSTREAM_EVIDENCE_UNAUTHENTICATED`

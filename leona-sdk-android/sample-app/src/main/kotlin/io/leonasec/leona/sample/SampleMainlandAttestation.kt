@@ -15,7 +15,8 @@ import io.leonasec.leona.config.AttestationStatement
  * Sample-app mainland / non-GMS attestation wiring.
  *
  * Modes are controlled by BuildConfig.LEONA_SAMPLE_ATTESTATION_MODE:
- * - oem_debug_fake: emit a synthetic OEM attestation JSON token for local demo only
+ * - oem_debug_fake: emit unsigned synthetic JSON for local collection/transport only;
+ *   a production verifier must reject it
  * - oem_bridge: require the host app to install a real OEM attestation bridge
  */
 object SampleMainlandAttestation {
