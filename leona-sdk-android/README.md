@@ -125,6 +125,30 @@ and checks that the AAR plus expected public transitive dependencies are
 available. This does not replace the required post-tag GitHub Packages remote
 pull check.
 
+### Domestic direct/private distribution
+
+Deployments that do not use Google runtime services may distribute the same
+coordinate through a customer-controlled Maven repository. Prepare exactly the
+AAR, POM, Gradle module metadata, sources JAR, and javadoc JAR, with one
+detached armored OpenPGP signature and one SHA-256 sidecar for each artifact.
+Then verify the prepared repository and an independent consumer result:
+
+```bash
+python3 scripts/verify-v0.4-domestic-private-distribution.py \
+  --repository-dir /path/to/prepared-maven-repository \
+  --public-key /path/to/customer-trusted-public-key.asc \
+  --consumer-summary /path/to/independent-consumer-summary.json \
+  --expected-aar-sha256 expected_lowercase_sha256 \
+  --output-dir /tmp/leona-domestic-private-distribution
+```
+
+The verifier never publishes or signs artifacts. It rejects ambiguous files,
+checksum/signature drift, coordinate traversal, private-key input, any
+`com.google` Maven dependency, and any `com/google/` runtime package embedded
+in the AAR. A passing result is support evidence only: the customer must
+configure its own signing trust and its backend remains the sole owner of
+business decisions.
+
 The release-readiness wrapper combines the lightweight local checks and lists
 the external gates that cannot be completed until a tag or real device is
 available:
