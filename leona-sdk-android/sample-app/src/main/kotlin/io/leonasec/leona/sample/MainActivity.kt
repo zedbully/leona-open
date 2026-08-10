@@ -12,10 +12,10 @@ import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.view.View
+import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.button.MaterialButton
 import io.leonasec.leona.BoxId
 import io.leonasec.leona.Honeypot
 import io.leonasec.leona.Leona
@@ -734,7 +734,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun installSectionToggle(
-        button: MaterialButton,
+        button: Button,
         target: View,
         showLabelRes: Int,
         hideLabelRes: Int,

@@ -17,14 +17,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/app_name"
-            android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
         <TextView
             android:id="@+id/sdkVersion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textAppearance="?android:attr/textAppearanceSmall"
             tools:text="SDK version: 0.4.0" />
 
         <TextView
@@ -32,13 +32,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textAppearance="?android:attr/textAppearanceSmall"
             tools:text="Server mode: stub (no backend)" />
 
-        <com.google.android.material.card.MaterialCardView
-            style="?attr/materialCardViewElevatedStyle"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:layout_marginTop="24dp">
 
             <LinearLayout
@@ -51,14 +51,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/sense_header"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/sense_help"
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
+                    android:textAppearance="?android:attr/textAppearanceSmall" />
 
                 <TextView
                     android:id="@+id/deviceId"
@@ -67,7 +67,7 @@
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
                     android:text="@string/device_id_placeholder"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="DeviceId: Txxxx" />
 
                 <TextView
@@ -77,12 +77,11 @@
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
                     android:text="@string/diagnostic_placeholder"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="evidence=[]&#10;nativeFacts=[]" />
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonToggleDiagnosticJson"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -102,17 +101,15 @@
                         android:layout_marginTop="12dp"
                         android:orientation="horizontal">
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonCopyDiagnosticJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/copy_diagnostic_json" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonShareDiagnosticJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
@@ -127,7 +124,7 @@
                         android:layout_marginTop="12dp"
                         android:fontFamily="monospace"
                         android:text="@string/diagnostic_json_placeholder"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
                         tools:text="{&#10;  &quot;deviceId&quot;: &quot;T...&quot;&#10;}" />
                 </LinearLayout>
 
@@ -138,7 +135,7 @@
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
                     android:text="@string/transport_placeholder"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="engine=true&#10;bindingPresent=true&#10;attestation=play_integrity" />
 
                 <TextView
@@ -148,7 +145,7 @@
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
                     android:text="@string/support_bundle_summary_placeholder"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="canonical=L...&#10;effectiveDisabled=androidId&#10;cloudFetchedAt=1710000000000" />
 
                 <TextView
@@ -158,12 +155,11 @@
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
                     android:text="@string/consistency_summary_placeholder"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="device=L...&#10;transport=L...&#10;verdict=L...&#10;bundle=L...&#10;aligned=true" />
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonToggleConsistencyJson"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -183,17 +179,15 @@
                         android:layout_marginTop="12dp"
                         android:orientation="horizontal">
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonCopyConsistencyJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/copy_consistency_json" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonShareConsistencyJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
@@ -208,13 +202,12 @@
                         android:layout_marginTop="12dp"
                         android:fontFamily="monospace"
                         android:text="@string/consistency_json_placeholder"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
                         tools:text="{&#10;  &quot;aligned&quot;: true&#10;}" />
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonToggleTransportJson"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -234,17 +227,15 @@
                         android:layout_marginTop="12dp"
                         android:orientation="horizontal">
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonCopyTransportJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/copy_transport_json" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonShareTransportJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
@@ -259,13 +250,12 @@
                         android:layout_marginTop="12dp"
                         android:fontFamily="monospace"
                         android:text="@string/transport_json_placeholder"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
                         tools:text="{&#10;  &quot;engineAvailable&quot;: true&#10;}" />
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonToggleSupportBundle"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -285,17 +275,15 @@
                         android:layout_marginTop="12dp"
                         android:orientation="horizontal">
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonCopySupportBundle"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/copy_support_bundle" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonShareSupportBundle"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
@@ -310,11 +298,11 @@
                         android:layout_marginTop="12dp"
                         android:fontFamily="monospace"
                         android:text="@string/support_bundle_placeholder"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
                         tools:text="{&#10;  &quot;sdkVersion&quot;: &quot;0.4.0&quot;&#10;}" />
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonSense"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -337,12 +325,11 @@
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
                     android:text="@string/box_id_placeholder"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
                     tools:text="BoxId: 1234-abcd-…" />
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonVerdict"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -355,12 +342,11 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="采集状态=已采集环境信息&#10;业务处理=由业务调用方自行处理&#10;检测明细:&#10;· 安装来源缺失或未知（tamper.installer.missing）" />
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonToggleVerdictJson"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -380,17 +366,15 @@
                         android:layout_marginTop="12dp"
                         android:orientation="horizontal">
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonCopyVerdictJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/copy_verdict_json" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <Button
                             android:id="@+id/buttonShareVerdictJson"
-                            style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
@@ -405,16 +389,16 @@
                         android:layout_marginTop="12dp"
                         android:fontFamily="monospace"
                         android:text="@string/verdict_json_placeholder"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
                         tools:text="{&#10;  &quot;decision&quot;: &quot;evidence_collected&quot;&#10;}" />
                 </LinearLayout>
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
 
-        <com.google.android.material.card.MaterialCardView
-            style="?attr/materialCardViewOutlinedStyle"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:layout_marginTop="16dp">
 
             <LinearLayout
@@ -427,18 +411,17 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/decoy_header"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/decoy_help"
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
+                    android:textAppearance="?android:attr/textAppearanceSmall" />
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonDecoy"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -450,15 +433,15 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
                     tools:text="quickCheck: true" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
 
-        <com.google.android.material.card.MaterialCardView
-            style="?attr/materialCardViewOutlinedStyle"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:layout_marginTop="16dp">
 
             <LinearLayout
@@ -471,18 +454,17 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/honeypot_header"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/honeypot_help"
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
+                    android:textAppearance="?android:attr/textAppearanceSmall" />
 
-                <com.google.android.material.button.MaterialButton
+                <Button
                     android:id="@+id/buttonHoneypot"
-                    style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -494,9 +476,9 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:fontFamily="monospace"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
                     tools:text="fake user …" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>
