@@ -15,6 +15,8 @@ val leonaSamplePlayIntegrityCloudProjectNumber =
     providers.gradleProperty("LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER").orElse("").get()
 val leonaSampleEnableRealPlayIntegrityDep =
     providers.gradleProperty("LEONA_SAMPLE_ENABLE_REAL_PLAY_INTEGRITY_DEP").orElse("false").get().toBoolean()
+val leonaSampleHuaweiAppId =
+    providers.gradleProperty("LEONA_SAMPLE_HUAWEI_APP_ID").orElse("").get()
 
 fun String.quoted(): String = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
@@ -25,12 +27,14 @@ tasks.register("guardSampleReleaseBuild") {
     inputs.property("leonaE2EToken", leonaE2EToken)
     inputs.property("leonaCloudTestToken", leonaCloudTestToken)
     inputs.property("leonaSampleAttestationMode", leonaSampleAttestationMode)
+    inputs.property("leonaSampleHuaweiAppId", leonaSampleHuaweiAppId)
     doLast {
         val debugOnlySampleProperties = mapOf(
             "LEONA_API_KEY" to inputs.properties["leonaApiKey"]?.toString().orEmpty(),
             "LEONA_E2E_TOKEN" to inputs.properties["leonaE2EToken"]?.toString().orEmpty(),
             "LEONA_CLOUD_TEST_TOKEN" to inputs.properties["leonaCloudTestToken"]?.toString().orEmpty(),
             "LEONA_SAMPLE_ATTESTATION_MODE" to inputs.properties["leonaSampleAttestationMode"]?.toString().orEmpty(),
+            "LEONA_SAMPLE_HUAWEI_APP_ID" to inputs.properties["leonaSampleHuaweiAppId"]?.toString().orEmpty(),
         )
         val unsafe = debugOnlySampleProperties.filterValues { value -> value.isNotBlank() && value != "off" }
         if (unsafe.isNotEmpty()) {
@@ -66,6 +70,7 @@ android {
             "LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER",
             "\"\"",
         )
+        buildConfigField("String", "LEONA_SAMPLE_HUAWEI_APP_ID", "\"\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -96,6 +101,7 @@ android {
                 "LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER",
                 leonaSamplePlayIntegrityCloudProjectNumber.quoted(),
             )
+            buildConfigField("String", "LEONA_SAMPLE_HUAWEI_APP_ID", leonaSampleHuaweiAppId.quoted())
         }
         create("cloudTest") {
             initWith(getByName("release"))
@@ -117,6 +123,7 @@ android {
                 "LEONA_SAMPLE_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER",
                 leonaSamplePlayIntegrityCloudProjectNumber.quoted(),
             )
+            buildConfigField("String", "LEONA_SAMPLE_HUAWEI_APP_ID", leonaSampleHuaweiAppId.quoted())
         }
     }
 

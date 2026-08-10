@@ -1,3 +1,11 @@
+val includePrivateSdkCore =
+    providers.gradleProperty("LEONA_INCLUDE_PRIVATE_CORE")
+        .orElse(providers.environmentVariable("LEONA_INCLUDE_PRIVATE_CORE"))
+        .orElse("false")
+        .get()
+        .lowercase()
+        .let { value -> value == "true" || value == "1" || value == "yes" }
+
 pluginManagement {
     repositories {
         google {
@@ -21,6 +29,16 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        if (includePrivateSdkCore) {
+            // The Huawei repository is reachable only for the explicitly enabled
+            // closed-source module. Public SDK builds and artifacts remain free of
+            // HMS (and Google Play Integrity) runtime dependencies.
+            maven("https://developer.huawei.com/repo/") {
+                content {
+                    includeGroupByRegex("com\\.huawei(\\..*)?")
+                }
+            }
+        }
         maven("https://maven.aliyun.com/repository/google")
         maven("https://maven.aliyun.com/repository/public")
     }
@@ -32,13 +50,6 @@ include(":sdk")
 include(":sample-app")
 
 val privateSdkCoreDir = file("private/sdk-private-core")
-val includePrivateSdkCore =
-    providers.gradleProperty("LEONA_INCLUDE_PRIVATE_CORE")
-        .orElse(providers.environmentVariable("LEONA_INCLUDE_PRIVATE_CORE"))
-        .orElse("false")
-        .get()
-        .lowercase()
-        .let { value -> value == "true" || value == "1" || value == "yes" }
 
 if (includePrivateSdkCore && privateSdkCoreDir.isDirectory) {
     include(":sdk-private-core")

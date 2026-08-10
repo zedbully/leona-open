@@ -48,6 +48,7 @@ class SampleApp : Application() {
 
 
     private fun resolveSampleAttestationProvider() =
-        SampleMainlandAttestation.createProvider(this)
+        SampleHuaweiSysIntegrity.createProvider(this)
+            ?: SampleMainlandAttestation.createProvider(this)
             ?: SamplePlayIntegrity.createProvider()
 }
