@@ -19,7 +19,6 @@ import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONObject
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,23 +32,71 @@ import javax.net.ssl.SSLHandshakeException
 class SecureChannelTest {
 
     @Test
-    fun `upload returns a non-empty BoxId for alpha stub`() = runBlocking {
-        val ctx = mockContext()
-        val channel = SecureChannel(ctx, LeonaConfig.Builder().build())
-
-        val id = channel.upload(byteArrayOf(1, 2, 3, 4), deviceContext())
-        assertNotNull(id)
-        assertTrue(id.boxId.toString().isNotEmpty())
+    fun `public hosted transport rejects cleartext endpoints`() {
+        val error = runCatching {
+            PublicHostedReportingClient.validatedPublicSenseUrl("http://api.example.test")
+        }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException)
     }
 
     @Test
-    fun `each upload returns a unique BoxId`() = runBlocking {
+    fun `upload fails closed when reporting endpoint is absent`() = runBlocking {
         val ctx = mockContext()
         val channel = SecureChannel(ctx, LeonaConfig.Builder().build())
 
-        val id1 = channel.upload(byteArrayOf(), deviceContext())
-        val id2 = channel.upload(byteArrayOf(), deviceContext())
-        assertNotEquals(id1, id2)
+        val error = runCatching { channel.upload(byteArrayOf(1, 2, 3, 4), deviceContext()) }
+            .exceptionOrNull()
+
+        assertNotNull(error)
+        assertEquals(
+            SecureReportingErrorCode.REPORTING_ENDPOINT_REQUIRED,
+            (error as SecureReportingException).code,
+        )
+        assertTrue(error.message.orEmpty().contains("diagnostic=reporting_endpoint_required"))
+    }
+
+    @Test
+    fun `upload fails closed when transport is disabled`() = runBlocking {
+        val ctx = mockContext()
+        val channel = SecureChannel(
+            ctx,
+            LeonaConfig.Builder()
+                .transportEnabled(false)
+                .build(),
+        )
+
+        val error = runCatching { channel.upload(byteArrayOf(), deviceContext()) }
+            .exceptionOrNull()
+
+        assertNotNull(error)
+        assertEquals(
+            SecureReportingErrorCode.TRANSPORT_DISABLED,
+            (error as SecureReportingException).code,
+        )
+        assertTrue(error.message.orEmpty().contains("diagnostic=transport_disabled"))
+    }
+
+    @Test
+    fun `commercial reporting profile fails closed without secure engine`() = runBlocking {
+        val ctx = mockContext()
+        val channel = SecureChannel(
+            ctx,
+            LeonaConfig.Builder()
+                .reportingEndpoint("https://api.example.test/v1/sense")
+                .apiKey("leona_test_app_key")
+                .requireSecureReportingEngine(true)
+                .build(),
+        )
+
+        val error = runCatching { channel.upload(byteArrayOf(1, 2, 3), deviceContext()) }
+            .exceptionOrNull()
+
+        assertNotNull(error)
+        assertEquals(
+            SecureReportingErrorCode.SECURE_ENGINE_REQUIRED,
+            (error as SecureReportingException).code,
+        )
+        assertTrue(error.message.orEmpty().contains("diagnostic=secure_engine_required"))
     }
 
     @Test
@@ -195,7 +242,7 @@ class SecureChannelTest {
 
             assertNotNull(error)
             assertFalse(error!!.message.orEmpty().contains(secret))
-            assertTrue(error.message.orEmpty().contains("<redacted-api-key>"))
+            assertTrue(error.message.orEmpty().contains("responseBodySha256="))
             assertEquals(SecureReportingErrorCode.AUTH_FAILED, (error as SecureReportingException).code)
             assertTrue(error.message.orEmpty().contains("diagnostic=auth_failed"))
         } finally {
@@ -327,7 +374,7 @@ class SecureChannelTest {
         assertTrue(error.message.orEmpty().contains("diagnostic=unknown"))
         assertTrue(error.message.orEmpty().contains("cause=java.io.IOException"))
         assertFalse(error.message.orEmpty().contains("ct_0123456789abcdef0123456789"))
-        assertTrue(error.message.orEmpty().contains("<redacted>"))
+        assertTrue(error.message.orEmpty().contains("messageSha256="))
     }
 
     @Test
@@ -422,7 +469,8 @@ class SecureChannelTest {
             .exceptionOrNull()
 
         assertNotNull(error)
-        assertTrue(error!!.message.orEmpty().contains("requires apiKey"))
+        assertEquals(SecureReportingErrorCode.API_KEY_REQUIRED, (error as SecureReportingException).code)
+        assertTrue(error.message.orEmpty().contains("diagnostic=api_key_required"))
     }
 
     @Test

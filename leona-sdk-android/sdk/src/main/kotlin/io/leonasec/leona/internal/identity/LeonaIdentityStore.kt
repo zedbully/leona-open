@@ -57,19 +57,33 @@ internal class LeonaIdentityStore(
                 .put("iv", Base64.encodeToString(iv, Base64.NO_WRAP))
                 .put("ct", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
                 .toString()
-        }.getOrDefault(plaintext)
+        }.getOrElse { cause ->
+            // Android 6+ is the commercial support floor. Never silently downgrade
+            // device-identity state to plaintext when Android Keystore is unavailable.
+            throw IllegalStateException("Unable to encrypt Leona identity state", cause)
+        }
     }
 
     private fun decrypt(stored: String?): String? {
         if (stored == null) return null
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return stored
-        val json = runCatching { JSONObject(stored) }.getOrNull() ?: return stored
-        if (json.optString("mode") != "keystore") return stored
+        if (stored.length > MAX_ENVELOPE_LENGTH) return null
+        // API 23+ accepts only authenticated AES-GCM envelopes. Legacy/plaintext or
+        // malformed values are discarded so local preference tampering cannot become
+        // trusted install/canonical/fingerprint state.
+        val json = runCatching { JSONObject(stored) }.getOrNull() ?: return null
+        if (json.optString("mode") != "keystore") return null
         return runCatching {
             val iv = Base64.decode(json.getString("iv"), Base64.NO_WRAP)
             val ct = Base64.decode(json.getString("ct"), Base64.NO_WRAP)
+            require(iv.size == GCM_IV_LENGTH_BYTES) { "invalid identity envelope IV" }
+            require(ct.size >= GCM_TAG_LENGTH_BYTES) { "invalid identity envelope ciphertext" }
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, keystoreKey(), GCMParameterSpec(128, iv))
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                keystoreKey(),
+                GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv),
+            )
             String(cipher.doFinal(ct), StandardCharsets.UTF_8)
         }.getOrNull()
     }
@@ -101,5 +115,9 @@ internal class LeonaIdentityStore(
         private const val KEY_ALIAS = "io.leonasec.leona.identity.v1"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val GCM_IV_LENGTH_BYTES = 12
+        private const val GCM_TAG_LENGTH_BYTES = 16
+        private const val GCM_TAG_LENGTH_BITS = 128
+        private const val MAX_ENVELOPE_LENGTH = 65_536
     }
 }

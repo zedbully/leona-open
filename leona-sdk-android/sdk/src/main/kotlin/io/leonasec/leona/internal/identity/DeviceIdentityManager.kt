@@ -57,6 +57,7 @@ internal class DeviceIdentityManager(
         val canonicalDeviceId = persistedCanonicalDeviceId
         val packageInfo = packageInfo()
         val localAndroidId = loadAndroidId()
+            ?.takeIf(DeviceFingerprintHasher::isUsableAnchorValue)
         val androidId = if ("androidId" in policy.disabledSignals) null else localAndroidId
         val localSigningCerts = loadSigningCertDigests()
         val signingCerts = if ("signingCert" in policy.disabledSignals) emptyList() else localSigningCerts
@@ -75,11 +76,11 @@ internal class DeviceIdentityManager(
             "${metrics.widthPixels}x${metrics.heightPixels}@${metrics.densityDpi}"
         }.getOrNull()
 
-        val virtualInstanceAnchorHash = loadVirtualInstanceAnchorHash()
+        val virtualInstanceAnchorHash = loadVirtualInstanceAnchorHash(localAndroidId)
         val fingerprintSource = if (virtualInstanceAnchorHash == null) {
             DeviceFingerprintHasher.FINGERPRINT_SOURCE_BASE_V2
         } else {
-            DeviceFingerprintHasher.FINGERPRINT_SOURCE_VIRTUAL_ANCHOR_V3
+            DeviceFingerprintHasher.FINGERPRINT_SOURCE_VIRTUAL_ANCHOR_V4
         }
         val identityAnchorSource = when {
             virtualInstanceAnchorHash != null -> DeviceFingerprintHasher.ANCHOR_SOURCE_VIRTUAL_INSTANCE
@@ -502,7 +503,7 @@ internal class DeviceIdentityManager(
             ?.ifEmpty { null }
     }.getOrNull()
 
-    private fun loadVirtualInstanceAnchorHash(): String? {
+    private fun loadVirtualInstanceAnchorHash(androidId: String?): String? {
         val hasRuntimeEvidence = hasKnownEmulatorSystemProperties() ||
             hasKnownEmulatorFiles() ||
             hasKnownEmulatorMounts() ||
@@ -529,24 +530,16 @@ internal class DeviceIdentityManager(
         ).forEach { key ->
             systemProperty(key)?.let { value -> anchors["prop.$key"] = value }
         }
-        loadNetworkHardwareAnchors().forEach { (name, mac) ->
-            anchors["net.$name"] = mac
-        }
-        return DeviceFingerprintHasher.hashVirtualInstanceAnchors(anchors)
+        // ANDROID_ID is application-signing-key/user/device scoped on modern
+        // Android and remains stable across clear-data and same-signer
+        // reinstall. Including it before profile/network fallbacks prevents
+        // two AVDs created from the same image from collapsing onto the same
+        // virtual-instance fingerprint when hidden AVD-name properties are not
+        // visible to applications.
+        androidId?.let { anchors["identity.android_id"] = it }
+        val selectedAnchors = DeviceFingerprintHasher.selectVirtualInstanceAnchors(anchors)
+        return DeviceFingerprintHasher.hashVirtualInstanceAnchors(selectedAnchors)
     }
-
-    private fun loadNetworkHardwareAnchors(): Map<String, String> = runCatching {
-        NetworkInterface.getNetworkInterfaces()
-            ?.toList()
-            .orEmpty()
-            .filterNot { network -> network.isLoopback }
-            .mapNotNull { network ->
-                val mac = network.hardwareAddress?.toMacString() ?: return@mapNotNull null
-                if (!DeviceFingerprintHasher.isUsableAnchorValue(mac)) return@mapNotNull null
-                network.name.lowercase(Locale.ROOT) to mac
-            }
-            .toMap()
-    }.getOrDefault(emptyMap())
 
     private fun loadInstallerPackage(): String? = runCatching {
         val pm = appContext.packageManager
@@ -604,10 +597,10 @@ internal class DeviceIdentityManager(
 
 internal object DeviceFingerprintHasher {
     const val BASE_SEED_VERSION = 2
-    const val VIRTUAL_ANCHOR_SEED_VERSION = 3
-    const val CACHE_SCHEMA_VERSION = 3
+    const val VIRTUAL_ANCHOR_SEED_VERSION = 4
+    const val CACHE_SCHEMA_VERSION = 4
     const val FINGERPRINT_SOURCE_BASE_V2 = "base_device_v2"
-    const val FINGERPRINT_SOURCE_VIRTUAL_ANCHOR_V3 = "virtual_instance_anchor_v3"
+    const val FINGERPRINT_SOURCE_VIRTUAL_ANCHOR_V4 = "virtual_instance_anchor_v4"
     const val ANCHOR_SOURCE_ANDROID_ID = "android_id"
     const val ANCHOR_SOURCE_DEVICE_PROFILE = "device_profile"
     const val ANCHOR_SOURCE_VIRTUAL_INSTANCE = "virtual_instance_anchor"
@@ -665,6 +658,15 @@ internal object DeviceFingerprintHasher {
         return sha256Hex(canonicalizeMap(sanitized).toByteArray())
     }
 
+    fun selectVirtualInstanceAnchors(properties: Map<String, String>): Map<String, String> {
+        val stableProperties = properties.filterValues(::isUsableAnchorValue)
+        // Network MACs rotate on several AOSP and third-party emulator
+        // releases. Never promote them into a commercial identity anchor; if
+        // no stable property/ANDROID_ID is available, the caller falls back to
+        // the explicitly lower-confidence base device profile.
+        return stableProperties
+    }
+
     fun isUsableAnchorValue(value: String): Boolean {
         val normalized = value.trim().lowercase(Locale.ROOT)
         return normalized.isNotEmpty() &&
@@ -675,6 +677,7 @@ internal object DeviceFingerprintHasher {
                 "0",
                 "000000000000000",
                 "0123456789abcdef",
+                "9774d56d682e549c",
                 "02:00:00:00:00:00",
                 "00:00:00:00:00:00",
                 "ff:ff:ff:ff:ff:ff",
@@ -700,9 +703,6 @@ internal object DeviceFingerprintHasher {
     fun sha256Hex(bytes: ByteArray): String =
         sha256(bytes).joinToString(separator = "") { b -> "%02x".format(b) }
 }
-
-private fun ByteArray.toMacString(): String =
-    joinToString(separator = ":") { b -> "%02x".format(b) }
 
 internal object DeviceEmulatorHeuristics {
     fun isEmulatorLikely(

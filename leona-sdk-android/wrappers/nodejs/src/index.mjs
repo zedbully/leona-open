@@ -30,9 +30,10 @@ export function randomNonce(bytes = 16) {
 export function buildSignedRequest({ secretKey, method, path, body = "", timestamp, nonce }) {
   const requestBody = typeof body === "string" ? body : JSON.stringify(body);
   const bodySha256 = sha256Hex(requestBody);
-  const signingText = `${timestamp}\n${nonce}\n${bodySha256}`;
+  const normalizedMethod = method.toUpperCase();
+  const signingText = `backend-v2\n${normalizedMethod}\n${path}\n${timestamp}\n${nonce}\n${bodySha256}`;
   return {
-    method,
+    method: normalizedMethod,
     path,
     body: requestBody,
     bodySha256,

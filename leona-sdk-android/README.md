@@ -761,7 +761,10 @@ each sensing session.
 
 ### Public hosted reporting mode
 
-The public AAR can obtain a BoxId without packaging `:sdk-private-core`. When
+The public AAR can obtain a BoxId without packaging `:sdk-private-core`. This
+path is TLS-protected **low-trust evidence transport**; its base64 payload
+encoding does not provide payload confidentiality, device authentication, or
+cryptographic authenticity beyond TLS. When
 `reportingEndpoint` and `apiKey` are configured and the closed-source secure
 engine is absent, `SecureChannel` uses public hosted reporting mode:
 
@@ -777,6 +780,12 @@ the public hosted path to `/v1/sense/public`. The hosted API returns an opaque
 The client still does not make allow/reject/block decisions; your backend must
 query `/v1/verdict` with the SecretKey and apply its own business policy.
 
+`sense()` never fabricates a local BoxId. If transport is disabled, the
+reporting endpoint is absent, or the AppKey is absent, it fails closed with a
+structured transport/configuration error. Local support and matrix tooling can
+still use diagnostic snapshot APIs, but those diagnostic identity values are
+not server-issued BoxIds.
+
 Public hosted reporting does not require the APK to sign uploads with the
 device wall clock. `serverTimeMillis` / `serverClockOffsetMillis` are private
 signed-transport diagnostics, not public hosted response fields. If
@@ -787,7 +796,17 @@ interpret it as device risk evidence.
 Advanced private secure transport, attestation binding, encrypted sessions,
 hosted policy baselines, and private detector catalogs remain closed-source.
 Deployments that require those features should include the private runtime or
-use Leona hosted service support for the public mode above.
+use Leona hosted service support for the public mode above. Commercial device
+identity deployments should also enable the fail-closed profile so absence of
+the secure engine cannot silently downgrade to public-hosted transport:
+
+```kotlin
+LeonaConfig.Builder()
+    .reportingEndpoint("https://your-leona-endpoint.example/v1/sense")
+    .apiKey("your-app-key")
+    .requireSecureReportingEngine(true)
+    .build()
+```
 
 You can generate the APK-side baseline fields from a built APK:
 
@@ -860,7 +879,8 @@ X-Leona-Signature: <base64url-hmac-sha256>
 Signature:
 
 ```text
-signingText = timestamp + "\n" + nonce + "\n" + sha256(requestBody)
+signingText = "backend-v2" + "\n" + uppercase(httpMethod) + "\n" + requestPath
+            + "\n" + timestamp + "\n" + nonce + "\n" + sha256(requestBody)
 signature = base64url_no_padding(HMAC-SHA256(secretKey, signingText))
 ```
 
@@ -876,7 +896,7 @@ async function queryLeonaEvidence(boxId) {
   const timestamp = Date.now().toString();
   const nonce = crypto.randomBytes(16).toString("base64url");
   const bodySha256 = crypto.createHash("sha256").update(body).digest("hex");
-  const signingText = `${timestamp}\n${nonce}\n${bodySha256}`;
+  const signingText = `backend-v2\nPOST\n/v1/verdict\n${timestamp}\n${nonce}\n${bodySha256}`;
   const signature = crypto
     .createHmac("sha256", secret)
     .update(signingText)
@@ -1084,7 +1104,7 @@ For security reasons, this public repository does not include:
 ┌──────────────────────┴─────────────────────────────────┐
 │ io.leonasec.leona.internal  (not part of public API)   │
 │   NativeBridge: JNI calls                              │
-│   SecureChannel: collection upload + BoxId minting     │
+│   SecureChannel: collection upload; server BoxId only  │
 └──────────────────────┬─────────────────────────────────┘
                        │ Single JNI boundary; crosses
                        │ only opaque byte payloads.

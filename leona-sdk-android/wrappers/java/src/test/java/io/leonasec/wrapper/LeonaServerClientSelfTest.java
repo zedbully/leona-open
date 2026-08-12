@@ -19,7 +19,7 @@ public final class LeonaServerClientSelfTest {
             "bodySha256"
         );
         assertEquals(
-            "zRvnS0zA4OrYmNu9xEid-tZDT5EO-6-UBQnuJgh_z2E",
+            "xm_a5DaT482f2Nv_hewtgbB3cm43eg2-wopU4AxH928",
             signed.signature,
             "signature"
         );

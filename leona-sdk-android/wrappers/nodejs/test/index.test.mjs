@@ -26,8 +26,24 @@ test("builds the shared fixed signature fixture", () => {
   );
   assert.equal(
     signed.headers["X-Leona-Signature"],
-    "zRvnS0zA4OrYmNu9xEid-tZDT5EO-6-UBQnuJgh_z2E",
+    "xm_a5DaT482f2Nv_hewtgbB3cm43eg2-wopU4AxH928",
   );
+});
+
+test("backend signatures are bound to method and path", () => {
+  const shared = {
+    secretKey: "test_secret_do_not_use",
+    body: { boxId: "box_test_000000000000000000" },
+    timestamp: "1700000000000",
+    nonce: "nonce_for_dry_run",
+  };
+  const verdict = buildSignedRequest({ ...shared, method: "POST", path: "/v1/verdict" });
+  const report = buildSignedRequest({
+    ...shared,
+    method: "GET",
+    path: "/v1/internal/private/evidence-reports/box_test_000000000000000000",
+  });
+  assert.notEqual(verdict.headers["X-Leona-Signature"], report.headers["X-Leona-Signature"]);
 });
 
 test("signing helpers are deterministic", () => {

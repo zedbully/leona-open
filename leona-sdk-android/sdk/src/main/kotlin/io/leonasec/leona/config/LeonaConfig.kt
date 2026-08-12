@@ -25,6 +25,8 @@ class LeonaConfig private constructor(
     val region: LeonaRegion,
     /** Enable transport when secure reporting is configured. */
     val transportEnabled: Boolean,
+    /** Fail closed when the authenticated secure reporting engine is unavailable. */
+    val requireSecureReportingEngine: Boolean,
     /** Enable cloud-delivered runtime configuration. */
     val cloudConfigEnabled: Boolean,
     /** Optional endpoint for cloud-delivered runtime configuration. */
@@ -292,6 +294,7 @@ class LeonaConfig private constructor(
         private var appId: String = "default"
         private var region: LeonaRegion = LeonaRegion.CN_BJ
         private var transportEnabled = true
+        private var requireSecureReportingEngine = false
         private var cloudConfigEnabled = true
         private var cloudConfigEndpoint: String? = null
         private var syncInit = false
@@ -419,14 +422,22 @@ class LeonaConfig private constructor(
 
         fun enableInjectionDetection(enabled: Boolean) = apply { injection = enabled }
         fun enableEnvironmentDetection(enabled: Boolean) = apply { environment = enabled }
-        fun reportingEndpoint(url: String?) = apply { reportingEndpoint = url }
+        fun reportingEndpoint(url: String?) = apply { reportingEndpoint = normalizeEndpoint(url) }
         fun apiKey(key: String?) = apply { apiKey = key }
         fun tenantId(value: String?) = apply { tenantId = value?.trim()?.ifEmpty { null } }
         fun appId(value: String?) = apply { appId = value?.trim()?.ifEmpty { "default" } ?: "default" }
         fun region(value: LeonaRegion) = apply { region = value }
         fun transportEnabled(enabled: Boolean) = apply { transportEnabled = enabled }
+        /**
+         * Require the authenticated secure reporting engine and disable the
+         * lower-trust public-hosted fallback. Enable this for commercial
+         * device-identity deployments.
+         */
+        fun requireSecureReportingEngine(required: Boolean) = apply {
+            requireSecureReportingEngine = required
+        }
         fun enableCloudConfig(enabled: Boolean) = apply { cloudConfigEnabled = enabled }
-        fun cloudConfigEndpoint(url: String?) = apply { cloudConfigEndpoint = url?.trim()?.ifEmpty { null } }
+        fun cloudConfigEndpoint(url: String?) = apply { cloudConfigEndpoint = normalizeEndpoint(url) }
         fun syncInit(enabled: Boolean) = apply { syncInit = enabled }
         fun verifyServerCert(enabled: Boolean) = apply { verifyServerCert = enabled }
         fun disableCollectionWindowMs(value: Long) = apply { disableCollectionWindowMs = value }
@@ -972,6 +983,7 @@ class LeonaConfig private constructor(
             appId = appId,
             region = region,
             transportEnabled = transportEnabled,
+            requireSecureReportingEngine = requireSecureReportingEngine,
             cloudConfigEnabled = cloudConfigEnabled,
             cloudConfigEndpoint = cloudConfigEndpoint,
             syncInit = syncInit,
@@ -1103,6 +1115,9 @@ class LeonaConfig private constructor(
             expectedManifestMetaDataSemanticsSha256 = expectedManifestMetaDataSemanticsSha256.toMap(),
             expectedMetaData = expectedMetaData.toMap(),
         )
+
+        private fun normalizeEndpoint(value: String?): String? =
+            value?.trim()?.ifEmpty { null }
 
         private fun normalizeToken(value: String?): String? =
             value?.trim()?.ifEmpty { null }

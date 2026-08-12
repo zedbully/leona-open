@@ -99,7 +99,10 @@ function verifySignedRequest(req, body) {
   assert.equal(bodyHash, crypto.createHash("sha256").update(body).digest("hex"));
   assert.equal(
     req.headers["x-leona-signature"],
-    hmacSha256Base64Url(SECRET, `1700000000000\nnonce_for_dry_run\n${bodyHash}`),
+    hmacSha256Base64Url(
+      SECRET,
+      `backend-v2\n${req.method}\n${req.url}\n1700000000000\nnonce_for_dry_run\n${bodyHash}`,
+    ),
   );
 }
 

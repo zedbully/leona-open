@@ -44,8 +44,8 @@ class DeviceFingerprintHasherTest {
         assertTrue(secondAnchor.matches(Regex("[0-9a-f]{64}")))
         assertNotEquals(firstAnchor, secondAnchor)
         assertNotEquals(firstClone, secondClone)
-        assertEquals(3, DeviceFingerprintHasher.VIRTUAL_ANCHOR_SEED_VERSION)
-        assertEquals("virtual_instance_anchor_v3", DeviceFingerprintHasher.FINGERPRINT_SOURCE_VIRTUAL_ANCHOR_V3)
+        assertEquals(4, DeviceFingerprintHasher.VIRTUAL_ANCHOR_SEED_VERSION)
+        assertEquals("virtual_instance_anchor_v4", DeviceFingerprintHasher.FINGERPRINT_SOURCE_VIRTUAL_ANCHOR_V4)
     }
 
     @Test
@@ -71,6 +71,70 @@ class DeviceFingerprintHasherTest {
     }
 
     @Test
+    fun `stable virtual property anchor ignores reboot network rotation`() {
+        val beforeReboot = DeviceFingerprintHasher.selectVirtualInstanceAnchors(
+            properties = mapOf("prop.ro.boot.qemu.avd_name" to "leona-aosp-api25"),
+        )
+        val afterReboot = DeviceFingerprintHasher.selectVirtualInstanceAnchors(
+            properties = mapOf("prop.ro.boot.qemu.avd_name" to "leona-aosp-api25"),
+        )
+
+        assertEquals(beforeReboot, afterReboot)
+        assertEquals(mapOf("prop.ro.boot.qemu.avd_name" to "leona-aosp-api25"), beforeReboot)
+    }
+
+    @Test
+    fun `network anchor is never promoted when stable properties are unavailable`() {
+        assertEquals(
+            emptyMap<String, String>(),
+            DeviceFingerprintHasher.selectVirtualInstanceAnchors(
+                properties = emptyMap(),
+            ),
+        )
+    }
+
+    @Test
+    fun `stable virtual profile anchor remains distinct from rotating network metadata`() {
+        val profile = mapOf(
+            "profile.device" to "leona_api25",
+            "profile.product" to "leona_api25",
+            "profile.hardware" to "ranchu",
+        )
+
+        assertEquals(
+            profile,
+            DeviceFingerprintHasher.selectVirtualInstanceAnchors(
+                properties = profile,
+            ),
+        )
+    }
+
+    @Test
+    fun `app scoped android id distinguishes virtual instances from the same image`() {
+        val first = DeviceFingerprintHasher.selectVirtualInstanceAnchors(
+            properties = mapOf(
+                "identity.android_id" to "virtual-instance-a",
+                "profile.device" to "generic_arm64",
+                "profile.product" to "sdk_phone_arm64",
+                "profile.hardware" to "ranchu",
+            ),
+        )
+        val second = DeviceFingerprintHasher.selectVirtualInstanceAnchors(
+            properties = mapOf(
+                "identity.android_id" to "virtual-instance-b",
+                "profile.device" to "generic_arm64",
+                "profile.product" to "sdk_phone_arm64",
+                "profile.hardware" to "ranchu",
+            ),
+        )
+
+        assertNotEquals(
+            DeviceFingerprintHasher.hashVirtualInstanceAnchors(first),
+            DeviceFingerprintHasher.hashVirtualInstanceAnchors(second),
+        )
+    }
+
+    @Test
     fun `virtual instance anchor hashing ignores placeholders`() {
         assertNull(
             DeviceFingerprintHasher.hashVirtualInstanceAnchors(
@@ -78,6 +142,7 @@ class DeviceFingerprintHasherTest {
                     "prop.ro.serialno" to "unknown",
                     "net.eth0" to "02:00:00:00:00:00",
                     "prop.nemud.player_uuid" to "<redacted>",
+                    "identity.android_id" to "9774d56d682e549c",
                 ),
             ),
         )
@@ -86,8 +151,8 @@ class DeviceFingerprintHasherTest {
     @Test
     fun `fingerprint versions keep real devices stable while virtual anchors opt in`() {
         assertEquals(2, DeviceFingerprintHasher.BASE_SEED_VERSION)
-        assertEquals(3, DeviceFingerprintHasher.VIRTUAL_ANCHOR_SEED_VERSION)
-        assertEquals(3, DeviceFingerprintHasher.CACHE_SCHEMA_VERSION)
+        assertEquals(4, DeviceFingerprintHasher.VIRTUAL_ANCHOR_SEED_VERSION)
+        assertEquals(4, DeviceFingerprintHasher.CACHE_SCHEMA_VERSION)
     }
 
     private fun pixelFixtureFingerprint(appScopedAndroidId: String): String =

@@ -89,7 +89,7 @@ internal class PublicHostedReportingClient(
                 throw SecureReportingErrorClassifier.exception(
                     operation = "public hosted reporting",
                     classification = classification,
-                    detail = errorBody.takeIf { it.isNotBlank() }?.let { "body=${it.take(512)}" },
+                    detail = SecureReportingErrorClassifier.httpFailureDetail(errorBody),
                 )
             }
             val json = JSONObject(response.body?.string().orEmpty())
@@ -205,6 +205,12 @@ internal class PublicHostedReportingClient(
 
         private fun publicSenseUrl(endpoint: String): String {
             val normalized = endpoint.trim().trimEnd('/')
+            require(
+                normalized.startsWith("https://", ignoreCase = true) ||
+                    isLoopbackHttpEndpoint(normalized)
+            ) {
+                "public hosted reporting endpoint must use HTTPS"
+            }
             return when {
                 normalized.endsWith(PUBLIC_SENSE_PATH) -> normalized
                 normalized.endsWith("/v1/sense") -> "$normalized/public"
@@ -212,6 +218,15 @@ internal class PublicHostedReportingClient(
                 else -> "$normalized$PUBLIC_SENSE_PATH"
             }
         }
+
+        internal fun validatedPublicSenseUrl(endpoint: String): String = publicSenseUrl(endpoint)
+
+        private fun isLoopbackHttpEndpoint(endpoint: String): Boolean =
+            runCatching {
+                val uri = URI(endpoint)
+                uri.scheme.equals("http", ignoreCase = true) &&
+                    (uri.host == "127.0.0.1" || uri.host == "localhost" || uri.host == "::1")
+            }.getOrDefault(false)
 
         private fun parseServerVerdict(json: JSONObject, response: Response): LeonaServerVerdict {
             val boxId = sequenceOf(

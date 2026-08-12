@@ -29,11 +29,7 @@ sha256_text() {
 
 boxid_hint() {
   local value="$1"
-  if (( ${#value} <= 12 )); then
-    printf '<redacted:%s>' "$(sha256_text "${value}" | cut -c1-16)"
-  else
-    printf '%s...%s' "${value:0:6}" "${value: -4}"
-  fi
+  printf '<redacted:%s>' "$(sha256_text "${value}" | cut -c1-16)"
 }
 
 extract_first_json_value() {
@@ -75,6 +71,7 @@ write_blocked_report() {
 
 - BoxId values: not generated
 - canonicalDeviceId: not generated
+- fingerprintHash: not generated
 - raw serial/android_id/fingerprint: not collected by this wrapper
 EOF
   echo "Blocked: ${reason}" >&2
@@ -135,36 +132,64 @@ summarize() {
   local summary="${OUT_DIR}/stability-summary.md"
   local rows="${OUT_DIR}/phase-results.tsv"
   {
-    echo -e "phase\tboxIdHint\tcanonicalHint\tcanonicalSha256\tstatus"
-    local phase phase_dir logcat box_id box_hint canonical_hint canonical_sha status
+    echo -e "phase\tboxIdHint\tcanonicalHint\tcanonicalSha256\tfingerprintHashSha256\tfingerprintSchemaVersion\tfingerprintSource\tidentityAnchorSource\tstatus"
+    local phase phase_dir logcat box_id box_hint canonical_hint canonical_sha fingerprint_sha fingerprint_schema fingerprint_source anchor_source status
     IFS=',' read -ra phase_array <<< "${PHASES}"
     for phase in "${phase_array[@]}"; do
       phase_dir="${OUT_DIR}/${phase}"
       logcat="${phase_dir}/logcat.leona.txt"
       box_id="$(extract_first_json_value boxId "${logcat}")"
-      box_hint="$([[ -n "${box_id}" ]] && boxid_hint "${box_id}" || true)"
+      if [[ "${box_id}" == '<box-id-redacted>' || "${box_id}" == '<box-i...ted>' ]]; then
+        box_hint="redacted"
+      else
+        box_hint="$([[ -n "${box_id}" ]] && boxid_hint "${box_id}" || true)"
+      fi
       canonical_hint="$(extract_first_json_value canonicalDeviceIdHint "${logcat}")"
       canonical_sha="$(extract_first_json_value canonicalDeviceIdSha256 "${logcat}")"
-      status="$([[ -n "${box_id}" && -n "${canonical_sha}" ]] && echo pass || echo blocked)"
-      echo -e "${phase}\t${box_hint:-not_generated}\t${canonical_hint:-not_generated}\t${canonical_sha:-not_generated}\t${status}"
+      fingerprint_sha="$(extract_first_json_value fingerprintHashSha256 "${logcat}")"
+      fingerprint_schema="$(extract_first_json_value fingerprintSchemaVersion "${logcat}")"
+      fingerprint_source="$(extract_first_json_value fingerprintSource "${logcat}")"
+      anchor_source="$(extract_first_json_value identityAnchorSource "${logcat}")"
+      status="$([[ -n "${fingerprint_sha}" && -n "${fingerprint_schema}" && -n "${fingerprint_source}" && -n "${anchor_source}" ]] && echo pass || echo blocked)"
+      echo -e "${phase}\t${box_hint:-not_generated}\t${canonical_hint:-not_generated}\t${canonical_sha:-not_generated}\t${fingerprint_sha:-not_generated}\t${fingerprint_schema:-not_generated}\t${fingerprint_source:-not_generated}\t${anchor_source:-not_generated}\t${status}"
     done
   } > "${rows}"
 
-  local unique_count generated_count conclusion
-  generated_count="$(awk -F'\t' 'NR > 1 && $4 != "not_generated" {count++} END {print count+0}' "${rows}")"
-  unique_count="$(awk -F'\t' 'NR > 1 && $4 != "not_generated" {seen[$4]=1} END {count=0; for (k in seen) count++; print count}' "${rows}")"
-  if [[ "${generated_count}" == "0" ]]; then
-    conclusion="blocked: no direct sense run generated canonical hash."
-  elif [[ "${unique_count}" == "1" ]]; then
-    conclusion="stable: all generated canonicalDeviceId hashes match."
+  local fingerprint_unique_count fingerprint_generated_count canonical_unique_count canonical_generated_count box_id_unique_count box_id_generated_count fingerprint_conclusion canonical_note box_id_note
+  fingerprint_generated_count="$(awk -F'\t' 'NR > 1 && $5 != "not_generated" {count++} END {print count+0}' "${rows}")"
+  fingerprint_unique_count="$(awk -F'\t' 'NR > 1 && $5 != "not_generated" {seen[$5]=1} END {count=0; for (k in seen) count++; print count}' "${rows}")"
+  canonical_generated_count="$(awk -F'\t' 'NR > 1 && $4 != "not_generated" {count++} END {print count+0}' "${rows}")"
+  canonical_unique_count="$(awk -F'\t' 'NR > 1 && $4 != "not_generated" {seen[$4]=1} END {count=0; for (k in seen) count++; print count}' "${rows}")"
+  box_id_generated_count="$(awk -F'\t' 'NR > 1 && $2 != "not_generated" {count++} END {print count+0}' "${rows}")"
+  box_id_unique_count="$(awk -F'\t' 'NR > 1 && $2 != "not_generated" {seen[$2]=1} END {count=0; for (k in seen) count++; print count}' "${rows}")"
+  if [[ "${fingerprint_generated_count}" == "0" ]]; then
+    fingerprint_conclusion="blocked: no direct sense run generated fingerprint hash evidence."
+  elif [[ "${fingerprint_unique_count}" == "1" ]]; then
+    fingerprint_conclusion="stable: all generated redacted fingerprintHash SHA-256 values match."
   else
-    conclusion="unstable: generated canonicalDeviceId hashes differ across phases."
+    fingerprint_conclusion="unstable: generated redacted fingerprintHash SHA-256 values differ across phases."
+  fi
+  if [[ "${canonical_generated_count}" == "0" ]]; then
+    canonical_note="not observed"
+  elif [[ "${canonical_unique_count}" == "1" ]]; then
+    canonical_note="unchanged"
+  else
+    canonical_note="changed (observation only; server canonical identity is not a fingerprint-stability verdict)"
+  fi
+  if [[ "${box_id_generated_count}" == "0" ]]; then
+    box_id_note="not observed"
+  elif [[ "${box_id_unique_count}" == "1" ]]; then
+    box_id_note="unchanged"
+  else
+    box_id_note="changed (observation only; opaque BoxId churn is not a fingerprint-stability verdict)"
   fi
 
   cat > "${summary}" <<EOF
-# Leona Device ID Stability
+# Leona Fingerprint Stability
 
-- status: ${conclusion}
+- fingerprint stability status: ${fingerprint_conclusion}
+- server canonical observation: ${canonical_note}
+- BoxId observation: ${box_id_note}
 - device serial hash: $(sha256_text "$(adb_cmd get-serialno 2>/dev/null | tr -d '\r' || true)")
 - package: ${PACKAGE}
 - trigger mode: direct cloudTest receiver
@@ -174,10 +199,17 @@ summarize() {
 
 ## Results
 
-$(awk -F'\t' 'NR == 1 {next} {printf "- %s: BoxId %s, canonical %s / sha256 %s, status %s\n", $1, $2, $3, $4, $5}' "${rows}")
+$(awk -F'\t' 'NR == 1 {next} {printf "- %s: fingerprint sha256 %s; schema %s; source %s; anchor source %s; BoxId %s; canonical %s / sha256 %s; status %s\n", $1, $5, $6, $7, $8, $2, $3, $4, $9}' "${rows}")
+
+## Interpretation boundary
+
+- This report evaluates only local fingerprintHash stability using its separately redacted SHA-256 value.
+- BoxId and canonicalDeviceId are reported as redacted observations only; their churn is not used to classify fingerprint stability.
+- SDK diagnostics collect evidence only. Any canonical identity or business verdict remains server-owned.
 
 ## Privacy
 
+- fingerprintHash: separately redacted SHA-256 only; raw value is not written to this report
 - BoxId values: redacted to hints in shareable reports/log filters
 - canonicalDeviceId values: hint/hash only
 - raw serial/android_id/fingerprint: hash-only through collection script

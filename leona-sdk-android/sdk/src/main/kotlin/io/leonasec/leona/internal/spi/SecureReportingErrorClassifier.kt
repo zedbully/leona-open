@@ -7,6 +7,7 @@ package io.leonasec.leona.internal.spi
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
+import java.security.MessageDigest
 
 enum class SecureReportingErrorCode(val wireValue: String, val retryableByDefault: Boolean) {
     TIMESTAMP_SKEW("timestamp_skew", true),
@@ -15,6 +16,10 @@ enum class SecureReportingErrorCode(val wireValue: String, val retryableByDefaul
     TLS_HANDSHAKE("tls_handshake", false),
     AUTH_FAILED("auth_failed", false),
     SERVER_5XX("server_5xx", true),
+    TRANSPORT_DISABLED("transport_disabled", false),
+    REPORTING_ENDPOINT_REQUIRED("reporting_endpoint_required", false),
+    API_KEY_REQUIRED("api_key_required", false),
+    SECURE_ENGINE_REQUIRED("secure_engine_required", false),
     UNKNOWN("unknown", false),
 }
 
@@ -33,6 +38,12 @@ class SecureReportingException(
 }
 
 object SecureReportingErrorClassifier {
+    fun httpFailureDetail(errorBody: String?): String? {
+        val text = errorBody?.takeIf { it.isNotBlank() } ?: return null
+        return "responseBodyBytes=${text.toByteArray(Charsets.UTF_8).size}, " +
+            "responseBodySha256=${sha256Hex(text).take(16)}"
+    }
+
     fun classifyHttpFailure(
         statusCode: Int,
         errorBody: String?,
@@ -124,17 +135,19 @@ object SecureReportingErrorClassifier {
 
     private fun safeCauseSummary(cause: Throwable): String {
         val type = cause.javaClass.name
-        val message = cause.message
-            ?.replace(Regex("[\\r\\n\\t]+"), " ")
-            ?.replace(Regex("ct_[A-Za-z0-9]{20,}"), "<redacted>")
-            ?.take(160)
-            .orEmpty()
+        val message = cause.message?.takeIf { it.isNotBlank() }.orEmpty()
         return if (message.isBlank()) {
             type
         } else {
-            "$type: $message"
+            "$type(messageBytes=${message.toByteArray(Charsets.UTF_8).size}, " +
+                "messageSha256=${sha256Hex(message).take(16)})"
         }
     }
+
+    private fun sha256Hex(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun hasTimestampSkewMarker(text: String): Boolean {
         val normalized = text.lowercase()

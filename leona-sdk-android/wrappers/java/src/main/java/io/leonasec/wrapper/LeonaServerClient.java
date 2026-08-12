@@ -79,9 +79,15 @@ public final class LeonaServerClient {
     ) {
         String requestBody = body == null ? "" : body;
         String bodySha256 = sha256Hex(requestBody);
-        String signingText = timestamp + "\n" + nonce + "\n" + bodySha256;
+        String normalizedMethod = method.toUpperCase(java.util.Locale.ROOT);
+        String signingText = "backend-v2"
+            + "\n" + normalizedMethod
+            + "\n" + path
+            + "\n" + timestamp
+            + "\n" + nonce
+            + "\n" + bodySha256;
         return new SignedRequest(
-            method,
+            normalizedMethod,
             path,
             requestBody,
             bodySha256,

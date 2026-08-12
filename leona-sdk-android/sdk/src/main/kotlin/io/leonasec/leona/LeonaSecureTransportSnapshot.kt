@@ -32,7 +32,10 @@ data class LeonaSecureTransportSnapshot(
         .put("session", session?.toJsonObject(view))
         .put("lastAttestation", lastAttestation?.toJsonObject(view))
         .put("lastHandshakeAtMillis", lastHandshakeAtMillis)
-        .put("lastHandshakeError", lastHandshakeError)
+        .put(
+            "lastHandshakeError",
+            if (view == LeonaDebugExportView.FULL_DEBUG) lastHandshakeError else JSONObject.NULL,
+        )
         .put("lastHandshakeErrorClass", lastHandshakeErrorClass)
         .put("lastHandshakeErrorCode", lastHandshakeErrorCode)
         .put("lastHandshakeErrorProvider", lastHandshakeErrorProvider)

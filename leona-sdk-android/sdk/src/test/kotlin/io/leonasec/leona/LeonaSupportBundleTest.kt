@@ -93,11 +93,11 @@ class LeonaSupportBundleTest {
                 collectedAtMillis = 999L,
             ),
             lastHandshakeAtMillis = 888L,
-            lastHandshakeError = null,
-            lastHandshakeErrorClass = null,
-            lastHandshakeErrorCode = null,
-            lastHandshakeErrorProvider = null,
-            lastHandshakeRetryable = null,
+            lastHandshakeError = "server rejected token=diagnostic-secret",
+            lastHandshakeErrorClass = "java.io.IOException",
+            lastHandshakeErrorCode = "AUTH_FAILED",
+            lastHandshakeErrorProvider = "domestic_provider",
+            lastHandshakeRetryable = false,
         )
         val bundle = LeonaSupportBundle(
             generatedAtMillis = 123L,
@@ -200,6 +200,10 @@ class LeonaSupportBundleTest {
                 .getJSONObject("serverAttestation")
                 .getString("code"),
         )
+        assertEquals(
+            "server rejected token=diagnostic-secret",
+            obj.getJSONObject("secureTransport").getString("lastHandshakeError"),
+        )
         assertTrue(json.contains("\n"))
 
         val redacted = JSONObject(bundle.toJson())
@@ -217,5 +221,7 @@ class LeonaSupportBundleTest {
             .getJSONObject("verifiedBoot")
         assertTrue(redactedVerifiedBoot.has("valueSha256ByKey"))
         assertTrue(!redactedVerifiedBoot.has("state"))
+        assertTrue(redacted.getJSONObject("secureTransport").isNull("lastHandshakeError"))
+        assertTrue(!redacted.toString().contains("diagnostic-secret"))
     }
 }

@@ -362,9 +362,9 @@ Current schema values:
 
 | Field | Value | Meaning |
 | --- | --- | --- |
-| `fingerprintSchemaVersion` | `3` | Cache/schema version for the local fingerprint snapshot. Cached snapshots with older versions are regenerated before reuse. |
+| `fingerprintSchemaVersion` | `4` | Cache/schema version for the local fingerprint snapshot. Cached snapshots with older versions are regenerated before reuse. |
 | `fingerprintSource` | `base_device_v2` | Real-device/default seed. Uses the local identity anchor plus stable build/device profile fields. |
-| `fingerprintSource` | `virtual_instance_anchor_v3` | Emulator/virtual-device seed. Adds a hashed virtual-instance anchor so cloned virtual machines can diverge while the same instance stays stable across app data resets. |
+| `fingerprintSource` | `virtual_instance_anchor_v4` | Emulator/virtual-device seed. Adds a hashed virtual-instance anchor, including app-scoped Android ID when available, so same-image virtual machines can diverge while the same instance stays stable across reboot, clear-data, and same-signer reinstall. |
 | `identityAnchorSource` | `android_id` | Android ID was usable as the local real-device identity anchor. |
 | `identityAnchorSource` | `device_profile` | Android ID was unavailable, so the SDK fell back to stable device profile fields. Lower confidence. |
 | `identityAnchorSource` | `virtual_instance_anchor` | A virtual/emulator instance anchor hash was available and used. |
@@ -385,9 +385,11 @@ Compatibility rules:
 4. Cached SDK snapshots are reused only when their schema version matches the
    current SDK cache schema and their persisted canonical id has not changed.
    Otherwise the SDK regenerates the snapshot.
-5. Virtual/emulator devices should use `virtual_instance_anchor_v3` when a
+5. Virtual/emulator devices should use `virtual_instance_anchor_v4` when a
    usable anchor exists. Placeholder anchors such as `unknown`,
-   `02:00:00:00:00:00`, or `<redacted>` must be ignored.
+   `02:00:00:00:00:00`, legacy constant Android ID `9774d56d682e549c`, or
+   `<redacted>` must be ignored. Network MAC addresses are observations only and
+   are never promoted into an identity anchor because they rotate on some AVDs.
 6. If no usable virtual anchor exists, the SDK may fall back to
    `base_device_v2`; that should be treated as lower confidence for clone
    separation and recorded in test reports.

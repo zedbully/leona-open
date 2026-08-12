@@ -12,6 +12,9 @@ import io.leonasec.leona.BuildConstants
 import io.leonasec.leona.LeonaSecureTransportSnapshot
 import io.leonasec.leona.config.LeonaConfig
 import io.leonasec.leona.internal.spi.SecureDeviceContext
+import io.leonasec.leona.internal.spi.SecureReportingErrorClassification
+import io.leonasec.leona.internal.spi.SecureReportingErrorCode
+import io.leonasec.leona.internal.spi.SecureReportingException
 import io.leonasec.leona.internal.spi.SecureUploadResult
 import io.leonasec.leona.internal.spi.SecureReportingEngine
 import io.leonasec.leona.internal.spi.SecureReportingEngineLoader
@@ -20,7 +23,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.UUID
 
 internal class SecureChannel(
     private val context: Context,
@@ -48,23 +50,51 @@ internal class SecureChannel(
 
     suspend fun upload(payload: ByteArray, deviceContext: SecureDeviceContext): SecureUploadResult {
         if (!config.transportEnabled) {
-            return SecureUploadResult(BoxId.of(UUID.randomUUID().toString()))
+            throw configurationError(
+                SecureReportingErrorCode.TRANSPORT_DISABLED,
+                "transport disabled",
+            )
         }
 
         val endpoint = config.reportingEndpoint
-            ?: return SecureUploadResult(BoxId.of(UUID.randomUUID().toString()))
+            ?: throw configurationError(
+                SecureReportingErrorCode.REPORTING_ENDPOINT_REQUIRED,
+                "reporting endpoint required",
+            )
 
-        config.apiKey ?: error("Leona.sense() requires apiKey when reportingEndpoint is set.")
+        val apiKey = config.apiKey
+            ?: throw configurationError(
+                SecureReportingErrorCode.API_KEY_REQUIRED,
+                "AppKey required",
+            )
 
-        return engine?.upload(payload, deviceContext)
+        val reportingEngine = engine
+        if (reportingEngine == null && config.requireSecureReportingEngine) {
+            throw SecureReportingException(
+                classification = SecureReportingErrorClassification(
+                    code = SecureReportingErrorCode.SECURE_ENGINE_REQUIRED,
+                ),
+                message = "secure reporting engine required: diagnostic=secure_engine_required, retryable=false",
+            )
+        }
+
+        return reportingEngine?.upload(payload, deviceContext)
             ?: publicHostedClient.upload(
                 endpoint = endpoint,
-                apiKey = config.apiKey,
+                apiKey = apiKey,
                 sdkVersion = BuildConstants.VERSION_NAME,
                 payload = payload,
                 deviceContext = deviceContext,
             )
     }
+
+    private fun configurationError(
+        code: SecureReportingErrorCode,
+        operation: String,
+    ): SecureReportingException = SecureReportingException(
+        classification = SecureReportingErrorClassification(code = code),
+        message = "$operation: diagnostic=${code.wireValue}, retryable=false",
+    )
 
     fun debugSnapshot(): LeonaSecureTransportSnapshot = engine?.debugSnapshot()
         ?: LeonaSecureTransportSnapshot(
