@@ -101,6 +101,11 @@ jobs:
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
 
+      - name: Verify Kotlin 1.9 consumer compatibility
+        env:
+          LEONA_KOTLIN19_CONSUMER_OUT: ${{ runner.temp }}/leona-kotlin19-consumer
+        run: scripts/verify-kotlin-1-9-consumer.sh
+
       - name: Assemble debug
         run: ./gradlew :sdk:assembleDebug --no-daemon
 

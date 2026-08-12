@@ -1157,7 +1157,12 @@ io.leonasec.leona
 # AAR output: sdk/build/outputs/aar/sdk-release.aar
 ```
 
-Requirements: JDK 17+, Android Gradle Plugin 8.5+, NDK r26+ (Gradle auto-installs).
+Requirements for building this repository: JDK 17+, Android SDK 36,
+NDK 26.3.11579264, and the checked-in Gradle 9.5.0 wrapper with AGP 9.3.1.
+Published AARs deliberately use Kotlin 2.0 metadata plus Kotlin stdlib 1.9.24;
+the compatibility gate compiles an independent AGP 8.9.1 / Kotlin 1.9.24
+consumer so existing customer builds do not have to adopt the producer
+toolchain.
 
 For the public/open-source boundary, see
 [`../docs/open-source-policy.md`](../docs/open-source-policy.md).

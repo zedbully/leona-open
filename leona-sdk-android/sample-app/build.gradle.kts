@@ -1,11 +1,19 @@
+import com.android.build.api.variant.HasUnitTestBuilder
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermission
+import javax.inject.Inject
+import org.gradle.api.configuration.BuildFeatures
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
 }
+
+abstract class BuildFeaturesAccessor @Inject constructor(
+    val buildFeatures: BuildFeatures,
+)
+
+val leonaBuildFeatures = objects.newInstance(BuildFeaturesAccessor::class.java).buildFeatures
 
 val leonaApiKey = providers.gradleProperty("LEONA_API_KEY").orElse("").get()
 val leonaTenantId = providers.gradleProperty("LEONA_TENANT_ID").orElse("sample").get()
@@ -29,7 +37,7 @@ val huaweiReleaseTaskRequested =
     }
 val leonaPrivateCoreIncluded = findProject(":sdk-private-core") != null
 
-if (huaweiReleaseTaskRequested && gradle.startParameter.isConfigurationCacheRequested) {
+if (huaweiReleaseTaskRequested && leonaBuildFeatures.configurationCache.active.get()) {
     throw GradleException(
         "Huawei release requires --no-configuration-cache so private App ID material is not persisted",
     )
@@ -142,6 +150,7 @@ tasks.register("guardSampleHuaweiReleaseBuild") {
 android {
     namespace = "io.leonasec.leona.sample"
     compileSdk = 36
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         applicationId = "io.leonasec.leona.sample"
@@ -232,10 +241,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         buildConfig = true
         viewBinding = true
@@ -243,19 +248,19 @@ android {
 
     sourceSets {
         getByName("main") {
-            kotlin.srcDirs("src/main/kotlin")
+            kotlin.directories += "src/main/kotlin"
         }
         getByName("debug") {
-            kotlin.srcDirs("src/debug/kotlin")
+            kotlin.directories += "src/debug/kotlin"
         }
         getByName("release") {
-            kotlin.srcDirs("src/release/kotlin")
+            kotlin.directories += "src/release/kotlin"
         }
         getByName("cloudTest") {
-            kotlin.srcDirs("src/release/kotlin", "src/cloudTest/kotlin")
+            kotlin.directories += listOf("src/release/kotlin", "src/cloudTest/kotlin")
         }
         getByName("huaweiRelease") {
-            kotlin.srcDirs("src/release/kotlin")
+            kotlin.directories += "src/release/kotlin"
         }
     }
 }
@@ -268,7 +273,14 @@ tasks.matching { it.name == "preHuaweiReleaseBuild" }.configureEach {
     dependsOn("guardSampleHuaweiReleaseBuild")
 }
 
+kotlin {
+    compilerOptions {
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+    }
+}
+
 dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
     implementation(project(":sdk"))
     findProject(":sdk-private-core")?.let { implementation(it) }
 
@@ -283,4 +295,12 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockito.core)
+}
+
+androidComponents {
+    // AGP 9 enables unit tests only for the tested build type by default.
+    // cloudTest has contract tests of its own, so keep that variant explicit.
+    beforeVariants(selector().withBuildType("cloudTest")) { variantBuilder ->
+        (variantBuilder as HasUnitTestBuilder).enableUnitTest = true
+    }
 }

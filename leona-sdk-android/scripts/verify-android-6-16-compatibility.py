@@ -155,10 +155,28 @@ def verify_build(project_root: Path, contract: dict[str, Any], checks: list[dict
 
     agp_match = re.search(r'(?m)^\s*agp\s*=\s*"([^"]+)"\s*$', catalog_text)
     gradle_match = re.search(r"gradle-([0-9][0-9.]*)-bin\.zip", wrapper_text)
+    gradle_sha_match = re.search(r"(?m)^distributionSha256Sum=([0-9a-f]{64})$", wrapper_text)
     agp = agp_match.group(1) if agp_match else ""
     gradle = gradle_match.group(1) if gradle_match else ""
-    add_check(checks, "build.agp", bool(agp) and version_at_least(agp, build["minimumAgp"]), "AGP >= 8.9.1")
-    add_check(checks, "build.gradle", bool(gradle) and version_at_least(gradle, build["minimumGradle"]), "Gradle >= 8.11.1")
+    gradle_sha = gradle_sha_match.group(1) if gradle_sha_match else ""
+    add_check(
+        checks,
+        "build.agp",
+        bool(agp) and version_at_least(agp, build["minimumAgp"]),
+        f"AGP >= {build['minimumAgp']}",
+    )
+    add_check(
+        checks,
+        "build.gradle",
+        bool(gradle) and version_at_least(gradle, build["minimumGradle"]),
+        f"Gradle >= {build['minimumGradle']}",
+    )
+    add_check(
+        checks,
+        "build.gradle-distribution-sha256",
+        gradle_sha == build["requiredGradleDistributionSha256"],
+        "Gradle wrapper distribution SHA-256 must match the contract",
+    )
 
     if sdk_root is None:
         checks.append({"id": "host.android-sdk", "status": "not-run", "detail": "Android SDK root not provided or discovered"})

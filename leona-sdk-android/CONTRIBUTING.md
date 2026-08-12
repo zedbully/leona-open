@@ -25,7 +25,9 @@ cd leona-sdk-android
 ./gradlew :sdk:testDebugUnitTest
 ```
 
-Requirements: JDK 17+, Android SDK 34+, NDK r26+, Gradle 8.10+.
+Requirements: JDK 17+, Android SDK 36, NDK 26.3.11579264. Use the checked-in
+Gradle 9.5.0 wrapper; its distribution checksum and AGP 9.3.1 version are part
+of the Android 6–16 build contract.
 
 ## Style
 

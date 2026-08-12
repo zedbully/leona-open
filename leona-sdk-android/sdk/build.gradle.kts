@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     id("maven-publish")
     id("signing")
 }
@@ -54,14 +53,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-Xjvm-default=all",
-            "-opt-in=kotlin.RequiresOptIn",
-        )
-    }
-
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -71,7 +62,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            kotlin.srcDirs("src/main/kotlin")
+            kotlin.directories += "src/main/kotlin"
         }
     }
 
@@ -89,7 +80,20 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        // AGP 9.3 ships Kotlin 2.2. Compile public metadata at language level
+        // 2.0 so existing Kotlin 1.9 applications remain binary consumers.
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+        freeCompilerArgs.addAll(
+            "-Xjvm-default=all",
+            "-opt-in=kotlin.RequiresOptIn",
+        )
+    }
+}
+
 dependencies {
+    api("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
@@ -209,10 +213,10 @@ signing {
 android {
     sourceSets {
         getByName("test") {
-            kotlin.srcDirs("src/test/kotlin")
+            kotlin.directories += "src/test/kotlin"
         }
         getByName("androidTest") {
-            kotlin.srcDirs("src/androidTest/kotlin")
+            kotlin.directories += "src/androidTest/kotlin"
         }
     }
 }

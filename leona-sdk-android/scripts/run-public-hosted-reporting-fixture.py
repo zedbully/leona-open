@@ -68,7 +68,9 @@ def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(f".{path.name}.{secrets.token_hex(6)}.tmp")
     temp.write_bytes(json_bytes(value))
-    os.chmod(temp, 0o644)
+    # Receipts are hash-only, but still describe a concrete test execution.
+    # Keep them operator-private even on hosts with a permissive umask.
+    os.chmod(temp, 0o600)
     temp.replace(path)
 
 

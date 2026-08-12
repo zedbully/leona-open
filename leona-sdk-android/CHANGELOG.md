@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The producer toolchain now uses Android Gradle Plugin 9.3.1, Gradle 9.5.0
+  with a pinned official distribution SHA-256, and AGP built-in Kotlin. Public
+  and private AAR metadata remains at Kotlin language level 2.0 and publishes
+  Kotlin stdlib 1.9.24 so Kotlin 1.9 customer applications remain supported.
+- Added an independent AGP 8.9.1 / Gradle 8.11.1 / Kotlin 1.9.24 consumer
+  compile gate. This catches incompatible Kotlin metadata and old-D8 rewrite
+  failures that dependency resolution alone cannot detect.
+- The sample now pins NDK 26.3.11579264 for packaging as well as compilation,
+  preventing release builds from silently packaging unstripped native code
+  when another incomplete NDK is installed on the host.
+- Huawei release configuration-cache detection now uses Gradle's supported
+  `BuildFeatures` service and remains fail closed before reading private App ID
+  material.
+- Public-hosted test fixture receipts are now created with mode `0600`; they
+  remain hash-only and never contain AppKeys, raw identifiers, or decisions.
+
 ### Added
 - Android 6.0 / API 23 through Android 16 / API 36 compatibility contract,
   redacted-import manifest builder, build verifier, fail-closed direct-runtime
@@ -102,9 +119,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for signed evidence lookup, support bundle export, and feedback submission.
 
 ### Validation notes
-- Android API 36 compile/target wiring now uses Android Gradle Plugin 8.9.1,
-  Gradle 8.11.1, Platform 36, and Build Tools 36.0.0. Strict API 23-36 runtime
-  acceptance still requires one current, redacted direct sample per API.
+- The current producer toolchain is AGP 9.3.1 / Gradle 9.5.0 / built-in Kotlin
+  language 2.0. The public and private AARs both compile in an independent
+  AGP 8.9.1 / Gradle 8.11.1 / Kotlin 1.9.24 Android application.
+- Android API 36 compile/target wiring uses Platform 36 and Build Tools 36.0.0.
+  Strict API 23-36 runtime acceptance still requires one current, redacted
+  direct sample per API and is not inferred from a successful producer build.
 - The v0.4 public-safe readiness gate currently passes local checks and reports
   remaining external blockers without embedding sensitive material.
 - Public archive consumer smoke extracts the generated Android archive, checks

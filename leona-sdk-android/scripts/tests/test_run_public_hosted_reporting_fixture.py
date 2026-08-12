@@ -91,6 +91,7 @@ class PublicHostedReportingFixtureTest(unittest.TestCase):
 
         receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
         self.assertEqual("pass", receipt["status"])
+        self.assertEqual(0o600, self.receipt.stat().st_mode & 0o777)
         self.assertEqual(23, receipt["sdkInt"])
         self.assertTrue(receipt["apiKeyAccepted"])
         self.assertFalse(receipt["businessDecisionProduced"])

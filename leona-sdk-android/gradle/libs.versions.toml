@@ -1,6 +1,5 @@
 [versions]
-agp = "8.9.1"
-kotlin = "1.9.24"
+agp = "9.3.1"
 coroutines = "1.8.1"
 androidx-core = "1.13.1"
 androidx-appcompat = "1.7.0"
@@ -27,4 +26,3 @@ androidx-test-espresso = { module = "androidx.test.espresso:espresso-core", vers
 [plugins]
 android-library = { id = "com.android.library", version.ref = "agp" }
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

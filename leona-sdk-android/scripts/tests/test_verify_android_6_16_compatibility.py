@@ -28,9 +28,10 @@ class CompatibilityVerifierTest(unittest.TestCase):
         (self.root / "sdk").mkdir()
         (self.root / "sample-app").mkdir()
         (self.root / "gradle" / "wrapper").mkdir(parents=True)
-        (self.root / "gradle" / "libs.versions.toml").write_text('agp = "8.9.1"\n', encoding="utf-8")
+        (self.root / "gradle" / "libs.versions.toml").write_text('agp = "9.3.1"\n', encoding="utf-8")
         (self.root / "gradle" / "wrapper" / "gradle-wrapper.properties").write_text(
-            "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.11.1-bin.zip\n",
+            "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.5.0-bin.zip\n"
+            "distributionSha256Sum=553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746\n",
             encoding="utf-8",
         )
         (self.root / "sdk" / "build.gradle.kts").write_text(
@@ -257,6 +258,24 @@ class CompatibilityVerifierTest(unittest.TestCase):
         code, summary = self.run_verifier()
         self.assertEqual(1, code)
         self.assertFalse(summary["buildContractPassed"])
+
+    def test_gradle_distribution_checksum_drift_fails(self) -> None:
+        wrapper = self.root / "gradle" / "wrapper" / "gradle-wrapper.properties"
+        wrapper.write_text(
+            wrapper.read_text(encoding="utf-8").replace(
+                "553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746",
+                "0" * 64,
+            ),
+            encoding="utf-8",
+        )
+
+        code, summary = self.run_verifier()
+
+        self.assertEqual(1, code)
+        self.assertEqual(
+            "fail",
+            next(c for c in summary["checks"] if c["id"] == "build.gradle-distribution-sha256")["status"],
+        )
 
 
 if __name__ == "__main__":
