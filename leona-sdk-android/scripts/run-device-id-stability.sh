@@ -123,8 +123,30 @@ phase_reinstall() {
 }
 
 phase_reboot() {
+  local reverse_mappings
+  # ADB reverse state is device-runtime state and is normally lost across a
+  # reboot. Preserve only the socket mappings in memory so a localhost-backed
+  # reporting endpoint remains reachable without recording a raw serial.
+  reverse_mappings="$(adb_cmd reverse --list 2>/dev/null \
+    | awk 'NF >= 2 {print $(NF-1) "\t" $NF}' || true)"
   adb_cmd reboot
   adb_cmd wait-for-device
+  local deadline=$((SECONDS + ${LEONA_POST_REBOOT_WAIT_SECONDS:-180}))
+  while (( SECONDS < deadline )); do
+    if [[ "$(adb_cmd shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]] \
+      && adb_cmd shell pm path android >/dev/null 2>&1; then
+      break
+    fi
+    sleep 3
+  done
+  if [[ "$(adb_cmd shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]]; then
+    echo "Device did not finish booting after reboot." >&2
+    return 4
+  fi
+  while IFS=$'\t' read -r remote local; do
+    [[ -n "${remote}" && -n "${local}" ]] || continue
+    adb_cmd reverse "${remote}" "${local}"
+  done <<< "${reverse_mappings}"
   sleep "${LEONA_POST_REBOOT_SETTLE_SECONDS:-12}"
 }
 
@@ -133,13 +155,16 @@ summarize() {
   local rows="${OUT_DIR}/phase-results.tsv"
   {
     echo -e "phase\tboxIdHint\tcanonicalHint\tcanonicalSha256\tfingerprintHashSha256\tfingerprintSchemaVersion\tfingerprintSource\tidentityAnchorSource\tstatus"
-    local phase phase_dir logcat box_id box_hint canonical_hint canonical_sha fingerprint_sha fingerprint_schema fingerprint_source anchor_source status
+    local phase phase_dir logcat box_id box_id_sha box_hint canonical_hint canonical_sha fingerprint_sha fingerprint_schema fingerprint_source anchor_source status
     IFS=',' read -ra phase_array <<< "${PHASES}"
     for phase in "${phase_array[@]}"; do
       phase_dir="${OUT_DIR}/${phase}"
       logcat="${phase_dir}/logcat.leona.txt"
       box_id="$(extract_first_json_value boxId "${logcat}")"
-      if [[ "${box_id}" == '<box-id-redacted>' || "${box_id}" == '<box-i...ted>' ]]; then
+      box_id_sha="$(extract_first_json_value boxIdSha256 "${logcat}")"
+      if [[ "${box_id_sha}" =~ ^[0-9a-f]{64}$ ]]; then
+        box_hint="sha256:${box_id_sha}"
+      elif [[ "${box_id}" == '<box-id-redacted>' || "${box_id}" == '<box-i...ted>' ]]; then
         box_hint="redacted"
       else
         box_hint="$([[ -n "${box_id}" ]] && boxid_hint "${box_id}" || true)"

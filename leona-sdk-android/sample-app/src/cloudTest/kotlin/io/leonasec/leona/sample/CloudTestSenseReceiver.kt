@@ -50,21 +50,12 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
                 val boxId = runBlocking { Leona.sense() }
                 val diagnostic = Leona.getDiagnosticSnapshot()
                 val durationMs = System.currentTimeMillis() - startedAt
-                val persistedPayload = JSONObject()
-                    // Persist the opaque BoxId only in the private on-device result so the
-                    // existing normalizer can hash it before collection. Keep fingerprint
-                    // diagnostics out of this legacy-shaped parser contract.
-                    .put("boxId", boxId.toString())
-                    .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
-                    .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
-                    .put("durationMs", durationMs)
-                    .put("reportingEndpointConfigured", reportingEndpointConfigured())
-                    .put("apiKeyConfigured", apiKeyConfigured())
-                    .put("runIdSha256", runIdSha256)
-                // Keep the terminal event compatible with the bounded collection normalizer.
-                // Fingerprint instrumentation is emitted as a separate redacted diagnostic event.
+                val boxIdSha256 = sha256Hex(boxId.toString())
+                // Persist and emit only a one-way digest. Android 11+ scoped storage prevents
+                // ADB shell from reading app-owned external files, so the log terminal event
+                // must itself be sufficient for collection without exposing an opaque BoxId.
                 val terminalPayload = JSONObject()
-                    .put("boxId", BOX_ID_REDACTED)
+                    .put("boxIdSha256", boxIdSha256)
                     .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
                     .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
                     .put("durationMs", durationMs)
@@ -75,7 +66,7 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
                 // identity. This redacted diagnostic carries only a full SHA-256 of the
                 // already-derived fingerprint signal; the raw signal and BoxId never enter logs.
                 val fingerprintPayload = JSONObject()
-                    .put("boxId", BOX_ID_REDACTED)
+                    .put("boxIdSha256", boxIdSha256)
                     .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
                     .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
                     .put("fingerprintHashSha256", fingerprintDiagnosticSha256(diagnostic.fingerprintHash))
@@ -86,7 +77,7 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
                     .put("reportingEndpointConfigured", reportingEndpointConfigured())
                     .put("apiKeyConfigured", apiKeyConfigured())
                     .put("runIdSha256", runIdSha256)
-                persistAndEmit(context, "sense", persistedPayload, terminalPayload)
+                persistAndEmit(context, "sense", terminalPayload, terminalPayload)
                 emit("fingerprint_diagnostic", fingerprintPayload)
                 emit("sense", terminalPayload)
             } catch (t: Throwable) {
@@ -99,7 +90,7 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
                         emit(
                             "fingerprint_diagnostic",
                             JSONObject()
-                                .put("boxId", BOX_ID_NOT_GENERATED)
+                                .put("boxIdSha256", JSONObject.NULL)
                                 .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
                                 .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
                                 .put("fingerprintHashSha256", fingerprintDiagnosticSha256(diagnostic.fingerprintHash))
@@ -170,18 +161,19 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
      */
     private fun fingerprintDiagnosticSha256(value: String?): Any {
         val signal = value?.trim()?.takeIf { it.isNotEmpty() } ?: return JSONObject.NULL
-        return MessageDigest.getInstance("SHA-256")
-            .digest(signal.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return sha256Hex(signal)
     }
+
+    private fun sha256Hex(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     companion object {
         const val ACTION = "io.leonasec.leona.sample.CLOUD_TEST_SENSE"
         const val EXTRA_TOKEN = "io.leonasec.leona.sample.CLOUD_TEST_TOKEN"
         const val EXTRA_RUN_ID = "io.leonasec.leona.sample.CLOUD_TEST_RUN_ID"
         const val RESULT_FILE_NAME = "leona-cloudtest-sense-result.json"
-        private const val BOX_ID_REDACTED = "<box-id-redacted>"
-        private const val BOX_ID_NOT_GENERATED = "<box-id-not-generated>"
         private const val LOG_TAG = "LeonaCloudTest"
     }
 }

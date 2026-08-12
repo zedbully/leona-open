@@ -81,6 +81,35 @@ class ParseCloudTestSenseResultTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(ULID_BOX_ID.encode()).hexdigest(), normalized["boxIdSha256"])
         self.assertNotIn(ULID_BOX_ID, result.stdout)
 
+    def test_accepts_hash_only_receiver_result_and_correlates_the_run(self) -> None:
+        box_id_sha256 = hashlib.sha256(ULID_BOX_ID.encode()).hexdigest()
+        payload = {
+            "boxIdSha256": box_id_sha256,
+            "canonicalDeviceIdHint": None,
+            "canonicalDeviceIdSha256": None,
+            "durationMs": 23,
+            "reportingEndpointConfigured": True,
+            "apiKeyConfigured": True,
+            "runIdSha256": RUN_ID_SHA256,
+        }
+        result = self.run_parser({"event": "sense", "payload": payload})
+        self.assertEqual(0, result.returncode, result.stderr)
+        normalized = json.loads(result.stdout)
+        self.assertEqual("success", normalized["status"])
+        self.assertEqual(box_id_sha256, normalized["boxIdSha256"])
+        self.assertEqual(RUN_ID_SHA256, normalized["runIdSha256"])
+        self.assertNotIn(ULID_BOX_ID, result.stdout)
+
+    def test_rejects_malformed_hash_only_receiver_result(self) -> None:
+        result = self.run_parser({
+            "boxIdSha256": "a" * 16,
+            "canonicalDeviceIdHint": None,
+            "canonicalDeviceIdSha256": None,
+            "durationMs": 1,
+        })
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("", result.stdout)
+
     def test_rejects_stale_or_mismatched_run_correlation(self) -> None:
         payload = {
             "boxId": BOX_ID,
@@ -177,6 +206,37 @@ class ParseCloudTestSenseResultTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("success", json.loads(result.stdout)["status"])
         self.assertNotIn(BOX_ID, result.stdout)
+
+    def test_extracts_hash_only_terminal_event_from_bounded_log_capture(self) -> None:
+        box_id_sha256 = hashlib.sha256(ULID_BOX_ID.encode()).hexdigest()
+        payload = {
+            "boxIdSha256": box_id_sha256,
+            "canonicalDeviceIdHint": None,
+            "canonicalDeviceIdSha256": None,
+            "durationMs": 23,
+            "reportingEndpointConfigured": True,
+            "apiKeyConfigured": True,
+            "runIdSha256": RUN_ID_SHA256,
+        }
+        capture = "ignored command echo\n" + json.dumps({"event": "sense", "payload": payload}) + "\n"
+        temp = tempfile.TemporaryDirectory(prefix="leona-cloudtest-hash-log-")
+        self.addCleanup(temp.cleanup)
+        artifact = Path(temp.name) / "cloud_result.txt"
+        artifact.write_text(capture, encoding="utf-8")
+        os.utime(artifact, (1_700_000_000, 1_700_000_000))
+        result = subprocess.run(
+            [
+                str(SCRIPT),
+                "--input", str(artifact),
+                "--now-epoch", "1700000000",
+                "--expected-run-id-sha256", RUN_ID_SHA256,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(box_id_sha256, json.loads(result.stdout)["boxIdSha256"])
 
     def test_rejects_ambiguous_terminal_events(self) -> None:
         first = {"event": "sense", "payload": {

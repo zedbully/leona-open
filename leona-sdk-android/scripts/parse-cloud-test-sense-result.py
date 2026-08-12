@@ -28,6 +28,7 @@ UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 ULID = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$", re.I)
 HINT = re.compile(r"^(?:[ -~]{4}\.\.\.[ -~]{4}|<redacted:[0-9a-f]{8}>)$")
 SHORT_SHA256 = re.compile(r"^[0-9a-f]{16}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 CLASS_NAME = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$.]{0,159}$")
 SECRET_LIKE = re.compile(
     r"(?i)(?:\b(?:api[_-]?key|access[_-]?token|auth(?:orization)?|bearer|"
@@ -155,16 +156,34 @@ def normalize(payload: Any, expected_run_id_sha256: str | None = None) -> dict[s
             "runIdSha256": run_id_sha256,
         }
 
-    legacy_keys = {"boxId", "canonicalDeviceIdHint", "canonicalDeviceIdSha256", "durationMs"}
-    reporting_keys = legacy_keys | {"reportingEndpointConfigured", "apiKeyConfigured"}
-    correlated_keys = reporting_keys | {"runIdSha256"}
-    if set(payload) not in (legacy_keys, reporting_keys, correlated_keys):
+    raw_legacy_keys = {"boxId", "canonicalDeviceIdHint", "canonicalDeviceIdSha256", "durationMs"}
+    raw_reporting_keys = raw_legacy_keys | {"reportingEndpointConfigured", "apiKeyConfigured"}
+    raw_correlated_keys = raw_reporting_keys | {"runIdSha256"}
+    hash_legacy_keys = {"boxIdSha256", "canonicalDeviceIdHint", "canonicalDeviceIdSha256", "durationMs"}
+    hash_reporting_keys = hash_legacy_keys | {"reportingEndpointConfigured", "apiKeyConfigured"}
+    hash_correlated_keys = hash_reporting_keys | {"runIdSha256"}
+    accepted_keys = (
+        raw_legacy_keys,
+        raw_reporting_keys,
+        raw_correlated_keys,
+        hash_legacy_keys,
+        hash_reporting_keys,
+        hash_correlated_keys,
+    )
+    payload_keys = set(payload)
+    if payload_keys not in accepted_keys:
         raise ValidationError("success result has unexpected, missing, or ambiguous fields")
-    box_id = require_string(payload["boxId"], "boxId")
+    if "boxId" in payload:
+        box_id = require_string(payload["boxId"], "boxId")
+        if not (UUID.fullmatch(box_id) or ULID.fullmatch(box_id)):
+            raise ValidationError("boxId must be a UUID or ULID")
+        box_id_sha256 = digest(box_id)
+    else:
+        box_id_sha256 = require_string(payload["boxIdSha256"], "boxIdSha256")
+        if not SHA256.fullmatch(box_id_sha256):
+            raise ValidationError("boxIdSha256 must be a full lowercase SHA-256 digest")
     hint = payload["canonicalDeviceIdHint"]
     canonical_hash = payload["canonicalDeviceIdSha256"]
-    if not (UUID.fullmatch(box_id) or ULID.fullmatch(box_id)):
-        raise ValidationError("boxId must be a UUID or ULID")
     if (hint is None) != (canonical_hash is None):
         raise ValidationError("canonical hint and hash must both be present or both be null")
     if hint is not None:
@@ -176,19 +195,19 @@ def normalize(payload: Any, expected_run_id_sha256: str | None = None) -> dict[s
     reporting_endpoint_configured: bool | None = None
     api_key_configured: bool | None = None
     run_id_sha256: str | None = None
-    if set(payload) in (reporting_keys, correlated_keys):
+    if payload_keys in (raw_reporting_keys, raw_correlated_keys, hash_reporting_keys, hash_correlated_keys):
         reporting_endpoint_configured = require_bool(
             payload["reportingEndpointConfigured"],
             "reportingEndpointConfigured",
         )
         api_key_configured = require_bool(payload["apiKeyConfigured"], "apiKeyConfigured")
-        if set(payload) == correlated_keys:
+        if payload_keys in (raw_correlated_keys, hash_correlated_keys):
             run_id_sha256 = require_run_id_sha256(payload["runIdSha256"])
     require_expected_run_id(run_id_sha256, expected_run_id_sha256)
     return {
         "artifact": ARTIFACT,
         "apiKeyConfigured": api_key_configured,
-        "boxIdSha256": digest(box_id),
+        "boxIdSha256": box_id_sha256,
         "canonicalDeviceIdHint": hint,
         "canonicalDeviceIdSha256": canonical_hash,
         "durationMs": require_duration(payload["durationMs"]),
