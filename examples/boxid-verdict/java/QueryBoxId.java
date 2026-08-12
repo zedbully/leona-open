@@ -5,6 +5,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import javax.crypto.Mac;
@@ -22,7 +23,10 @@ public final class QueryBoxId {
 
         String secret = requireEnv("LEONA_SECRET_KEY");
         String boxId = requireEnv("BOX_ID");
-        String endpoint = System.getenv().getOrDefault("LEONA_ENDPOINT", DEFAULT_ENDPOINT);
+        String endpoint = validateEndpoint(
+            System.getenv().getOrDefault("LEONA_ENDPOINT", DEFAULT_ENDPOINT),
+            "1".equals(System.getenv("LEONA_ALLOW_LOOPBACK_HTTP"))
+        ).toString();
         String timestamp = System.getenv().getOrDefault(
             "LEONA_TIMESTAMP",
             Long.toString(Instant.now().toEpochMilli())
@@ -37,6 +41,7 @@ public final class QueryBoxId {
         }
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint))
+            .timeout(Duration.ofSeconds(15))
             .POST(HttpRequest.BodyPublishers.ofString(signed.body))
             .header("Authorization", signed.authorization)
             .header("Content-Type", "application/json")
@@ -45,7 +50,10 @@ public final class QueryBoxId {
             .header("X-Leona-Signature", signed.signature)
             .build();
 
-        HttpResponse<String> response = HttpClient.newHttpClient()
+        HttpResponse<String> response = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(15))
+            .build()
             .send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -81,23 +89,70 @@ public final class QueryBoxId {
     private static void selfTest() throws Exception {
         SignedRequest signed = buildSignedRequest(
             "test_secret_do_not_use",
-            "box_test_000000000000000000",
+            "123e4567-e89b-42d3-a456-426614174000",
             DEFAULT_ENDPOINT,
             "1700000000000",
             "nonce_for_dry_run"
         );
-        assertEquals("{\"boxId\":\"box_test_000000000000000000\"}", signed.body, "body");
+        assertEquals("{\"boxId\":\"123e4567-e89b-42d3-a456-426614174000\"}", signed.body, "body");
         assertEquals(
-            "c7aba2a73265ed90feeaa0eb8d8b35591dbc157e15ac1122b6bec17d00da430d",
+            "7ce622a9473ffbe7ed390c57efa3705747981e316ace1fa56000072f20ac7958",
             signed.bodySha256,
             "bodySha256"
         );
         assertEquals(
-            "zRvnS0zA4OrYmNu9xEid-tZDT5EO-6-UBQnuJgh_z2E",
+            "flTDOGc3Xu5CXjzgeMWnyd1GF0O5X6VXtMbhSgsLU7Y",
             signed.signature,
             "signature"
         );
+        String dryRun = signed.toJson();
+        if (dryRun.contains("test_secret_do_not_use")
+            || dryRun.contains("123e4567-e89b-42d3-a456-426614174000")
+            || dryRun.contains(signed.signature)) {
+            throw new AssertionError("dry-run output contains sensitive request material");
+        }
+        assertEquals(DEFAULT_ENDPOINT, validateEndpoint(DEFAULT_ENDPOINT, false).toString(), "endpoint");
+        assertRejectedEndpoint("file:///etc/passwd");
+        assertRejectedEndpoint("https://user:password@example.invalid/v1/verdict");
+        assertRejectedEndpoint("https://example.invalid/v1/verdict?secret=value");
+        assertRejectedEndpoint("https://example.invalid/other");
+        assertRejectedEndpoint("http://example.invalid/v1/verdict");
+        String loopback = "http://127.0.0.1:18080/v1/verdict";
+        assertRejectedEndpoint(loopback);
+        assertEquals(loopback, validateEndpoint(loopback, true).toString(), "loopback endpoint");
         System.out.println("QueryBoxId self-test passed");
+    }
+
+    private static void assertRejectedEndpoint(String endpoint) {
+        try {
+            validateEndpoint(endpoint, false);
+            throw new AssertionError("expected endpoint rejection: " + endpoint);
+        } catch (IllegalArgumentException expected) {
+            // Expected fail-closed result.
+        }
+    }
+
+    static URI validateEndpoint(String endpoint, boolean allowLoopbackHttp) {
+        final URI uri;
+        try {
+            uri = URI.create(endpoint);
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("LEONA_ENDPOINT must be an absolute /v1/verdict URL", error);
+        }
+        if (!uri.isAbsolute() || uri.getHost() == null || uri.getUserInfo() != null
+            || uri.getRawQuery() != null || uri.getRawFragment() != null
+            || !"/v1/verdict".equals(uri.getRawPath())) {
+            throw new IllegalArgumentException(
+                "LEONA_ENDPOINT must not contain credentials, query, fragment, or another path");
+        }
+        String host = uri.getHost().toLowerCase(java.util.Locale.ROOT);
+        boolean loopback = "localhost".equals(host) || "127.0.0.1".equals(host) || "::1".equals(host);
+        if (!"https".equalsIgnoreCase(uri.getScheme())
+            && !("http".equalsIgnoreCase(uri.getScheme()) && loopback && allowLoopbackHttp)) {
+            throw new IllegalArgumentException(
+                "LEONA_ENDPOINT must use HTTPS (or explicit loopback HTTP for local tests)");
+        }
+        return uri;
     }
 
     private static void assertEquals(String expected, String actual, String name) {
@@ -170,14 +225,14 @@ public final class QueryBoxId {
         String toJson() {
             return "{\n"
                 + "  \"endpoint\": \"" + escapeJson(endpoint) + "\",\n"
-                + "  \"body\": \"" + escapeJson(body) + "\",\n"
+                + "  \"body\": \"[REDACTED]\",\n"
                 + "  \"bodySha256\": \"" + bodySha256 + "\",\n"
                 + "  \"headers\": {\n"
-                + "    \"Authorization\": \"" + escapeJson(authorization) + "\",\n"
+                + "    \"Authorization\": \"Bearer [REDACTED]\",\n"
                 + "    \"Content-Type\": \"application/json\",\n"
                 + "    \"X-Leona-Timestamp\": \"" + timestamp + "\",\n"
                 + "    \"X-Leona-Nonce\": \"" + escapeJson(nonce) + "\",\n"
-                + "    \"X-Leona-Signature\": \"" + signature + "\"\n"
+                + "    \"X-Leona-Signature\": \"[REDACTED]\"\n"
                 + "  }\n"
                 + "}";
         }

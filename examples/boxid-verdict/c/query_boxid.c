@@ -11,6 +11,35 @@
 
 #define DEFAULT_ENDPOINT "https://leona.xiyanshan.com/v1/verdict"
 
+static int endpoint_is_valid(const char *endpoint, int allow_loopback_http) {
+    const char *https = "https://";
+    const char *http = "http://";
+    const char *authority = NULL;
+    int scheme_allowed = 0;
+    if (strncmp(endpoint, https, strlen(https)) == 0) {
+        authority = endpoint + strlen(https);
+        scheme_allowed = 1;
+    } else if (strncmp(endpoint, http, strlen(http)) == 0 && allow_loopback_http) {
+        authority = endpoint + strlen(http);
+        scheme_allowed = (strncmp(authority, "127.0.0.1", 9) == 0
+                && (authority[9] == ':' || authority[9] == '/'))
+            || (strncmp(authority, "localhost", 9) == 0
+                && (authority[9] == ':' || authority[9] == '/'))
+            || (strncmp(authority, "[::1]", 5) == 0
+                && (authority[5] == ':' || authority[5] == '/'));
+    }
+    if (!scheme_allowed || authority == NULL || authority[0] == '\0') return 0;
+    const char *path = strchr(authority, '/');
+    if (path == NULL || path == authority || strcmp(path, "/v1/verdict") != 0) return 0;
+    for (const char *cursor = authority; cursor < path; ++cursor) {
+        unsigned char ch = (unsigned char)*cursor;
+        if (ch == '@' || ch == '?' || ch == '#' || ch == '\\' || ch <= 0x20 || ch == 0x7f) {
+            return 0;
+        }
+    }
+    return strchr(path, '?') == NULL && strchr(path, '#') == NULL;
+}
+
 struct response_buffer {
     char *data;
     size_t size;
@@ -121,6 +150,11 @@ int main(void) {
     const char *box_id = require_env("BOX_ID");
     const char *endpoint = getenv("LEONA_ENDPOINT");
     if (endpoint == NULL || endpoint[0] == '\0') endpoint = DEFAULT_ENDPOINT;
+    if (!endpoint_is_valid(endpoint, strcmp(getenv("LEONA_ALLOW_LOOPBACK_HTTP") == NULL
+            ? "" : getenv("LEONA_ALLOW_LOOPBACK_HTTP"), "1") == 0)) {
+        fprintf(stderr, "LEONA_ENDPOINT must be HTTPS /v1/verdict (or explicit loopback HTTP for local tests)\n");
+        return 2;
+    }
 
     char *escaped_box_id = json_escape(box_id);
     if (escaped_box_id == NULL) return 1;
@@ -176,6 +210,7 @@ int main(void) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
 
     CURLcode rc = curl_easy_perform(curl);
     long status = 0;

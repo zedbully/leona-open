@@ -135,7 +135,13 @@ def verify_api(root: Path, api: int, failures: list[str]) -> dict[str, Any]:
     expect(provenance.get("runnerManaged") is True, failures, f"API {api}: runnerManaged must be true")
     expect(provenance.get("apiLevel") == api, failures, f"API {api}: provenance apiLevel mismatch")
     expect(provenance.get("architecture") == "x86_64", failures, f"API {api}: architecture mismatch")
-    expect(provenance.get("target") == "google_apis", failures, f"API {api}: target mismatch")
+    expect(provenance.get("target") == "default", failures, f"API {api}: target must be default AOSP")
+    expect(provenance.get("aospNoGms") is True, failures, f"API {api}: aospNoGms must be true")
+    expect(
+        provenance.get("forbiddenGoogleRuntimePackageCount") == 0,
+        failures,
+        f"API {api}: forbidden Google runtime package count must be zero",
+    )
     expect(provenance.get("triggerType") == "direct", failures, f"API {api}: provenance trigger mismatch")
     expect(provenance.get("artifactBoundary") == "redacted-only", failures, f"API {api}: artifact boundary mismatch")
     expect(provenance.get("businessDecisionOwner") == "customer-backend", failures, f"API {api}: business decision owner mismatch")
@@ -186,6 +192,7 @@ def main() -> int:
         "sdkRole": "collect-and-report-evidence-only",
         "businessDecisionOwner": "customer-backend",
         "commercialAdmissionClaimed": False,
+        "aospNoGms": status == "pass" and bool(api_results),
         "secretValuesPrinted": False,
         "rawIdentifiersPrinted": False,
         "failures": failures,
@@ -202,6 +209,7 @@ def main() -> int:
         "- SDK role: collect and report evidence only",
         "- business decision owner: customer backend",
         "- commercial admission claimed: false",
+        f"- AOSP/no-GMS: {str(summary['aospNoGms']).lower()}",
         "- secret values printed: false",
         "- raw identifiers printed: false",
         "",

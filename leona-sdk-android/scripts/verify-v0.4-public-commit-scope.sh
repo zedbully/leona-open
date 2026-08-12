@@ -65,6 +65,7 @@ is_public_allowed_path() {
   case "${path}" in
     README.md|LICENSE|AGENTS.md) return 0 ;;
     .github|.github/*) return 0 ;;
+    examples|examples/*) return 0 ;;
     docs/README.md|docs/open-source-policy.md|docs/open-vs-private-final-matrix.md) return 0 ;;
     leona-sdk-android/private/README.md) return 0 ;;
     leona-sdk-android/private/*) return 1 ;;

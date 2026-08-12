@@ -99,7 +99,7 @@ require_contains "publish-release prepares sha256 asset" \
   'leona-sdk-android-\$\{VERSION\}\.aar\.sha256'
 require_contains "publish-release uploads AAR assets to GitHub Release" \
   "${WORKFLOW}" \
-  'softprops/action-gh-release@v2'
+  'softprops/action-gh-release@[0-9a-f]{40}[[:space:]]*#[[:space:]]*v2'
 require_contains "publish-release includes aar glob" \
   "${WORKFLOW}" \
   'leona-sdk-android/build/release-assets/\*\.aar'

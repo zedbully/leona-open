@@ -30,6 +30,42 @@ std::string env_or_default(const char *name, const char *fallback) {
     return (value == nullptr || value[0] == '\0') ? fallback : value;
 }
 
+std::string validate_endpoint(const std::string &endpoint, bool allow_loopback_http) {
+    const std::string https = "https://";
+    const std::string http = "http://";
+    size_t authority_start = std::string::npos;
+    bool scheme_allowed = false;
+    if (endpoint.rfind(https, 0) == 0) {
+        authority_start = https.size();
+        scheme_allowed = true;
+    } else if (endpoint.rfind(http, 0) == 0 && allow_loopback_http) {
+        authority_start = http.size();
+        const std::string authority = endpoint.substr(authority_start);
+        auto exact_host_prefix = [&authority](const std::string &host) {
+            return authority.rfind(host, 0) == 0
+                && authority.size() > host.size()
+                && (authority[host.size()] == ':' || authority[host.size()] == '/');
+        };
+        scheme_allowed = exact_host_prefix("127.0.0.1")
+            || exact_host_prefix("localhost")
+            || exact_host_prefix("[::1]");
+    }
+    if (!scheme_allowed || authority_start == std::string::npos) {
+        throw std::runtime_error("LEONA_ENDPOINT must use HTTPS (or explicit loopback HTTP for local tests)");
+    }
+    const size_t path = endpoint.find('/', authority_start);
+    const std::string authority = path == std::string::npos
+        ? std::string()
+        : endpoint.substr(authority_start, path - authority_start);
+    const bool invalid_authority = authority.find_first_of("@?#\\") != std::string::npos
+        || authority.find_first_of(" \t\r\n") != std::string::npos;
+    if (path == std::string::npos || path == authority_start || endpoint.substr(path) != "/v1/verdict"
+        || invalid_authority) {
+        throw std::runtime_error("LEONA_ENDPOINT must be an absolute /v1/verdict URL without credentials/query/fragment");
+    }
+    return endpoint;
+}
+
 std::string now_millis() {
     using namespace std::chrono;
     return std::to_string(duration_cast<milliseconds>(
@@ -105,7 +141,9 @@ int main() {
     try {
         std::string secret = require_env("LEONA_SECRET_KEY");
         std::string box_id = require_env("BOX_ID");
-        std::string endpoint = env_or_default("LEONA_ENDPOINT", kDefaultEndpoint);
+        std::string endpoint = validate_endpoint(
+            env_or_default("LEONA_ENDPOINT", kDefaultEndpoint),
+            env_or_default("LEONA_ALLOW_LOOPBACK_HTTP", "0") == "1");
 
         std::string body = "{\"boxId\":\"" + json_escape(box_id) + "\"}";
         std::string timestamp = now_millis();
@@ -132,6 +170,7 @@ int main() {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
 
         CURLcode rc = curl_easy_perform(curl);
         long status = 0;

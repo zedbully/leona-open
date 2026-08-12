@@ -95,6 +95,17 @@ if [[ -z "${ANDROID_SERIAL:-}" ]]; then
   exit 3
 fi
 
+# The domestic CI lane must run on a plain AOSP image.  Failing this check is
+# safer than accidentally treating a Google-enabled image as no-Google
+# compatibility evidence.
+for forbidden_package in com.google.android.gms com.android.vending com.google.android.gsf; do
+  if adb -s "${ANDROID_SERIAL}" shell pm path "${forbidden_package}" 2>/dev/null \
+      | tr -d '\r' | grep -q '^package:'; then
+    echo "Forbidden Google runtime package is installed: ${forbidden_package}" >&2
+    exit 3
+  fi
+done
+
 LEONA_APK="${APK}" \
 LEONA_PACKAGE="io.leonasec.leona.sample" \
 LEONA_ACTIVITY="io.leonasec.leona.sample/.MainActivity" \
@@ -139,7 +150,9 @@ payload = {
     "runnerArch": os.environ.get("RUNNER_ARCH", "X64"),
     "apiLevel": int(os.environ["API_LEVEL"]),
     "architecture": "x86_64",
-    "target": "google_apis",
+    "target": "default",
+    "aospNoGms": True,
+    "forbiddenGoogleRuntimePackageCount": 0,
     "triggerType": "direct",
     "artifactBoundary": "redacted-only",
     "sdkRole": "collect-and-report-evidence-only",

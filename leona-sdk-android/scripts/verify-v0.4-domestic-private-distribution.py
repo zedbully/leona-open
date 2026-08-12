@@ -19,7 +19,7 @@ import os
 import re
 import subprocess
 import tempfile
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosemgrep: python.lang.security.use-defused-xml-parse.use-defused-xml-parse -- POM bytes are size-limited and DTD/entity declarations are rejected before parsing.
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -37,6 +37,7 @@ GOOGLE_MAVEN_GROUP_PREFIX = "com.google"
 GOOGLE_RUNTIME_PREFIX = "com/google/"
 REQUIRED_CLASS = "io/leonasec/leona/Leona.class"
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
+MAX_POM_BYTES = 2 * 1024 * 1024
 
 
 def parse_args() -> argparse.Namespace:
@@ -178,7 +179,9 @@ def validate_signatures(
     try:
         with tempfile.TemporaryDirectory(prefix="leona-domestic-dist-gpg-") as temp:
             home = Path(temp)
-            os.chmod(home, 0o700)
+            # GnuPG requires an owner-only home; 0700 is intentionally more
+            # restrictive than the scanner's generic 0644 recommendation.
+            os.chmod(home, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
             subprocess.run(
                 ["gpg", "--batch", "--homedir", str(home), "--import", str(public_key)],
                 check=True,
@@ -247,8 +250,24 @@ def validate_pom(
     failures: list[str], path: Path, group: str, artifact: str, version: str
 ) -> bool:
     before = len(failures)
+    if not regular_file(failures, path, "POM"):
+        return False
+    if path.stat().st_size > MAX_POM_BYTES:
+        failures.append("POM exceeds maximum size")
+        return False
     try:
-        root = ET.parse(path).getroot()
+        xml_bytes = path.read_bytes()
+        # Keep the declaration scan encoding-stable. Maven POMs are expected
+        # to be UTF-8; accepting UTF-16 here would allow ASCII declaration
+        # markers to be interleaved with NUL bytes before this check.
+        decoded_xml = xml_bytes.decode("utf-8-sig")
+        # Maven publication metadata never needs a DTD or custom entity.
+        # Reject both before the standard-library parser sees untrusted XML;
+        # the byte limit above also bounds non-entity expansion work.
+        upper_xml = decoded_xml.upper()
+        if "<!DOCTYPE" in upper_xml or "<!ENTITY" in upper_xml:
+            raise ValueError("DTD/entity declarations are forbidden")
+        root = ET.fromstring(xml_bytes)
     except Exception as exc:  # noqa: BLE001
         failures.append(f"POM parse failed: {exc}")
         return False

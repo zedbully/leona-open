@@ -58,11 +58,16 @@ Android SDK sense()
 
 ```bash
 export LEONA_SECRET_KEY='your_backend_only_secret_key'
-export BOX_ID='box_test_000000000000000000'
+export BOX_ID='<BOX_ID_FROM_APP>'
 export LEONA_ENDPOINT='https://leona.xiyanshan.com/v1/verdict'
 ```
 
 `LEONA_ENDPOINT` is optional and defaults to the hosted Leona endpoint above.
+All examples require HTTPS and the exact `/v1/verdict` path, reject URL
+credentials/query/fragment values, and do not follow redirects. Local fixture
+tests may opt in to loopback-only HTTP with `LEONA_ALLOW_LOOPBACK_HTTP=1`;
+never enable that flag for a non-loopback host. Dry-run output redacts the
+request body, bearer secret, and signature.
 
 ## Run
 
@@ -77,8 +82,8 @@ Python dry-run signature test:
 ```bash
 python3 -m unittest python/query_boxid_test.py
 LEONA_DRY_RUN=1 \
-LEONA_SECRET_KEY=test_secret_do_not_use \
-BOX_ID=box_test_000000000000000000 \
+LEONA_SECRET_KEY=test_only \
+BOX_ID=123e4567-e89b-42d3-a456-426614174000 \
 LEONA_TIMESTAMP=1700000000000 \
 LEONA_NONCE=nonce_for_dry_run \
 python3 python/query_boxid.py
@@ -97,8 +102,8 @@ Java dry-run signature test:
 javac java/QueryBoxId.java
 java -cp java QueryBoxId --self-test
 LEONA_DRY_RUN=1 \
-LEONA_SECRET_KEY=test_secret_do_not_use \
-BOX_ID=box_test_000000000000000000 \
+LEONA_SECRET_KEY=test_only \
+BOX_ID=123e4567-e89b-42d3-a456-426614174000 \
 LEONA_TIMESTAMP=1700000000000 \
 LEONA_NONCE=nonce_for_dry_run \
 java -cp java QueryBoxId
@@ -116,8 +121,8 @@ Go dry-run signature test:
 cd go
 go test
 LEONA_DRY_RUN=1 \
-LEONA_SECRET_KEY=test_secret_do_not_use \
-BOX_ID=box_test_000000000000000000 \
+LEONA_SECRET_KEY=test_only \
+BOX_ID=123e4567-e89b-42d3-a456-426614174000 \
 LEONA_TIMESTAMP=1700000000000 \
 LEONA_NONCE=nonce_for_dry_run \
 go run query_boxid.go
@@ -134,8 +139,8 @@ Node.js dry-run signature test:
 ```bash
 node --test nodejs/query_boxid.test.mjs
 LEONA_DRY_RUN=1 \
-LEONA_SECRET_KEY=test_secret_do_not_use \
-BOX_ID=box_test_000000000000000000 \
+LEONA_SECRET_KEY=test_only \
+BOX_ID=123e4567-e89b-42d3-a456-426614174000 \
 LEONA_TIMESTAMP=1700000000000 \
 LEONA_NONCE=nonce_for_dry_run \
 node nodejs/query_boxid.mjs

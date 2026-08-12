@@ -310,6 +310,53 @@ Expire-Date: 1d
         self.assertNotEqual(0, result.returncode)
         self.assertTrue(any("Google runtime dependency" in failure for failure in report["failures"]))
 
+    def test_pom_external_entity_is_rejected_without_reading_local_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repository, coordinate_dir, consumer = self.create_fixture(root)
+            local_secret = root / "must-not-be-read"
+            local_secret.write_text("leona-xxe-sentinel")
+            pom = coordinate_dir / f"{ARTIFACT}-{VERSION}.pom"
+            pom.write_text(
+                f'''<?xml version="1.0"?>
+<!DOCTYPE project [<!ENTITY xxe SYSTEM "{local_secret.as_uri()}">]>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <groupId>{GROUP}</groupId><artifactId>{ARTIFACT}</artifactId>
+  <version>{VERSION}</version><packaging>aar</packaging>
+  <dependencies><dependency><groupId>&xxe;</groupId>
+  <artifactId>core</artifactId></dependency></dependencies>
+</project>
+'''
+            )
+            self.sign_and_checksum(pom)
+            result = self.run_verifier(repository, consumer, root / "output")
+            report = json.loads((root / "output/summary.json").read_text())
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("failed", report["status"])
+        self.assertTrue(any("POM parse failed" in failure for failure in report["failures"]))
+        self.assertNotIn("leona-xxe-sentinel", json.dumps(report))
+
+    def test_utf16_pom_cannot_bypass_declaration_rejection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repository, coordinate_dir, consumer = self.create_fixture(root)
+            pom = coordinate_dir / f"{ARTIFACT}-{VERSION}.pom"
+            pom.write_bytes(
+                f'''<?xml version="1.0" encoding="UTF-16"?>
+<!DOCTYPE project [<!ENTITY xxe SYSTEM "file:///never-read">]>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <groupId>{GROUP}</groupId><artifactId>{ARTIFACT}</artifactId>
+  <version>{VERSION}</version><packaging>aar</packaging>
+</project>
+'''.encode("utf-16")
+            )
+            self.sign_and_checksum(pom)
+            result = self.run_verifier(repository, consumer, root / "output")
+            report = json.loads((root / "output/summary.json").read_text())
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("failed", report["status"])
+        self.assertTrue(any("POM parse failed" in failure for failure in report["failures"]))
+
     def test_play_integrity_gradle_module_dependency_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

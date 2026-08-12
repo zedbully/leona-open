@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -31,6 +33,8 @@ func main() {
 	if endpoint == "" {
 		endpoint = defaultEndpoint
 	}
+	endpoint, err := validateEndpoint(endpoint, os.Getenv("LEONA_ALLOW_LOOPBACK_HTTP") == "1")
+	must(err)
 	timestamp := os.Getenv("LEONA_TIMESTAMP")
 	if timestamp == "" {
 		timestamp = fmt.Sprintf("%d", time.Now().UnixMilli())
@@ -44,7 +48,12 @@ func main() {
 	must(err)
 
 	if os.Getenv("LEONA_DRY_RUN") == "1" {
-		out, err := json.MarshalIndent(signed, "", "  ")
+		redacted := signed
+		redacted.Body = "[REDACTED]"
+		redacted.Headers = cloneHeaders(signed.Headers)
+		redacted.Headers["Authorization"] = "Bearer [REDACTED]"
+		redacted.Headers["X-Leona-Signature"] = "[REDACTED]"
+		out, err := json.MarshalIndent(redacted, "", "  ")
 		must(err)
 		fmt.Println(string(out))
 		return
@@ -56,7 +65,13 @@ func main() {
 		req.Header.Set(name, value)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return fmt.Errorf("redirects are forbidden for signed Leona requests")
+		},
+	}
+	resp, err := client.Do(req)
 	must(err)
 	defer resp.Body.Close()
 
@@ -67,6 +82,30 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println(string(respBody))
+}
+
+func validateEndpoint(endpoint string, allowLoopbackHTTP bool) (string, error) {
+	parsed, err := url.ParseRequestURI(endpoint)
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return "", fmt.Errorf("LEONA_ENDPOINT must be an absolute /v1/verdict URL")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != "/v1/verdict" {
+		return "", fmt.Errorf("LEONA_ENDPOINT must not contain credentials, query, fragment, or another path")
+	}
+	host := strings.ToLower(parsed.Hostname())
+	loopback := host == "localhost" || host == "127.0.0.1" || host == "::1"
+	if parsed.Scheme == "https" || (parsed.Scheme == "http" && loopback && allowLoopbackHTTP) {
+		return endpoint, nil
+	}
+	return "", fmt.Errorf("LEONA_ENDPOINT must use HTTPS (or explicit loopback HTTP for local tests)")
+}
+
+func cloneHeaders(source map[string]string) map[string]string {
+	result := make(map[string]string, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+	return result
 }
 
 func buildSignedRequest(secret, boxID, endpoint, timestamp, nonce string) (signedRequest, error) {

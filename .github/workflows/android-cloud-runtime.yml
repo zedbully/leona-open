@@ -20,16 +20,16 @@ jobs:
     timeout-minutes: 80
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
 
       - name: Enable KVM access
         run: |
@@ -81,10 +81,10 @@ jobs:
           unset LEONA_API_KEY LEONA_CLOUD_TEST_TOKEN
 
       - name: API 23 direct sense/report
-        uses: ReactiveCircus/android-emulator-runner@v2
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 23
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_2
           disable-animations: true
@@ -93,10 +93,10 @@ jobs:
           script: bash leona-sdk-android/scripts/run-github-hosted-runtime-matrix.sh 23
 
       - name: API 36 direct sense/report
-        uses: ReactiveCircus/android-emulator-runner@v2
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 36
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_2
           disable-animations: true
@@ -113,7 +113,7 @@ jobs:
             --required-api 36
 
       - name: Upload redacted runtime evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: leona-github-hosted-runtime-boundaries
           path: |

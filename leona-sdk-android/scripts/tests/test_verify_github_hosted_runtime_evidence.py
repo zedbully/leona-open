@@ -71,7 +71,9 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
             "runnerManaged": True,
             "apiLevel": api,
             "architecture": "x86_64",
-            "target": "google_apis",
+            "target": "default",
+            "aospNoGms": True,
+            "forbiddenGoogleRuntimePackageCount": 0,
             "triggerType": "direct",
             "artifactBoundary": "redacted-only",
             "businessDecisionOwner": "customer-backend",
@@ -113,6 +115,19 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
         self.write_api(36, same_apk=False)
         failures, _results = self.verify([23, 36])
         self.assertIn("all required APIs must use the exact same APK SHA-256", failures)
+
+    def test_google_runtime_provenance_fails_closed(self) -> None:
+        self.write_api(23)
+        path = self.root / "api-23" / "provenance.json"
+        provenance = json.loads(path.read_text(encoding="utf-8"))
+        provenance["target"] = "google_apis"
+        provenance["aospNoGms"] = False
+        provenance["forbiddenGoogleRuntimePackageCount"] = 1
+        path.write_text(json.dumps(provenance), encoding="utf-8")
+        failures, _results = self.verify([23])
+        self.assertTrue(any("target must be default AOSP" in item for item in failures))
+        self.assertTrue(any("aospNoGms must be true" in item for item in failures))
+        self.assertTrue(any("package count must be zero" in item for item in failures))
 
     def test_raw_box_id_scanner_fails_closed(self) -> None:
         self.write_api(23)
