@@ -76,6 +76,9 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
             "forbiddenGoogleRuntimePackageCount": 0,
             "triggerType": "direct",
             "artifactBoundary": "redacted-only",
+            "commercialAdmissionClaimed": False,
+            "secretValuesPrinted": False,
+            "rawIdentifiersPrinted": False,
             "businessDecisionOwner": "customer-backend",
             "sdkRole": "collect-and-report-evidence-only",
             "gitCommit": self.commit_sha,
@@ -128,6 +131,19 @@ class GitHubRuntimeEvidenceVerifierTest(unittest.TestCase):
         self.assertTrue(any("target must be default AOSP" in item for item in failures))
         self.assertTrue(any("aospNoGms must be true" in item for item in failures))
         self.assertTrue(any("package count must be zero" in item for item in failures))
+
+    def test_provenance_privacy_or_admission_claim_drift_fails_closed(self) -> None:
+        self.write_api(23)
+        path = self.root / "api-23" / "provenance.json"
+        provenance = json.loads(path.read_text(encoding="utf-8"))
+        provenance["commercialAdmissionClaimed"] = True
+        provenance["secretValuesPrinted"] = True
+        provenance["rawIdentifiersPrinted"] = True
+        path.write_text(json.dumps(provenance), encoding="utf-8")
+        failures, _results = self.verify([23])
+        self.assertTrue(any("must not claim commercial admission" in item for item in failures))
+        self.assertTrue(any("provenance secret flag drift" in item for item in failures))
+        self.assertTrue(any("provenance raw identifier flag drift" in item for item in failures))
 
     def test_raw_box_id_scanner_fails_closed(self) -> None:
         self.write_api(23)

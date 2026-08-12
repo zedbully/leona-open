@@ -41,6 +41,7 @@ VERIFY_DIR="${API_DIR}/verification"
 RECEIPT="${API_DIR}/fixture-receipt.json"
 READY_FILE="${API_DIR}/fixture.ready"
 FIXTURE_LOG="${API_DIR}/fixture.log"
+REVERSE_CREATED=0
 mkdir -p "${API_DIR}"
 rm -rf "${RAW_DIR}" "${REDACTED_DIR}" "${VERIFY_DIR}"
 
@@ -51,7 +52,7 @@ if [[ -z "${APK}" || ! -f "${APK}" ]]; then
 fi
 
 cleanup() {
-  if [[ -n "${ANDROID_SERIAL:-}" ]]; then
+  if [[ "${REVERSE_CREATED}" == "1" && -n "${ANDROID_SERIAL:-}" ]]; then
     adb -s "${ANDROID_SERIAL}" reverse --remove "tcp:${FIXTURE_PORT}" >/dev/null 2>&1 || true
   fi
   if [[ -n "${FIXTURE_PID:-}" ]]; then
@@ -112,7 +113,20 @@ done
 # Keep the short-lived cleartext fixture on an actual loopback endpoint from
 # the app's perspective.  This preserves the production HTTPS/strict-loopback
 # transport policy while letting the AOSP emulator reach the host-only fixture.
+# Do not overwrite a pre-existing mapping: it could belong to another test and
+# cleanup must never remove a mapping this runner did not create.
+if adb -s "${ANDROID_SERIAL}" reverse --list 2>/dev/null \
+    | awk -v endpoint="tcp:${FIXTURE_PORT}" '$1 == endpoint || $2 == endpoint { found = 1 } END { exit !found }'; then
+  echo "ADB reverse endpoint is already in use: tcp:${FIXTURE_PORT}" >&2
+  exit 3
+fi
 adb -s "${ANDROID_SERIAL}" reverse "tcp:${FIXTURE_PORT}" "tcp:${FIXTURE_PORT}"
+REVERSE_CREATED=1
+if ! adb -s "${ANDROID_SERIAL}" reverse --list 2>/dev/null \
+    | awk -v endpoint="tcp:${FIXTURE_PORT}" '$1 == endpoint && $2 == endpoint { found = 1 } END { exit !found }'; then
+  echo "ADB reverse endpoint was not installed as expected: tcp:${FIXTURE_PORT}" >&2
+  exit 3
+fi
 
 LEONA_APK="${APK}" \
 LEONA_PACKAGE="io.leonasec.leona.sample" \

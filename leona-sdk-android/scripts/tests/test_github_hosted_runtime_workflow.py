@@ -51,6 +51,11 @@ class GitHubHostedRuntimeWorkflowTest(unittest.TestCase):
         for package_name in ("com.google.android.gms", "com.android.vending", "com.google.android.gsf"):
             self.assertIn(package_name, runner)
         self.assertIn('reverse "tcp:${FIXTURE_PORT}" "tcp:${FIXTURE_PORT}"', runner)
+        self.assertIn('reverse --list', runner)
+        self.assertIn('ADB reverse endpoint is already in use', runner)
+        self.assertIn('ADB reverse endpoint was not installed as expected', runner)
+        self.assertIn('REVERSE_CREATED=1', runner)
+        self.assertIn('"${REVERSE_CREATED}" == "1"', runner)
         self.assertIn('reverse --remove "tcp:${FIXTURE_PORT}"', runner)
         self.assertIn('"aospNoGms": True', runner)
         self.assertIn('"forbiddenGoogleRuntimePackageCount": 0', runner)

@@ -189,6 +189,21 @@ must be outside the repository. The report records blocker codes and hashes,
 not credential values, token contents, or private paths. OEM provider material
 uses the corresponding private allowlist/namespace/verifier/device bridge.
 
+For the domestic Huawei lane, use the explicit target so the public preflight
+cannot be mistaken for commercial OEM admission:
+
+```bash
+python3 scripts/verify-v0.4-attestation-real-smoke-preflight.py \
+  --target huawei \
+  --output-dir /tmp/leona-v0.4-huawei-attestation-preflight
+```
+
+This target is intentionally fail-closed for exact-candidate admission. It
+keeps Huawei OAuth/account verification, the AppGallery-assigned App ID, the
+customer final signer, same-session HMS token/context, and physical Huawei/OEM
+runtime evidence as external requirements. Local flags or replay fixtures
+cannot turn those requirements into a commercial pass.
+
 After a release is published, run the public consumption smoke:
 
 ```bash

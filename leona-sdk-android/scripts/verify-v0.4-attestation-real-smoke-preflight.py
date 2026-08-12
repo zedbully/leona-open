@@ -51,6 +51,17 @@ EXPECTED_BLOCKER_CODES = {
         "oem_provider_namespace",
         "oem_device_bridge",
     },
+    # These are deliberately unconditional.  A public local preflight cannot
+    # authenticate an AppGallery account, mint an App ID, or establish that an
+    # HMS response came from the same final signed APK on a physical Huawei
+    # device.  Do not replace these with environment "ready" flags.
+    "huawei": {
+        "huawei_oauth_account_session",
+        "huawei_appgallery_app_id",
+        "huawei_final_candidate_signer",
+        "huawei_hms_same_session_token_context",
+        "huawei_physical_oem_exact_candidate",
+    },
 }
 
 PACKAGE_NAME = re.compile(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+")
@@ -67,7 +78,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--target",
-        choices=("both", "play_integrity", "oem"),
+        choices=("both", "play_integrity", "oem", "huawei"),
         default=os.environ.get("LEONA_ATTESTATION_REAL_PROVIDER_TARGET", "both"),
         help="Provider lane to preflight",
     )
@@ -86,7 +97,7 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     private_server_root = attestation_server_root()
-    checks = run_local_checks(private_server_root)
+    checks = run_local_checks(private_server_root, args.target)
     provider_replay = run_provider_replay_checks()
     blockers = run_external_material_checks(args.target, private_server_root)
     failures = [check for check in checks if check["status"] == "fail"]
@@ -112,6 +123,9 @@ def main() -> int:
         "status": status,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "target": args.target,
+        "admissionScope": admission_scope(args.target),
+        "commercialAdmissionClaimed": False,
+        "exactCandidateHuaweiAdmissionSatisfied": False,
         "requireRealProvider": args.require_real_provider,
         "providerReplay": provider_replay,
         "providerReplayStatus": provider_replay["status"],
@@ -142,7 +156,7 @@ def main() -> int:
     return 0 if status != "failed" else 1
 
 
-def run_local_checks(private_server_root: Path) -> list[dict[str, str]]:
+def run_local_checks(private_server_root: Path, target: str) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
     checks.append(require_pattern(
         "sdk play integrity scaffold exists",
@@ -218,7 +232,7 @@ def run_local_checks(private_server_root: Path) -> list[dict[str, str]]:
         checks.append(require_pattern(
             "server deployment template carries fail-closed attestation inputs and safe defaults",
             private_server_root / "deploy/prod-homeleona/.env.example",
-            r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES=",
+            r"LEONA_HANDSHAKE_ATTESTATION_ENFORCE=(?:true|false)[\s\S]*LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false[\s\S]*LEONA_PLAY_INTEGRITY_PACKAGE_NAME=[\s\S]*LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_TRUSTED_PROVIDERS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_PROVIDER_PUBLIC_KEYS=[\s\S]*LEONA_HANDSHAKE_ATTESTATION_OEM_PACKAGE_NAMES=",
         ))
     checks.append(require_pattern(
         "sample release guard rejects attestation debug/test properties",
@@ -283,6 +297,17 @@ def replay_fixture(provider: str, format_value: str, token_material: str) -> dic
 
 def run_external_material_checks(target: str, private_server_root: Path) -> list[dict[str, str]]:
     blockers: list[dict[str, str]] = []
+    if target == "huawei":
+        # The public gate can validate only local support wiring.  Huawei
+        # commercial admission is an external, exact-candidate ceremony; a
+        # caller-provided flag or a locally fabricated receipt is not proof.
+        return [
+            blocker("huawei_oauth_account_session", "complete Huawei OAuth/account verification in a visible operator session"),
+            blocker("huawei_appgallery_app_id", "obtain the AppGallery project/App ID assigned for the customer release"),
+            blocker("huawei_final_candidate_signer", "rebuild the exact candidate with the customer final signing identity"),
+            blocker("huawei_hms_same_session_token_context", "collect the HMS token/context from that exact candidate in the same authenticated session"),
+            blocker("huawei_physical_oem_exact_candidate", "run the same final candidate on a physical Huawei/OEM device and retain hash-only evidence"),
+        ]
     if target in {"both", "play_integrity"}:
         if not play_server_contract_available(private_server_root):
             blockers.append(blocker("play_integrity_server_verifier_contract", "mount the private Play Integrity server contract outside the public checkout"))
@@ -389,7 +414,7 @@ def oem_public_key_config_ready(trusted_providers: list[str]) -> bool:
 def server_contract_available(target: str, root: Path) -> bool:
     if target == "play_integrity":
         return play_server_contract_available(root)
-    if target == "oem":
+    if target in {"oem", "huawei"}:
         return oem_server_contract_available(root)
     return play_server_contract_available(root) and oem_server_contract_available(root)
 
@@ -445,6 +470,12 @@ def expected_blocker_codes(target: str) -> set[str]:
     return set(EXPECTED_BLOCKER_CODES[target])
 
 
+def admission_scope(target: str) -> str:
+    if target == "huawei":
+        return "local_support_only_huawei_exact_candidate_external_admission_required"
+    return "local_preflight_only_real_provider_admission_external"
+
+
 def blocker_counts_by_provider(blockers: list[dict[str, str]]) -> dict[str, int]:
     counts = {"play_integrity": 0, "oem": 0, "other": 0}
     for item in blockers:
@@ -489,6 +520,9 @@ def write_report(output_dir: Path, report: dict[str, Any]) -> None:
         "",
         f"- status: {report['status']}",
         f"- target: {report['target']}",
+        f"- admission scope: {report['admissionScope']}",
+        f"- commercial admission claimed: {str(report['commercialAdmissionClaimed']).lower()}",
+        f"- exact-candidate Huawei admission satisfied: {str(report['exactCandidateHuaweiAdmissionSatisfied']).lower()}",
         f"- require real provider: {str(report['requireRealProvider']).lower()}",
         f"- local check count: {report['localCheckCount']}",
         f"- local pass count: {report['localPassCount']}",

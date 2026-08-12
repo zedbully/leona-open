@@ -94,7 +94,7 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
             "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java":
                 "leona.handshake.attestation.enforce:false\n",
             "deploy/prod-homeleona/.env.example": (
-                "LEONA_HANDSHAKE_ATTESTATION_ENFORCE=false\n"
+                "LEONA_HANDSHAKE_ATTESTATION_ENFORCE=true\n"
                 "LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false\n"
                 "LEONA_PLAY_INTEGRITY_PACKAGE_NAME=\n"
                 "LEONA_PLAY_INTEGRITY_CERTIFICATE_SHA256_DIGESTS=\n"
@@ -250,6 +250,54 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
         self.assertEqual([], report["externalBlockerCodes"])
         self.assertEqual(0, report["externalBlockerCount"])
         self.assertFalse(report["realProviderContacted"])
+
+    def test_huawei_lane_is_always_external_exact_candidate_admission(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result, report = self.run_preflight(
+                Path(temp_dir) / "report",
+                target="huawei",
+                extra_env={
+                    # Local flags must never manufacture an admission claim.
+                    "LEONA_OEM_ATTESTATION_PRIVATE_VERIFIER_READY": "1",
+                    "LEONA_OEM_ATTESTATION_BRIDGE_READY": "1",
+                },
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("local-pass-with-external-blockers", report["status"])
+        self.assertEqual(16, report["localCheckCount"])
+        self.assertEqual(16, report["localPassCount"])
+        self.assertEqual(
+            "local_support_only_huawei_exact_candidate_external_admission_required",
+            report["admissionScope"],
+        )
+        self.assertFalse(report["commercialAdmissionClaimed"])
+        self.assertFalse(report["exactCandidateHuaweiAdmissionSatisfied"])
+        self.assertTrue(report["privateServerContractAvailable"])
+        self.assertEqual(
+            {
+                "huawei_oauth_account_session",
+                "huawei_appgallery_app_id",
+                "huawei_final_candidate_signer",
+                "huawei_hms_same_session_token_context",
+                "huawei_physical_oem_exact_candidate",
+            },
+            set(report["externalBlockerCodes"]),
+        )
+        self.assertFalse(report["realProviderContacted"])
+
+    def test_huawei_lane_require_real_provider_still_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result, report = self.run_preflight(
+                Path(temp_dir) / "report",
+                target="huawei",
+                require_real_provider=True,
+            )
+
+        self.assertEqual(1, result.returncode)
+        self.assertEqual("failed", report["status"])
+        self.assertEqual(5, report["externalBlockerCount"])
+        self.assertFalse(report["commercialAdmissionClaimed"])
 
 
 if __name__ == "__main__":
