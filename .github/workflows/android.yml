@@ -56,6 +56,37 @@ jobs:
             --android-sdk-root "$ANDROID_HOME" \
             --output-dir "$RUNNER_TEMP/leona-android-6-16-build-contract"
 
+      - name: Verify secure AGP build classpath
+        run: |
+          ./gradlew buildEnvironment --no-daemon --console=plain \
+            | tee "$RUNNER_TEMP/leona-build-environment.log"
+          python3 - "$RUNNER_TEMP/leona-build-environment.log" <<'PY'
+          from pathlib import Path
+          import sys
+
+          report = Path(sys.argv[1]).read_text(errors="replace")
+          expected = {
+              "org.apache.commons:commons-lang3": "3.18.0",
+              "org.bitbucket.b_c:jose4j": "0.9.6",
+              "org.bouncycastle:bcpkix-jdk18on": "1.84",
+              "org.bouncycastle:bcprov-jdk18on": "1.84",
+              "org.bouncycastle:bcutil-jdk18on": "1.84",
+              "org.jdom:jdom2": "2.0.6.1",
+          }
+          missing = [
+              f"{module}:{version}"
+              for module, version in expected.items()
+              if not any(
+                  line.rstrip().endswith(f"{module}:{version}")
+                  or f"{module}:" in line and f" -> {version}" in line
+                  for line in report.splitlines()
+              )
+          ]
+          if missing:
+              raise SystemExit("insecure or unresolved AGP classpath: " + ", ".join(missing))
+          print(f"secure AGP classpath verified: {len(expected)} modules")
+          PY
+
       - name: Run Android lint
         run: ./gradlew :sdk:lint --no-daemon
 
