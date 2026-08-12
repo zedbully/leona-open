@@ -9,6 +9,16 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "android-cloud-runtime.yml"
 MAIN_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "android.yml"
 RUNNER = REPO_ROOT / "leona-sdk-android" / "scripts" / "run-github-hosted-runtime-matrix.sh"
+CLOUD_TEST_NETWORK_CONFIG = (
+    REPO_ROOT
+    / "leona-sdk-android"
+    / "sample-app"
+    / "src"
+    / "cloudTest"
+    / "res"
+    / "xml"
+    / "network_security_config.xml"
+)
 
 
 class GitHubHostedRuntimeWorkflowTest(unittest.TestCase):
@@ -23,6 +33,8 @@ class GitHubHostedRuntimeWorkflowTest(unittest.TestCase):
         self.assertIn("api-level: 36", text)
         self.assertEqual(2, text.count("target: default"))
         self.assertNotIn("target: google_apis", text)
+        self.assertIn('LEONA_REPORTING_ENDPOINT="http://127.0.0.1:18080"', text)
+        self.assertNotIn("10.0.2.2", text)
         self.assertIn("--required-api 23", text)
         self.assertIn("--required-api 36", text)
         self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7", text)
@@ -38,8 +50,13 @@ class GitHubHostedRuntimeWorkflowTest(unittest.TestCase):
         runner = RUNNER.read_text(encoding="utf-8")
         for package_name in ("com.google.android.gms", "com.android.vending", "com.google.android.gsf"):
             self.assertIn(package_name, runner)
+        self.assertIn('reverse "tcp:${FIXTURE_PORT}" "tcp:${FIXTURE_PORT}"', runner)
+        self.assertIn('reverse --remove "tcp:${FIXTURE_PORT}"', runner)
         self.assertIn('"aospNoGms": True', runner)
         self.assertIn('"forbiddenGoogleRuntimePackageCount": 0', runner)
+        network_config = CLOUD_TEST_NETWORK_CONFIG.read_text(encoding="utf-8")
+        self.assertIn("127.0.0.1", network_config)
+        self.assertNotIn("10.0.2.2", network_config)
 
     def test_runner_rejects_non_github_host_before_credentials(self) -> None:
         result = subprocess.run(

@@ -206,9 +206,12 @@ GitHub Actions runs the public Android SDK build and unit-test gate in
 `.github/workflows/android.yml`. The separately triggered
 `.github/workflows/android-cloud-runtime.yml` builds one ephemeral `cloudTest`
 APK and exercises direct `sense()` plus public-hosted reporting on API 23 and
-API 36 GitHub-managed AVDs. It publishes only redacted import, fixture receipt,
-provenance, and verifier summaries; the APK, AppKey, cloud-test token, raw
-BoxId, and raw device identifiers are not artifacts.
+API 36 GitHub-managed plain AOSP/no-GMS AVDs. The app reaches the host-only
+fixture through temporary `adb reverse` using a strict loopback endpoint; the
+SDK's HTTPS/loopback transport boundary is not relaxed. It publishes only
+redacted import, fixture receipt, provenance, and verifier summaries; the APK,
+AppKey, cloud-test token, raw BoxId, and raw device identifiers are not
+artifacts.
 
 The hosted AVD result is boundary runtime evidence only. It is not the complete
 API 23-36 runtime matrix, physical/OEM or real attestation evidence, a customer

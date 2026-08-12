@@ -69,7 +69,10 @@ jobs:
           source "$LEONA_GITHUB_MATRIX_PRIVATE_ENV"
           set +a
           export ORG_GRADLE_PROJECT_LEONA_API_KEY="$LEONA_API_KEY"
-          export ORG_GRADLE_PROJECT_LEONA_REPORTING_ENDPOINT="http://10.0.2.2:18080"
+          # The SDK only permits cleartext reporting to a strict loopback host.
+          # Each emulator stage binds this endpoint to the host fixture with
+          # `adb reverse`; do not widen the client policy to the QEMU host alias.
+          export ORG_GRADLE_PROJECT_LEONA_REPORTING_ENDPOINT="http://127.0.0.1:18080"
           export ORG_GRADLE_PROJECT_LEONA_CLOUD_TEST_TOKEN="$LEONA_CLOUD_TEST_TOKEN"
           ./gradlew :sample-app:assembleCloudTest \
             --no-daemon \

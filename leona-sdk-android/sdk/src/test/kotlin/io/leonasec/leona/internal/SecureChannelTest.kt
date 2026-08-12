@@ -424,6 +424,18 @@ class SecureChannelTest {
     }
 
     @Test
+    fun `public hosted cleartext transport accepts strict loopback but rejects emulator host alias`() {
+        assertEquals(
+            "http://127.0.0.1:18080/v1/sense/public",
+            PublicHostedReportingClient.validatedPublicSenseUrl("http://127.0.0.1:18080"),
+        )
+        val error = runCatching {
+            PublicHostedReportingClient.validatedPublicSenseUrl("http://10.0.2.2:18080")
+        }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException)
+    }
+
+    @Test
     fun `public hosted reporting accepts endpoint already pointing at v1 sense`() = runBlocking {
         val server = MockWebServer()
         server.enqueue(

@@ -51,6 +51,9 @@ if [[ -z "${APK}" || ! -f "${APK}" ]]; then
 fi
 
 cleanup() {
+  if [[ -n "${ANDROID_SERIAL:-}" ]]; then
+    adb -s "${ANDROID_SERIAL}" reverse --remove "tcp:${FIXTURE_PORT}" >/dev/null 2>&1 || true
+  fi
   if [[ -n "${FIXTURE_PID:-}" ]]; then
     kill "${FIXTURE_PID}" >/dev/null 2>&1 || true
     wait "${FIXTURE_PID}" >/dev/null 2>&1 || true
@@ -105,6 +108,11 @@ for forbidden_package in com.google.android.gms com.android.vending com.google.a
     exit 3
   fi
 done
+
+# Keep the short-lived cleartext fixture on an actual loopback endpoint from
+# the app's perspective.  This preserves the production HTTPS/strict-loopback
+# transport policy while letting the AOSP emulator reach the host-only fixture.
+adb -s "${ANDROID_SERIAL}" reverse "tcp:${FIXTURE_PORT}" "tcp:${FIXTURE_PORT}"
 
 LEONA_APK="${APK}" \
 LEONA_PACKAGE="io.leonasec.leona.sample" \

@@ -346,14 +346,18 @@ The public repository also contains a separately triggered GitHub-hosted
 boundary runtime workflow in
 [`../.github/workflows/android-cloud-runtime.yml`](../.github/workflows/android-cloud-runtime.yml).
 It builds one short-lived `cloudTest` APK candidate, runs direct `sense()` and
-public-hosted report transport on Google APIs x86_64 AVDs at API 23 and API 36,
-and uploads only redacted, hash-bound evidence. The fixture returns opaque
-identifiers but never an allow/deny decision, its credentials are generated
-ephemerally, and neither the APK nor the private environment file is uploaded.
+public-hosted report transport on plain AOSP/no-GMS x86_64 AVDs at API 23 and
+API 36, and uploads only redacted, hash-bound evidence. The host-only fixture
+is exposed to the app as strict loopback through a temporary `adb reverse`
+mapping; the client transport policy is not widened to the QEMU host alias.
+The fixture returns opaque identifiers but never an allow/deny decision, its
+credentials are generated ephemerally, and neither the APK nor the private
+environment file is uploaded.
 
 This boundary workflow strengthens Android 6/16 runtime coverage; it does not
-replace the complete API 23-36 matrix, clean physical/OEM coverage, Play
-Integrity or OEM attestation, and it never claims commercial admission.
+replace the complete API 23-36 matrix, clean physical/OEM coverage, domestic
+OEM attestation, or customer-backend admission, and it never claims commercial
+admission. Google Play/GMS is intentionally outside this domestic lane.
 
 After downloading the workflow artifact, consume the two API directories with
 the normal matrix readiness gate instead of trusting the uploaded summary:
