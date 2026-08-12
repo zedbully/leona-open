@@ -116,14 +116,14 @@ done
 # Do not overwrite a pre-existing mapping: it could belong to another test and
 # cleanup must never remove a mapping this runner did not create.
 if adb -s "${ANDROID_SERIAL}" reverse --list 2>/dev/null \
-    | awk -v endpoint="tcp:${FIXTURE_PORT}" '$1 == endpoint || $2 == endpoint { found = 1 } END { exit !found }'; then
+    | awk -v endpoint="tcp:${FIXTURE_PORT}" '$2 == endpoint || $3 == endpoint { found = 1 } END { exit !found }'; then
   echo "ADB reverse endpoint is already in use: tcp:${FIXTURE_PORT}" >&2
   exit 3
 fi
 adb -s "${ANDROID_SERIAL}" reverse "tcp:${FIXTURE_PORT}" "tcp:${FIXTURE_PORT}"
 REVERSE_CREATED=1
 if ! adb -s "${ANDROID_SERIAL}" reverse --list 2>/dev/null \
-    | awk -v endpoint="tcp:${FIXTURE_PORT}" '$1 == endpoint && $2 == endpoint { found = 1 } END { exit !found }'; then
+    | awk -v endpoint="tcp:${FIXTURE_PORT}" '$2 == endpoint && $3 == endpoint { found = 1 } END { exit !found }'; then
   echo "ADB reverse endpoint was not installed as expected: tcp:${FIXTURE_PORT}" >&2
   exit 3
 fi

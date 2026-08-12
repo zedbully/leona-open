@@ -54,6 +54,8 @@ class GitHubHostedRuntimeWorkflowTest(unittest.TestCase):
         self.assertIn('reverse --list', runner)
         self.assertIn('ADB reverse endpoint is already in use', runner)
         self.assertIn('ADB reverse endpoint was not installed as expected', runner)
+        self.assertIn("'$2 == endpoint || $3 == endpoint", runner)
+        self.assertIn("'$2 == endpoint && $3 == endpoint", runner)
         self.assertIn('REVERSE_CREATED=1', runner)
         self.assertIn('"${REVERSE_CREATED}" == "1"', runner)
         self.assertIn('reverse --remove "tcp:${FIXTURE_PORT}"', runner)

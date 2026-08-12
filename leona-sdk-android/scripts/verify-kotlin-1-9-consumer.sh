@@ -40,7 +40,7 @@ resolve_gradle_bin() {
     }
   else
     local partial="${GRADLE_ZIP}.partial.$$"
-    curl --fail --location --retry 3 \
+    curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 \
       "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
       --output "${partial}"
     [[ "$(sha256_file "${partial}")" == "${GRADLE_SHA256}" ]] || {
