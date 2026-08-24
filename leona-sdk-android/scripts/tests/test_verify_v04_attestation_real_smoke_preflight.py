@@ -92,7 +92,7 @@ class AttestationRealSmokePreflightTest(unittest.TestCase):
             "private/api-backend/src/main/java/io/leonasec/server/privatebackend/attestation/GooglePlayIntegrityTokenDecoder.java":
                 "https://www.googleapis.com/auth/playintegrity https://playintegrity.googleapis.com decodeIntegrityToken\n",
             "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java":
-                "leona.handshake.attestation.enforce:false\n",
+                "identityResolver,\n            true\n        );\n",
             "deploy/prod-homeleona/.env.example": (
                 "LEONA_HANDSHAKE_ATTESTATION_ENFORCE=true\n"
                 "LEONA_HANDSHAKE_ATTESTATION_TRUST_JWS_PAYLOAD_CLAIMS=false\n"

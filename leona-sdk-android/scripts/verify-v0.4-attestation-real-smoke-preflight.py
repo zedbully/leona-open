@@ -225,9 +225,13 @@ def run_local_checks(private_server_root: Path, target: str) -> list[dict[str, s
             r"https://www\.googleapis\.com/auth/playintegrity[\s\S]*https://playintegrity\.googleapis\.com[\s\S]*decodeIntegrityToken",
         ))
         checks.append(require_pattern(
-            "handshake keeps attestation evidence-only by default",
+            "handshake rejects unverified attestation by default",
             private_server_root / "ingestion-service/src/main/java/io/leonasec/server/ingestion/domain/SessionService.java",
-            r"leona\.handshake\.attestation\.enforce:false",
+            # The production constructor intentionally hard-codes the
+            # fail-closed default.  Test-only constructors may still exercise
+            # telemetry-only fixtures, but deployment configuration must not
+            # silently turn missing attestation into an accepted handshake.
+            r"identityResolver,\s*true\s*\)",
         ))
         checks.append(require_pattern(
             "server deployment template carries fail-closed attestation inputs and safe defaults",
