@@ -19,7 +19,7 @@ import os
 import re
 import subprocess
 import tempfile
-import xml.etree.ElementTree as ET  # nosemgrep: python.lang.security.use-defused-xml-parse.use-defused-xml-parse -- POM bytes are size-limited and DTD/entity declarations are rejected before parsing.
+import xml.etree.ElementTree as ET  # nosemgrep: python.lang.security.use-defused-xml.use-defused-xml -- POM bytes are size-limited and DTD/entity declarations are rejected before parsing.
 import zipfile
 from pathlib import Path
 from typing import Any
