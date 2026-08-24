@@ -172,11 +172,13 @@ server verdict for that new BoxId. If you turn off Developer options or ADB
 after an earlier run, run `sense()` again and use the newly returned BoxId; old
 BoxIds keep the evidence captured at the time they were minted.
 
-When testing against a backend on your LAN, use an address reachable from the
-phone, such as `http://192.168.x.y:<port>`. `localhost` and `127.0.0.1` from
-inside the app refer to the Android device itself, not your development
-machine. Use HTTPS for cloud config validation; otherwise only the upload and
-verdict paths should be expected to work.
+When testing against a backend on a physical device, use an HTTPS address
+reachable from the phone. Do not use plain HTTP to a LAN address for a
+production or customer build. For a local emulator fixture, prefer loopback
+with an explicit `adb reverse` mapping; `localhost` and `127.0.0.1` from inside
+the app otherwise refer to the Android device itself, not your development
+machine. Use HTTPS for cloud and LAN validation; only the explicitly loopback
+fixture path is permitted to use HTTP.
 
 ## Emulator And Tooling Checks
 

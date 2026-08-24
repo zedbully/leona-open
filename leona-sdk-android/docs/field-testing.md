@@ -30,10 +30,11 @@ LEONA_REPORTING_ENDPOINT=https://<leona-api> \
 adb shell am start -n io.leonasec.leona.sample/.MainActivity
 ```
 
-`run-live-sample.sh` builds the sample debug APK by default. If you are using a
-Leona/customer backend running on your development machine, set
-`LEONA_REPORTING_ENDPOINT` to an address the phone can reach on the LAN, for
-example `http://192.168.x.y:<port>`. Do not use `localhost` or `127.0.0.1` for
+`run-live-sample.sh` builds the sample debug APK by default. For a backend
+running on a physical device or LAN, set `LEONA_REPORTING_ENDPOINT` to an HTTPS
+address the phone can reach. Do not use plain HTTP to a LAN address for a
+production or customer build. For a local emulator fixture, use loopback with
+an explicit `adb reverse` mapping; do not use `localhost` or `127.0.0.1` for
 physical-device testing unless the backend is actually running on the phone.
 
 Tap **Run sense()**. You should see a BoxId appear. A successful result
