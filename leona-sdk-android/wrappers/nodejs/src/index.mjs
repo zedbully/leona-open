@@ -79,7 +79,7 @@ export function createLeonaClient({
     throw new TypeError("fetch implementation is required");
   }
 
-  const root = baseUrl.replace(/\/+$/, "");
+  const root = validateBaseUrl(baseUrl);
 
   async function request(method, path, payload) {
     const hasBody = payload !== undefined;
@@ -138,6 +138,38 @@ export function createLeonaClient({
     },
     redact,
   };
+}
+
+function validateBaseUrl(value) {
+  const normalized = value.trim().replace(/\/+$/, "");
+  let url;
+  try {
+    url = new URL(normalized);
+  } catch (error) {
+    throw new TypeError("baseUrl must be a valid absolute URL");
+  }
+
+  const https = url.protocol === "https:";
+  const loopbackHttp = url.protocol === "http:" && isLoopbackHost(url.hostname);
+  if (!url.hostname) {
+    throw new TypeError("baseUrl must include a host");
+  }
+  if (!https && !loopbackHttp) {
+    throw new TypeError(
+      "baseUrl must use HTTPS; HTTP is only allowed for loopback test endpoints",
+    );
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new TypeError(
+      "baseUrl must not contain user-info, query, or fragment components",
+    );
+  }
+  return normalized;
+}
+
+function isLoopbackHost(hostname) {
+  return hostname === "127.0.0.1" || hostname.toLowerCase() === "localhost" ||
+    hostname === "::1" || hostname === "[::1]";
 }
 
 function parseJsonOrText(text) {

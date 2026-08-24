@@ -73,6 +73,16 @@ test("client calls verdict with signed backend-only headers", async () => {
   assert.equal(calls[0].init.headers["X-Leona-Nonce"], "nonce_for_dry_run");
 });
 
+test("rejects remote plaintext wrapper endpoints", () => {
+  assert.throws(
+    () => createLeonaClient({
+      baseUrl: "http://api.example.leona",
+      secretKey: "test_secret_do_not_use",
+    }),
+    /baseUrl must use HTTPS/,
+  );
+});
+
 test("redacts secrets, raw identifiers, and complete BoxIds", () => {
   const output = redact({
     secretKey: "test_secret_do_not_use",

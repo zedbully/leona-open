@@ -7,6 +7,9 @@ evidence reports, submits feedback labels, and redacts Leona identifiers before
 logs or support export. It does not run in an Android app and does not produce
 business `allow`, `reject`, or `block` decisions.
 
+`baseUrl` must use HTTPS for remote servers. Plain HTTP is accepted only for
+loopback test fixtures (`127.0.0.1`, `localhost`, or `::1`).
+
 ```js
 import { createLeonaClient } from "@leonasec/leona-server-wrapper";
 
