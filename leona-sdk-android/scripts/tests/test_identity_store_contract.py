@@ -34,6 +34,14 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertRegex(SOURCE, r"GCM_TAG_LENGTH_BITS\s*=\s*128")
         self.assertRegex(SOURCE, r"GCM_TAG_LENGTH_BYTES\s*=\s*16")
 
+    def test_identity_anchors_commit_synchronously_and_surface_failures(self) -> None:
+        for key in ("KEY_INSTALL_ID", "KEY_CANONICAL_DEVICE_ID", "KEY_LAST_SNAPSHOT"):
+            self.assertRegex(SOURCE, rf"persist\({key},\s*encrypt\(")
+        self.assertIn("private fun persist(key: String, encryptedValue: String)", SOURCE)
+        self.assertIn(".putString(key, encryptedValue).commit()", SOURCE)
+        self.assertIn('"Unable to persist Leona identity state"', SOURCE)
+        self.assertNotIn(".apply()", SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()

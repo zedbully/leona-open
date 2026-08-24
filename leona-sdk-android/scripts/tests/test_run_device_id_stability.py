@@ -132,6 +132,20 @@ summarize
         self.assertIn("getprop sys.boot_completed", reboot)
         self.assertIn('adb_cmd reverse "${remote}" "${local}"', reboot)
 
+    def test_flash_like_reset_is_explicit_hook_only_and_suppresses_hook_output(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        start = source.index("phase_flash_like_reset() {")
+        end = source.index("\n}\n\nsummarize()", start)
+        hook = source[start:end]
+        self.assertIn('FLASH_LIKE_RESET_COMMAND="${LEONA_FLASH_LIKE_RESET_COMMAND:-}"', source)
+        self.assertIn('FLASH_LIKE_RESET_ENABLED="${LEONA_FLASH_LIKE_RESET_ENABLED:-}"', source)
+        self.assertIn('"${FLASH_LIKE_RESET_ENABLED}" != "1"', hook)
+        self.assertIn('"${FLASH_LIKE_RESET_COMMAND}" != /*', hook)
+        self.assertIn('"${FLASH_LIKE_RESET_COMMAND}" >/dev/null 2>&1', hook)
+        self.assertNotIn("eval ", hook)
+        self.assertIn("flash_like_reset)", source)
+        self.assertIn('run_collection_phase "${phase}" 1', source)
+
 
 if __name__ == "__main__":
     unittest.main()

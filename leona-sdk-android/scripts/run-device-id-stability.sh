@@ -10,6 +10,11 @@ COLLECTION_SCRIPT="${LEONA_COLLECTION_SCRIPT:-$(cd "$(dirname "${BASH_SOURCE[0]}
 CLOUD_TEST_TOKEN="${LEONA_CLOUD_TEST_TOKEN:-}"
 PHASES="${LEONA_STABILITY_PHASES:-initial,clear_data,reinstall,reboot}"
 SENSE_WAIT_SECONDS="${LEONA_SENSE_WAIT_SECONDS:-18}"
+# Optional lab-only reset hook. It is deliberately an executable path rather
+# than a shell fragment: the wrapper never evaluates an operator-supplied
+# command and never claims to perform a real device flash.
+FLASH_LIKE_RESET_COMMAND="${LEONA_FLASH_LIKE_RESET_COMMAND:-}"
+FLASH_LIKE_RESET_ENABLED="${LEONA_FLASH_LIKE_RESET_ENABLED:-}"
 
 adb_cmd() {
   if [[ -n "${SERIAL}" ]]; then
@@ -150,6 +155,30 @@ phase_reboot() {
   sleep "${LEONA_POST_REBOOT_SETTLE_SECONDS:-12}"
 }
 
+phase_flash_like_reset() {
+  # This is an external lab hook only. A caller must explicitly opt in and
+  # provide an absolute executable path; no default flashing command exists.
+  # Suppress hook output so this hash-only wrapper cannot persist raw device or
+  # operator data emitted by an external reset implementation.
+  if [[ "${FLASH_LIKE_RESET_ENABLED}" != "1" ]]; then
+    echo "flash_like_reset requires LEONA_FLASH_LIKE_RESET_ENABLED=1." >&2
+    return 2
+  fi
+  if [[ -z "${FLASH_LIKE_RESET_COMMAND}" || "${FLASH_LIKE_RESET_COMMAND}" != /* ]] \
+    || [[ ! -x "${FLASH_LIKE_RESET_COMMAND}" ]]; then
+    echo "flash_like_reset requires LEONA_FLASH_LIKE_RESET_COMMAND to be an executable absolute path." >&2
+    return 2
+  fi
+  if ! "${FLASH_LIKE_RESET_COMMAND}" >/dev/null 2>&1; then
+    echo "flash_like_reset hook failed; no collection was performed." >&2
+    return 4
+  fi
+  if ! adb_cmd wait-for-device >/dev/null 2>&1 || ! adb_cmd get-state >/dev/null 2>&1; then
+    echo "ADB device is not ready after flash_like_reset hook." >&2
+    return 4
+  fi
+}
+
 summarize() {
   local summary="${OUT_DIR}/stability-summary.md"
   local rows="${OUT_DIR}/phase-results.tsv"
@@ -262,6 +291,10 @@ for phase in "${phase_array[@]}"; do
     reboot)
       phase_reboot
       run_collection_phase "${phase}" 0
+      ;;
+    flash_like_reset)
+      phase_flash_like_reset
+      run_collection_phase "${phase}" 1
       ;;
     *)
       echo "Unknown phase: ${phase}" >&2

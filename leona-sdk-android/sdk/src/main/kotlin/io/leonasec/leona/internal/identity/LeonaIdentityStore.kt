@@ -27,7 +27,7 @@ internal class LeonaIdentityStore(
     fun loadInstallId(): String? = decrypt(prefs.getString(KEY_INSTALL_ID, null))
 
     fun persistInstallId(installId: String) {
-        prefs.edit().putString(KEY_INSTALL_ID, encrypt(installId)).apply()
+        persist(KEY_INSTALL_ID, encrypt(installId))
     }
 
     fun loadCanonicalDeviceId(): String? = decrypt(prefs.getString(KEY_CANONICAL_DEVICE_ID, null))
@@ -35,14 +35,25 @@ internal class LeonaIdentityStore(
         ?.ifEmpty { null }
 
     fun persistCanonicalDeviceId(deviceId: String) {
-        prefs.edit().putString(KEY_CANONICAL_DEVICE_ID, encrypt(deviceId)).apply()
+        persist(KEY_CANONICAL_DEVICE_ID, encrypt(deviceId))
     }
 
     fun loadLastSnapshot(): DeviceFingerprintSnapshot? =
         DeviceFingerprintSnapshot.fromJson(decrypt(prefs.getString(KEY_LAST_SNAPSHOT, null)))
 
     fun persistLastSnapshot(snapshot: DeviceFingerprintSnapshot) {
-        prefs.edit().putString(KEY_LAST_SNAPSHOT, encrypt(snapshot.toJson())).apply()
+        persist(KEY_LAST_SNAPSHOT, encrypt(snapshot.toJson()))
+    }
+
+    /**
+     * Identity state must survive a successful call before it can be used as an
+     * anchor. `apply()` is asynchronous and hides a failed disk write, so use
+     * synchronous `commit()` and make failure visible to the caller.
+     */
+    private fun persist(key: String, encryptedValue: String) {
+        check(prefs.edit().putString(key, encryptedValue).commit()) {
+            "Unable to persist Leona identity state"
+        }
     }
 
     private fun encrypt(plaintext: String): String {
