@@ -200,6 +200,16 @@ signing {
         .orElse(providers.environmentVariable("SIGNING_KEY_ID"))
         .orNull
 
+    val requirePublishingSigning = providers.gradleProperty("requirePublishingSigning")
+        .orElse(providers.environmentVariable("LEONA_REQUIRE_PUBLISH_SIGNING"))
+        .orElse("false")
+        .get()
+        .lowercase()
+        .let { value -> value == "true" || value == "1" || value == "yes" }
+    val publishingRequested = gradle.startParameter.taskNames.any { task ->
+        task.contains("publish", ignoreCase = true)
+    }
+
     if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
         if (signingKeyId.isNullOrBlank()) {
             useInMemoryPgpKeys(signingKey, signingPassword)
@@ -207,6 +217,10 @@ signing {
             useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
         }
         sign(publishing.publications["release"])
+    } else if (requirePublishingSigning && publishingRequested) {
+        throw GradleException(
+            "Publishing is fail-closed: provide SIGNING_KEY, SIGNING_PASSWORD, and optionally SIGNING_KEY_ID."
+        )
     }
 }
 

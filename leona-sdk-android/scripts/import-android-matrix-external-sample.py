@@ -9,6 +9,7 @@ without leaking full BoxIds, raw device identifiers, or credentials.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -65,8 +66,8 @@ def main() -> int:
     report = {
         "status": status,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "sourceLabel": args.source_label,
-        "inputDir": str(input_dir),
+        "sourceLabel": safe_label(args.source_label),
+        "inputDirHash": short_hash(str(input_dir.resolve())),
         "sampleCount": len(samples),
         "samples": samples,
         "secretValuesPrinted": False,
@@ -74,7 +75,7 @@ def main() -> int:
     }
     write_report(output_dir, report)
     reject_sensitive_output(output_dir)
-    print(f"[android-matrix-external-import] {status}: {output_dir / 'summary.md'}")
+    print(f"[android-matrix-external-import] {status}: summary.md")
     return 0 if status != "failed" else 1
 
 
@@ -139,7 +140,7 @@ def normalize_sample(
     trigger_type = trigger_match.group(1).lower() if trigger_match else "unknown"
     sense_triggered = result == "pass" and trigger_type in {"direct", "ui"}
     report_verified = result == "pass" and bool(box) and box != "not_generated"
-    artifact = str(row_path.parent)
+    artifact = redacted_artifact_uri(row_path.parent)
     collected_at = datetime.fromtimestamp(row_path.stat().st_mtime, timezone.utc).isoformat()
     return {
         "sampleHash": short_hash(serial_hash or artifact),
@@ -231,6 +232,17 @@ def sanitize_hint(value: str) -> str:
     return value[:96]
 
 
+def safe_label(value: str) -> str:
+    """Keep operator labels useful without copying arbitrary path/secret syntax."""
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())[:80] or "external-or-local-matrix"
+
+
+def redacted_artifact_uri(path: Path) -> str:
+    """Return a stable opaque reference, never an operator filesystem path."""
+    digest = hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()
+    return f"artifact://sha256/{digest}"
+
+
 def split_csv(value: str) -> list[str]:
     return [item.strip() for item in re.split(r"[,;]", value) if item.strip()]
 
@@ -253,7 +265,7 @@ def write_report(output_dir: Path, report: dict[str, Any]) -> None:
         f"- sample count: {report['sampleCount']}",
         "- secret values printed: false",
         "- raw identifiers printed: false",
-        f"- samples jsonl: `{rows_path}`",
+        "- samples jsonl: `samples.jsonl`",
         "",
         "## Samples",
         "",

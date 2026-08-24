@@ -234,25 +234,48 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
 
-      - name: Install Android 16 SDK
-        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Download tested release AAR
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: leona-sdk-aars
+          path: leona-sdk-android/build/tested-aars
 
-      - name: Install NDK r26d
+      - name: Bind release asset to tested AAR
         run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
-
-      - name: Build release AAR
-        run: ./gradlew :sdk:assembleRelease --no-daemon
-
-      - name: Prepare release assets
-        run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
+          TESTED="build/tested-aars/sdk-release.aar"
+          test -f "$TESTED"
           mkdir -p build/release-assets
-          cp sdk/build/outputs/aar/sdk-release.aar "build/release-assets/leona-sdk-android-${VERSION}.aar"
-          (
-            cd build/release-assets
-            sha256sum "leona-sdk-android-${VERSION}.aar" > "leona-sdk-android-${VERSION}.aar.sha256"
-          )
+          cp "$TESTED" "build/release-assets/leona-sdk-android-${VERSION}.aar"
+          sha256sum "build/release-assets/leona-sdk-android-${VERSION}.aar" > \
+            "build/release-assets/leona-sdk-android-${VERSION}.aar.sha256"
+          AAR_SHA256="$(cut -d' ' -f1 "build/release-assets/leona-sdk-android-${VERSION}.aar.sha256")"
+          printf '{"commit":"%s","releaseTag":"%s","artifactSha256":"%s","sourceArtifact":"leona-sdk-aars/sdk-release.aar"}\n' \
+            "$GITHUB_SHA" "$GITHUB_REF_NAME" "$AAR_SHA256" > build/release-assets/release-provenance.json
+
+      - name: Sign release AAR with configured release key
+        env:
+          SIGNING_KEY: ${{ secrets.LEONA_MAVEN_SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.LEONA_MAVEN_SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.LEONA_MAVEN_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          : "${SIGNING_KEY:?LEONA_MAVEN_SIGNING_KEY is required for tag releases}"
+          : "${SIGNING_PASSWORD:?LEONA_MAVEN_SIGNING_PASSWORD is required for tag releases}"
+          : "${SIGNING_KEY_ID:?LEONA_MAVEN_SIGNING_KEY_ID is required for tag releases}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          ASSET="build/release-assets/leona-sdk-android-${VERSION}.aar"
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          chmod 700 "$GNUPGHOME"
+          KEY_FILE="$RUNNER_TEMP/leona-release-signing-key.asc"
+          trap 'rm -f "$KEY_FILE"; gpgconf --kill gpg-agent >/dev/null 2>&1 || true; rm -rf "$GNUPGHOME"' EXIT
+          printf '%s' "$SIGNING_KEY" > "$KEY_FILE"
+          gpg --batch --import "$KEY_FILE" >/dev/null
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$SIGNING_PASSWORD" \
+            --local-user "$SIGNING_KEY_ID" --armor --detach-sign \
+            --output "${ASSET}.asc" "$ASSET"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
@@ -260,6 +283,8 @@ jobs:
           files: |
             leona-sdk-android/build/release-assets/*.aar
             leona-sdk-android/build/release-assets/*.sha256
+            leona-sdk-android/build/release-assets/*.asc
+            leona-sdk-android/build/release-assets/release-provenance.json
           draft: false
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
           generate_release_notes: true
@@ -296,7 +321,29 @@ jobs:
         run: |
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
 
-      - name: Publish release publication to GitHub Packages
+      - name: Download tested release AAR
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: leona-sdk-aars
+          path: leona-sdk-android/build/tested-aars
+
+      - name: Rebuild and compare tested release AAR
+        run: |
+          set -euo pipefail
+          test -f build/tested-aars/sdk-release.aar
+          ./gradlew :sdk:assembleRelease --no-daemon
+          expected="$(sha256sum build/tested-aars/sdk-release.aar | cut -d' ' -f1)"
+          actual="$(sha256sum sdk/build/outputs/aar/sdk-release.aar | cut -d' ' -f1)"
+          test "$expected" = "$actual" || {
+            echo "release provenance mismatch: tested=$expected rebuilt=$actual" >&2
+            exit 1
+          }
+
+      - name: Publish signed release publication to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ secrets.LEONA_MAVEN_SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.LEONA_MAVEN_SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.LEONA_MAVEN_SIGNING_KEY_ID }}
+          LEONA_REQUIRE_PUBLISH_SIGNING: "true"
         run: ./gradlew :sdk:publishReleasePublicationToGitHubPackagesRepository --no-daemon

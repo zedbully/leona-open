@@ -73,6 +73,17 @@ class MatrixImporterTest(unittest.TestCase):
         self.assertFalse(sample["senseTriggered"])
         self.assertFalse(sample["reportVerified"])
 
+    def test_artifact_path_is_opaque_and_does_not_leak_operator_directory(self) -> None:
+        sample = self.normalize(
+            {
+                "Pass / blocked / failed": "pass",
+                "BoxId": "not_generated",
+                "Reason": "No current normalized BoxId result was observed.",
+            }
+        )
+        self.assertTrue(sample["artifactPath"].startswith("artifact://sha256/"))
+        self.assertNotIn(self.temp.name, sample["artifactPath"])
+
 
 if __name__ == "__main__":
     unittest.main()

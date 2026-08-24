@@ -3,8 +3,8 @@
 This document is a **field-testing template** for collecting repeatable emulator
 evidence with the **Leona Android public SDK**.
 
-The SDK only **collects and reports evidence** and returns a `boxId`. Product
-actions must stay outside the client and use server-side evidence/policy.
+The SDK only **collects and reports evidence** and returns an opaque `boxId`.
+Product actions must stay outside the client and use server-side evidence/policy.
 
 ## What to capture
 
@@ -12,7 +12,7 @@ For each emulator (or "cloud phone") sample, capture:
 
 - Host OS + emulator vendor/version
 - Android version + ABI
-- ADB serial (for repro)
+- ADB serial hash or an opaque local target label (for repro; never the raw serial)
 - A redacted `boxId` hint or hash from the sample app
 - Server-side evidence tags for that `boxId` (if available)
 - Exported diagnostic artifacts (logcat and/or support bundle)
@@ -31,10 +31,10 @@ For each emulator (or "cloud phone") sample, capture:
 
 Copy/paste a new row per sample:
 
-| Sample | Vendor/version | Android/ABI | ADB serial | Install path | boxId hint/hash | Server evidence summary | Evidence highlights | Artifacts path | Notes |
+| Sample | Vendor/version | Android/ABI | ADB serial hash / target label | Install path | boxId hint/hash | Server evidence summary | Evidence highlights | Artifacts path | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| MuMu | MuMu connected through ADB TCP | Android 12 / arm64-v8a | `127.0.0.1:16512` | Installed debug sample | `01KQ...7EE3` / record hash in local artifact | `environment.emulator.detected` evidence present | `nemud.*`, `nemu*` services, MuMu binary, QEMU/hypervisor style evidence from prior E2E; posture control reported `user/release-keys`, no root manager packages | `/tmp/leona-posture-mumu-20260430-next/device-posture.json` | Keep vendor-spoofing evidence separate from ROM/build evidence. |
-| Android Studio Emulator | AVD `sdk_gphone64_arm64` / ranchu | Android 14 / arm64-v8a | `emulator-5554` | Installed debug sample | `01KQ...4GGQ` / record hash in local artifact | Emulator evidence present; compatibility risk fields remain server-side evidence labels | `env.emulator.avd.ranchu`, `env.emulator.avd.sdk_gphone`, synthetic ARM CPU profile, QEMU boot/kernel flags; posture control reported `userdebug/dev-keys`, no root manager packages | `/tmp/leona-emulator5554-redaction-check-20260430-appside3/events.json`; posture `/tmp/leona-posture-ase-20260430-next/device-posture.json` | Logcat E2E export confirmed raw canonical/deviceId/installId and local endpoints are redacted. |
+| MuMu | MuMu connected through ADB TCP | Android 12 / arm64-v8a | `target-hash:<sha256-prefix>` | Installed debug sample | redacted hint / record hash in private artifact | `environment.emulator.detected` evidence present | `nemud.*`, `nemu*` services, MuMu binary, QEMU/hypervisor style evidence; posture control reported `user/release-keys`, no root manager packages | private artifact reference omitted | Keep vendor-spoofing evidence separate from ROM/build evidence. |
+| Android Studio Emulator | AVD `sdk_gphone64_arm64` / ranchu | Android 14 / arm64-v8a | `target-label:android-studio-a14` | Installed debug sample | redacted hint / record hash in private artifact | Emulator evidence present; compatibility risk fields remain server-side evidence labels | `env.emulator.avd.ranchu`, `env.emulator.avd.sdk_gphone`, synthetic ARM CPU profile, QEMU boot/kernel flags; posture control reported `userdebug/dev-keys`, no root manager packages | private artifact reference omitted | Logcat E2E export confirmed raw canonical/deviceId/installId and local endpoints are redacted. |
 | LDPlayer |  |  |  |  |  |  |  |  |  |
 | Nox |  |  |  |  |  |  |  |  |  |
 | BlueStacks |  |  |  |  |  |  |  |  |  |

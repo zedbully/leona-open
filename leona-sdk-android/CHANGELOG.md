@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Public emulator-matrix examples now use opaque target labels or hashes and
+  omit operator filesystem paths. External matrix imports retain only hashed
+  input metadata and opaque artifact URIs.
+- Gradle dependency verification metadata is included for resolved build and
+  SDK dependencies. Publication signing can be required fail-closed, and the
+  release workflow binds published artifacts to the tested AAR with detached
+  signature/provenance evidence.
 - The producer toolchain now uses Android Gradle Plugin 9.3.1, Gradle 9.5.0
   with a pinned official distribution SHA-256, and AGP built-in Kotlin. Public
   and private AAR metadata remains at Kotlin language level 2.0 and publishes
