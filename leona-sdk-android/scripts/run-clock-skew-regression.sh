@@ -36,6 +36,14 @@ boxid_hint() {
   fi
 }
 
+serial_hint() {
+  if [[ -n "${SERIAL}" ]]; then
+    printf 'sha256:%s' "$(sha256_text "${SERIAL}")"
+  else
+    printf 'not specified'
+  fi
+}
+
 extract_first_json_value() {
   local key="$1"
   local file="$2"
@@ -115,7 +123,7 @@ write_blocked_report() {
 - trigger mode: direct cloudTest receiver only
 - UI fallback: not used
 - package: ${PACKAGE}
-- adb target: ${SERIAL:-not specified}
+- adb target: $(serial_hint)
 
 ## Privacy
 

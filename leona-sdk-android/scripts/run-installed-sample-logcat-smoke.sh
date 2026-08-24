@@ -14,6 +14,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 E2E_AUTO_RUN_EXTRA="io.leonasec.leona.sample.extra.E2E_AUTO_RUN"
 E2E_TOKEN_EXTRA="io.leonasec.leona.sample.extra.E2E_TOKEN"
 
+serial_hint() {
+  local value="$1"
+  printf 'sha256:%s' "$(printf '%s' "$value" | shasum -a 256 | awk '{print $1}')"
+}
+
 if [[ -z "${LEONA_E2E_TOKEN:-}" ]]; then
   echo "LEONA_E2E_TOKEN is required. Reuse the token that was built into the installed debug sample APK." >&2
   exit 2
@@ -29,8 +34,10 @@ validate_adb_serial() {
   local state
   state="$(adb devices | awk -v serial="$candidate" '$1 == serial { print $2; exit }')"
   if [[ "$state" != "device" ]]; then
-    echo "Android device $candidate is not connected in 'device' state. Current devices:" >&2
-    adb devices >&2
+    echo "Android device $(serial_hint "$candidate") is not connected in 'device' state. Current device hashes:" >&2
+    adb devices | awk 'NR > 1 && NF >= 2 {print $1 "\t" $2}' | while IFS=$'\t' read -r serial device_state; do
+      printf '  %s\t%s\n' "$(serial_hint "$serial")" "$device_state" >&2
+    done
     exit 2
   fi
 }
@@ -59,7 +66,9 @@ select_adb_serial() {
   fi
   if [[ "${#devices[@]}" -gt 1 ]]; then
     echo "Multiple Android devices are connected. Set ADB_SERIAL explicitly:" >&2
-    printf '  %s\n' "${devices[@]}" >&2
+    for serial in "${devices[@]}"; do
+      printf '  %s\n' "$(serial_hint "$serial")" >&2
+    done
     exit 2
   fi
 
@@ -77,7 +86,7 @@ require_installed_sample() {
   local package_path
   package_path="$(adb -s "$ADB_SERIAL" shell pm path "$APP_ID" 2>/dev/null | tr -d '\r' || true)"
   if [[ "$package_path" != package:* ]]; then
-    echo "$APP_ID is not installed on $ADB_SERIAL. Install a debug sample APK first; this smoke test does not install or replace apps." >&2
+    echo "$APP_ID is not installed on $(serial_hint "$ADB_SERIAL"). Install a debug sample APK first; this smoke test does not install or replace apps." >&2
     exit 2
   fi
 }
@@ -557,7 +566,7 @@ fi
 
 SUMMARY_JSON="$(parse_logcat_e2e "$LOG_FILE")"
 
-echo "[Leona installed sample smoke] serial : $ADB_SERIAL"
+echo "[Leona installed sample smoke] serial : $(serial_hint "$ADB_SERIAL")"
 echo "[Leona installed sample smoke] app    : $APP_ID/$APP_ACTIVITY"
 echo "[Leona installed sample smoke] output : $OUTPUT_DIR"
 printf '%s\n' "$SUMMARY_JSON"
