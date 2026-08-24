@@ -287,6 +287,11 @@ API 36. The SDK and sample compile against API 36, the sample targets API 36,
 and the public SDK keeps `minSdk = 21` so existing integrations are not raised
 above the declared API 23 compatibility matrix floor.
 
+Identity persistence is intentionally fail-closed below API 23: the SDK never
+stores or accepts a plaintext install/canonical identity envelope. Integrations
+that require commercial device-identity evidence must therefore run on the
+declared API 23–36 runtime floor.
+
 Build compatibility and runtime acceptance are intentionally separate. Run
 the build-contract and fail-closed manifest checks with:
 

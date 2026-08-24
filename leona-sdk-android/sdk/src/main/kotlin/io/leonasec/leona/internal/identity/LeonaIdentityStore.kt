@@ -57,7 +57,13 @@ internal class LeonaIdentityStore(
     }
 
     private fun encrypt(plaintext: String): String {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return plaintext
+        // The public compatibility matrix starts at Android 6 / API 23. Do not
+        // silently downgrade the identity envelope to plaintext on older hosts:
+        // an installed APK must fail closed rather than make tamperable state
+        // look like a trusted device anchor.
+        check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            "Android Keystore-backed identity requires API 23+"
+        }
         return runCatching {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, keystoreKey())
@@ -77,7 +83,10 @@ internal class LeonaIdentityStore(
 
     private fun decrypt(stored: String?): String? {
         if (stored == null) return null
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return stored
+        // Legacy plaintext preferences are never accepted as identity state.
+        // This also makes an API < 23 host fail closed on the next write instead
+        // of treating a pre-matrix value as a trusted anchor.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
         if (stored.length > MAX_ENVELOPE_LENGTH) return null
         // API 23+ accepts only authenticated AES-GCM envelopes. Legacy/plaintext or
         // malformed values are discarded so local preference tampering cannot become

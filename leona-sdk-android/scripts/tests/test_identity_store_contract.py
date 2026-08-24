@@ -15,12 +15,15 @@ SOURCE = (
 class LeonaIdentityStoreContractTest(unittest.TestCase):
     def test_api23_encryption_has_no_plaintext_fallback(self) -> None:
         self.assertIn('IllegalStateException("Unable to encrypt Leona identity state"', SOURCE)
+        self.assertIn('"Android Keystore-backed identity requires API 23+"', SOURCE)
+        self.assertRegex(SOURCE, r"check\(Build\.VERSION\.SDK_INT\s*>=\s*Build\.VERSION_CODES\.M\)")
         self.assertNotRegex(SOURCE, r"encrypt\([^)]*\)[\s\S]{0,200}getOrDefault\s*\(\s*plaintext")
         fallback = re.search(r"\.getOrElse\s*\{\s*cause\s*->(?P<body>[\s\S]*?)\n\s*}", SOURCE)
         self.assertIsNotNone(fallback)
         self.assertNotRegex(fallback.group("body"), r"\breturn\s+plaintext\b|^\s*plaintext\s*$")
 
     def test_api23_decryption_rejects_non_keystore_or_malformed_envelopes(self) -> None:
+        self.assertRegex(SOURCE, r"if \(Build\.VERSION\.SDK_INT\s*<\s*Build\.VERSION_CODES\.M\) return null")
         self.assertIn("if (stored.length > MAX_ENVELOPE_LENGTH) return null", SOURCE)
         self.assertRegex(SOURCE, r"JSONObject\(stored\)[\s\S]{0,100}getOrNull\(\)\s*\?:\s*return null")
         self.assertRegex(SOURCE, r'optString\("mode"\)\s*!=\s*"keystore"\)\s*return null')
