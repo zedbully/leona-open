@@ -323,20 +323,27 @@ The support bundle currently includes:
 
 ---
 
-## 6. Recommended server-side canonicalization strategy
+## 6. Normative server-side canonicalization strategy
 
-Suggested priority:
+The server must keep the identity authority chain narrow and fail closed:
 
-1. trusted existing canonical mapping by device binding public key
-2. existing mapping by server-issued canonical device id already bound to the
-   session
-3. existing mapping by strong fingerprint cluster
-4. existing mapping by install history + signer + package + evidence continuity
-5. otherwise mint new canonical device id
+1. trusted existing canonical mapping by the device-binding public-key hash
+2. existing mapping by a server-issued canonical device id already bound to the
+   authenticated session
+3. otherwise mint a new canonical device id
 
-Client raw identity headers are not part of this authority chain. If a legacy
-client sends a raw canonical claim, store it only as claimed identity telemetry
-and compare it against server-bound canonical state.
+Fingerprint observations, install history, signer/package continuity, and
+client-provided identity claims may be retained as correlation evidence or
+manual-review context. They must **not** select, recover, merge, or silently
+rewrite a canonical identity. A fingerprint match is therefore never a
+substitute for a verified binding plus provider-authoritative attestation.
+
+Conflicting binding/fingerprint observations must fail closed into a durable
+review path. Cache loss must recover from the durable binding authority, not
+from a fingerprint cluster. Client raw identity headers are not part of the
+authority chain; if a legacy client sends a raw canonical claim, store it only
+as claimed-identity telemetry and compare it against server-bound canonical
+state.
 
 Recommended output:
 
