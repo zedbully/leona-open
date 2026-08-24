@@ -14,6 +14,7 @@ public final class LeonaServerClientHttpSmoke {
     private static final String BOX_ID = "box_test_000000000000000000";
 
     public static void main(String[] args) throws Exception {
+        assertRejectsRemotePlaintextBaseUrl();
         List<String> seen = new ArrayList<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> handle(exchange, seen));
@@ -54,6 +55,17 @@ public final class LeonaServerClientHttpSmoke {
         );
         assertEquals("POST /v1/internal/private/evidence-feedback", seen.get(3), "feedback route");
         System.out.println("LeonaServerClient HTTP smoke passed");
+    }
+
+    private static void assertRejectsRemotePlaintextBaseUrl() {
+        try {
+            new LeonaServerClient("http://example.invalid", SECRET);
+            throw new AssertionError("remote plaintext baseUrl must be rejected");
+        } catch (IllegalArgumentException expected) {
+            if (!expected.getMessage().contains("HTTPS")) {
+                throw new AssertionError("unexpected baseUrl validation message", expected);
+            }
+        }
     }
 
     private static void handle(HttpExchange exchange, List<String> seen) throws IOException {

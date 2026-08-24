@@ -43,7 +43,7 @@ public final class LeonaServerClient {
         if (secretKey == null || secretKey.isBlank()) {
             throw new IllegalArgumentException("secretKey is required");
         }
-        this.baseUrl = stripTrailingSlash(baseUrl);
+        this.baseUrl = validateBaseUrl(baseUrl);
         this.secretKey = secretKey;
         this.httpClient = httpClient;
         this.timeout = timeout == null ? Duration.ofSeconds(5) : timeout;
@@ -181,6 +181,39 @@ public final class LeonaServerClient {
 
     private static String stripTrailingSlash(String value) {
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private static String validateBaseUrl(String value) {
+        String normalized = stripTrailingSlash(value.trim());
+        final URI uri;
+        try {
+            uri = URI.create(normalized);
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("baseUrl must be a valid absolute URL", error);
+        }
+
+        String scheme = uri.getScheme();
+        boolean https = "https".equalsIgnoreCase(scheme);
+        boolean loopbackHttp = "http".equalsIgnoreCase(scheme) && isLoopbackHost(uri.getHost());
+        if (uri.getHost() == null || uri.getHost().isBlank()) {
+            throw new IllegalArgumentException("baseUrl must include a host");
+        }
+        if (!https && !loopbackHttp) {
+            throw new IllegalArgumentException(
+                "baseUrl must use HTTPS; HTTP is only allowed for loopback test endpoints"
+            );
+        }
+        if (uri.getUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+            throw new IllegalArgumentException("baseUrl must not contain user-info, query, or fragment components");
+        }
+        return normalized;
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        return "127.0.0.1".equals(host)
+            || "localhost".equalsIgnoreCase(host)
+            || "::1".equals(host)
+            || "[::1]".equals(host);
     }
 
     private static String urlPath(String value) {
