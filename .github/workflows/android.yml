@@ -256,14 +256,14 @@ jobs:
 
       - name: Sign release AAR with configured release key
         env:
-          SIGNING_KEY: ${{ secrets.LEONA_MAVEN_SIGNING_KEY }}
-          SIGNING_PASSWORD: ${{ secrets.LEONA_MAVEN_SIGNING_PASSWORD }}
-          SIGNING_KEY_ID: ${{ secrets.LEONA_MAVEN_SIGNING_KEY_ID }}
+          LEONA_RELEASE_ASC_PRIVATE_KEY: ${{ secrets.LEONA_RELEASE_ASC_PRIVATE_KEY }}
+          LEONA_RELEASE_ASC_PASSPHRASE: ${{ secrets.LEONA_RELEASE_ASC_PASSPHRASE }}
+          LEONA_RELEASE_ASC_KEY_ID: ${{ secrets.LEONA_RELEASE_ASC_KEY_ID }}
         run: |
           set -euo pipefail
-          : "${SIGNING_KEY:?LEONA_MAVEN_SIGNING_KEY is required for tag releases}"
-          : "${SIGNING_PASSWORD:?LEONA_MAVEN_SIGNING_PASSWORD is required for tag releases}"
-          : "${SIGNING_KEY_ID:?LEONA_MAVEN_SIGNING_KEY_ID is required for tag releases}"
+          : "${LEONA_RELEASE_ASC_PRIVATE_KEY:?LEONA_RELEASE_ASC_PRIVATE_KEY is required for tag releases}"
+          : "${LEONA_RELEASE_ASC_PASSPHRASE:?LEONA_RELEASE_ASC_PASSPHRASE is required for tag releases}"
+          : "${LEONA_RELEASE_ASC_KEY_ID:?LEONA_RELEASE_ASC_KEY_ID is required for tag releases}"
           VERSION="${GITHUB_REF_NAME#v}"
           ASSET="build/release-assets/leona-sdk-android-${VERSION}.aar"
           GNUPGHOME="$(mktemp -d)"
@@ -271,10 +271,10 @@ jobs:
           chmod 700 "$GNUPGHOME"
           KEY_FILE="$RUNNER_TEMP/leona-release-signing-key.asc"
           trap 'rm -f "$KEY_FILE"; gpgconf --kill gpg-agent >/dev/null 2>&1 || true; rm -rf "$GNUPGHOME"' EXIT
-          printf '%s' "$SIGNING_KEY" > "$KEY_FILE"
+          printf '%s' "$LEONA_RELEASE_ASC_PRIVATE_KEY" > "$KEY_FILE"
           gpg --batch --import "$KEY_FILE" >/dev/null
-          gpg --batch --yes --pinentry-mode loopback --passphrase "$SIGNING_PASSWORD" \
-            --local-user "$SIGNING_KEY_ID" --armor --detach-sign \
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$LEONA_RELEASE_ASC_PASSPHRASE" \
+            --local-user "$LEONA_RELEASE_ASC_KEY_ID" --armor --detach-sign \
             --output "${ASSET}.asc" "$ASSET"
 
       - name: Create GitHub Release
@@ -342,8 +342,8 @@ jobs:
       - name: Publish signed release publication to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.LEONA_MAVEN_SIGNING_KEY }}
-          SIGNING_PASSWORD: ${{ secrets.LEONA_MAVEN_SIGNING_PASSWORD }}
-          SIGNING_KEY_ID: ${{ secrets.LEONA_MAVEN_SIGNING_KEY_ID }}
+          LEONA_RELEASE_ASC_PRIVATE_KEY: ${{ secrets.LEONA_RELEASE_ASC_PRIVATE_KEY }}
+          LEONA_RELEASE_ASC_PASSPHRASE: ${{ secrets.LEONA_RELEASE_ASC_PASSPHRASE }}
+          LEONA_RELEASE_ASC_KEY_ID: ${{ secrets.LEONA_RELEASE_ASC_KEY_ID }}
           LEONA_REQUIRE_PUBLISH_SIGNING: "true"
         run: ./gradlew :sdk:publishReleasePublicationToGitHubPackagesRepository --no-daemon

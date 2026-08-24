@@ -30,8 +30,8 @@ class CompatibilityVerifierTest(unittest.TestCase):
         (self.root / "gradle" / "wrapper").mkdir(parents=True)
         (self.root / "gradle" / "libs.versions.toml").write_text('agp = "9.3.1"\n', encoding="utf-8")
         (self.root / "gradle" / "wrapper" / "gradle-wrapper.properties").write_text(
-            "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.5.0-bin.zip\n"
-            "distributionSha256Sum=553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746\n",
+            "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.6.0-bin.zip\n"
+            "distributionSha256Sum=bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01\n",
             encoding="utf-8",
         )
         (self.root / "sdk" / "build.gradle.kts").write_text(
@@ -263,7 +263,7 @@ class CompatibilityVerifierTest(unittest.TestCase):
         wrapper = self.root / "gradle" / "wrapper" / "gradle-wrapper.properties"
         wrapper.write_text(
             wrapper.read_text(encoding="utf-8").replace(
-                "553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746",
+                "bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01",
                 "0" * 64,
             ),
             encoding="utf-8",

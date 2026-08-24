@@ -191,12 +191,15 @@ publishing {
 
 signing {
     val signingKey = providers.gradleProperty("signingKey")
+        .orElse(providers.environmentVariable("LEONA_RELEASE_ASC_PRIVATE_KEY"))
         .orElse(providers.environmentVariable("SIGNING_KEY"))
         .orNull
     val signingPassword = providers.gradleProperty("signingPassword")
+        .orElse(providers.environmentVariable("LEONA_RELEASE_ASC_PASSPHRASE"))
         .orElse(providers.environmentVariable("SIGNING_PASSWORD"))
         .orNull
     val signingKeyId = providers.gradleProperty("signingKeyId")
+        .orElse(providers.environmentVariable("LEONA_RELEASE_ASC_KEY_ID"))
         .orElse(providers.environmentVariable("SIGNING_KEY_ID"))
         .orNull
 
