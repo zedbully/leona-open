@@ -175,8 +175,7 @@ internal class DeviceIdentityManager(
     fun currentSnapshot(): DeviceFingerprintSnapshot? = store.loadLastSnapshot()
 
     fun updateCanonicalDeviceId(deviceId: String?) {
-        val normalized = deviceId?.trim()?.ifEmpty { null } ?: return
-        store.persistCanonicalDeviceId(normalizeCanonicalId(normalized))
+        normalizeServerCanonicalId(deviceId)?.let(store::persistCanonicalDeviceId)
     }
 
     private fun buildIdentityAnchor(androidId: String?): String =
@@ -590,8 +589,21 @@ internal class DeviceIdentityManager(
         }
 
     companion object {
-        private fun normalizeCanonicalId(value: String): String =
-            if (value.startsWith("L")) value else "L$value"
+        private fun normalizeCanonicalId(value: String): String? =
+            normalizeServerCanonicalId(value)
+
+        /**
+         * Only a server-minted canonical id may become durable client state.
+         * Client temporary ids and arbitrary response fields remain telemetry;
+         * accepting them here could poison the next fingerprint/session.
+         */
+        internal fun normalizeServerCanonicalId(value: String?): String? {
+            val candidate = value?.trim()?.ifEmpty { null } ?: return null
+            val canonical = if (candidate.startsWith("L")) candidate else "L$candidate"
+            return canonical.takeIf { it.matches(SERVER_CANONICAL_ID_PATTERN) }
+        }
+
+        private val SERVER_CANONICAL_ID_PATTERN = Regex("L[0-9a-f]{32}")
     }
 }
 

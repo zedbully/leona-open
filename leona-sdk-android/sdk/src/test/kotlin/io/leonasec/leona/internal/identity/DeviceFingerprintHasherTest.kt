@@ -149,6 +149,17 @@ class DeviceFingerprintHasherTest {
     }
 
     @Test
+    fun `only server minted canonical ids become durable identity state`() {
+        val canonical = "L" + "a".repeat(32)
+
+        assertEquals(canonical, DeviceIdentityManager.normalizeServerCanonicalId(canonical))
+        assertEquals(canonical, DeviceIdentityManager.normalizeServerCanonicalId("a".repeat(32)))
+        assertNull(DeviceIdentityManager.normalizeServerCanonicalId("Ltemporary-device"))
+        assertNull(DeviceIdentityManager.normalizeServerCanonicalId("T" + "a".repeat(32)))
+        assertNull(DeviceIdentityManager.normalizeServerCanonicalId("L" + "A".repeat(32)))
+    }
+
+    @Test
     fun `fingerprint versions keep real devices stable while virtual anchors opt in`() {
         assertEquals(2, DeviceFingerprintHasher.BASE_SEED_VERSION)
         assertEquals(4, DeviceFingerprintHasher.VIRTUAL_ANCHOR_SEED_VERSION)
