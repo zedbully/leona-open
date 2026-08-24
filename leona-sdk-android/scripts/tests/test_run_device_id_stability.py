@@ -146,6 +146,13 @@ summarize
         self.assertIn("flash_like_reset)", source)
         self.assertIn('run_collection_phase "${phase}" 1', source)
 
+    def test_blocked_report_redacts_adb_target_to_a_hash(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("serial_hint()", source)
+        self.assertIn('printf \'sha256:%s\' "$(sha256_text "${SERIAL}")"', source)
+        self.assertIn("- adb target: $(serial_hint)", source)
+        self.assertNotIn("- adb target: ${SERIAL:-not specified}", source)
+
 
 if __name__ == "__main__":
     unittest.main()
