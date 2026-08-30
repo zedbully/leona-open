@@ -2,6 +2,7 @@
 """Source contract for API 23+ Leona identity persistence hardening."""
 
 import re
+import json
 import unittest
 from pathlib import Path
 
@@ -27,10 +28,24 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertNotRegex(fallback.group("body"), r"\breturn\s+plaintext\b|^\s*plaintext\s*$")
 
     def test_api23_decryption_rejects_non_keystore_or_malformed_envelopes(self) -> None:
-        self.assertRegex(SOURCE, r"if \(Build\.VERSION\.SDK_INT\s*<\s*Build\.VERSION_CODES\.M\) return null")
-        self.assertIn("if (stored.length > MAX_ENVELOPE_LENGTH) return null", SOURCE)
-        self.assertRegex(SOURCE, r"JSONObject\(stored\)[\s\S]{0,100}getOrNull\(\)\s*\?:\s*return null")
-        self.assertRegex(SOURCE, r'optString\("mode"\)\s*!=\s*"keystore"\)\s*return null')
+        self.assertRegex(
+            SOURCE,
+            r"if\s*\(Build\.VERSION\.SDK_INT\s*<\s*Build\.VERSION_CODES\.M\)[\s\S]{0,220}"
+            r"currentProtectionStatus\s*=\s*IdentityProtectionStatus\.API_BELOW_23[\s\S]{0,220}"
+            r"return\s+null",
+        )
+        self.assertRegex(
+            SOURCE,
+            r"if\s*\(stored\.length\s*>\s*MAX_ENVELOPE_LENGTH\)[\s\S]{0,180}"
+            r"currentProtectionStatus\s*=\s*IdentityProtectionStatus\.CORRUPT_OR_MISSING[\s\S]{0,180}"
+            r"return\s+null",
+        )
+        self.assertRegex(SOURCE, r"runCatching\s*\{\s*JSONObject\(stored\)\s*\}\s*\.getOrNull\(\)")
+        self.assertRegex(
+            SOURCE,
+            r"if\s*\(json\s*==\s*null\s*\|\|\s*json\.optString\(\"mode\"\)\s*!=\s*\"keystore\"\)"
+            r"[\s\S]{0,180}return\s+null",
+        )
         self.assertNotRegex(SOURCE, r"(?m)^\s*return\s+stored\s*$")
 
     def test_gcm_iv_and_tag_bounds_are_explicit(self) -> None:
@@ -48,6 +63,23 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertIn(".putString(key, encryptedValue).commit()", SOURCE)
         self.assertIn('"Unable to persist Leona identity state"', SOURCE)
         self.assertNotIn(".apply()", SOURCE)
+
+    def test_corrupt_snapshot_is_quarantined_without_losing_current_status(self) -> None:
+        self.assertIn("fun loadLastSnapshot(): DeviceFingerprintSnapshot?", SOURCE)
+        self.assertIn("quarantineCorruptSnapshot()", SOURCE)
+        self.assertIn("fun beginResolution()", SOURCE)
+        self.assertIn("statusForNextResolution(", SOURCE)
+        self.assertRegex(
+            SOURCE,
+            r"prefs\.edit\(\)\.remove\(KEY_LAST_SNAPSHOT\)\.commit\(\)",
+        )
+        self.assertIn("statusAfterSnapshotQuarantine(cleared)", SOURCE)
+        policy = (
+            Path(__file__).resolve().parents[2]
+            / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/IdentityProtectionState.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("IdentityProtectionLevel.CORRUPT_OR_MISSING", policy)
+        self.assertIn("recoverable = true", policy)
 
     def test_new_install_lifecycle_cannot_restore_identity_from_backup(self) -> None:
         self.assertIn("context.noBackupFilesDir", SOURCE)
@@ -76,14 +108,59 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
             r"existingInstallId != null[\s\S]{0,520}remove\(KEY_INSTALL_ID\)",
         )
 
-    def test_install_epoch_seed_is_only_a_storage_recovery_input(self) -> None:
-        self.assertIn("packageInfo?.firstInstallTime", MANAGER_SOURCE)
-        self.assertIn("appContext.applicationInfo?.sourceDir", MANAGER_SOURCE)
-        self.assertIn("val packageInstallEpoch", MANAGER_SOURCE)
-        self.assertIn("UUID.nameUUIDFromBytes", MANAGER_SOURCE)
-        self.assertIn('"${appContext.packageName}:install-epoch:$epoch"', MANAGER_SOURCE)
-        self.assertIn("toByteArray(StandardCharsets.UTF_8)", MANAGER_SOURCE)
-        self.assertIn("The seed is hashed in the", MANAGER_SOURCE)
+    def test_install_id_is_random_and_lifecycle_hint_has_no_source_fallback(self) -> None:
+        self.assertIn("IdentityIdGenerator.newInstallId()", MANAGER_SOURCE)
+        self.assertIn("private fun resolveLocalInstallId()", MANAGER_SOURCE)
+        self.assertRegex(
+            MANAGER_SOURCE,
+            r"store\.loadInstallId\(\)[\s\S]{0,180}takeIf\(::isUsableInstallId\)",
+        )
+        self.assertIn("InstallIdAdmission.isUsable(value)", MANAGER_SOURCE)
+        self.assertIn("runCatching { store.persistInstallId(installId) }", MANAGER_SOURCE)
+        self.assertNotIn("sourceDir", MANAGER_SOURCE)
+        start = MANAGER_SOURCE.index("private fun resolveLocalInstallId()")
+        end = MANAGER_SOURCE.index("private fun resolveInstallLifecycleSha256", start)
+        local_install = MANAGER_SOURCE[start:end]
+        self.assertNotIn("Build.", local_install)
+        self.assertNotIn("Settings", local_install)
+
+        start = MANAGER_SOURCE.index("private fun resolveInstallLifecycleSha256")
+        end = MANAGER_SOURCE.index("private fun isUsableInstallId", start)
+        lifecycle = MANAGER_SOURCE[start:end]
+        self.assertIn("packageInfo?.firstInstallTime", lifecycle)
+        self.assertIn("InstallLifecycleHint.sha256", lifecycle)
+        self.assertNotIn("sourceDir", lifecycle)
+
+        hint_source = (
+            Path(__file__).resolve().parents[2]
+            / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/IdentityProtectionState.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn('firstInstallTime?.takeIf { it > 0L }?.toString() ?: return null', hint_source)
+        self.assertIn('"$packageName:install-epoch:$epoch"', hint_source)
+
+    def test_environment_labels_are_validated_without_truncation(self) -> None:
+        config_source = (
+            Path(__file__).resolve().parents[2]
+            / "sdk/src/main/kotlin/io/leonasec/leona/config/LeonaConfig.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("normalizeEnvironmentLabel(value)", config_source)
+        self.assertIn("MAX_ENVIRONMENT_LENGTH", config_source)
+        self.assertIn("Character::isISOControl", config_source)
+        self.assertNotIn("environment = value?.trim()?.take(64)", config_source)
+
+    def test_multi_process_is_explicitly_not_admitted(self) -> None:
+        contract = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "compatibility/android-6-16-contract.json"
+            ).read_text(encoding="utf-8")
+        )
+        compatibility = contract["identityContract"]["sdkCompatibility"]
+        self.assertEqual(["single-process"], compatibility["processModes"])
+        self.assertEqual(
+            "BLOCKED_NOT_ADMITTED_SHARED_PREFS_NOT_CROSS_PROCESS_SAFE",
+            compatibility["multiProcessStatus"],
+        )
 
 
 if __name__ == "__main__":

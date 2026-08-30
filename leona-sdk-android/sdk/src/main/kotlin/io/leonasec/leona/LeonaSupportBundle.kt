@@ -28,6 +28,8 @@ data class LeonaSupportBundle(
     val secureTransport: LeonaSecureTransportSnapshot?,
     val diagnosticSnapshot: LeonaDiagnosticSnapshot,
     val serverVerdict: LeonaServerVerdict?,
+    /** Optional routing label; kept trailing for constructor compatibility. */
+    val environment: String? = null,
 ) {
     fun toJsonObject(view: LeonaDebugExportView = LeonaDebugExportView.REDACTED): JSONObject = JSONObject()
         .put("generatedAtMillis", generatedAtMillis)
@@ -38,6 +40,10 @@ data class LeonaSupportBundle(
         )
         .put("appId", appId)
         .put("region", region)
+        .put(
+            "environment",
+            if (view == LeonaDebugExportView.FULL_DEBUG) environment else LeonaJsonRedaction.hint(environment),
+        )
         .put("transportEnabled", transportEnabled)
         .put("cloudConfigEnabled", cloudConfigEnabled)
         .put("syncInit", syncInit)

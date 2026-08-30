@@ -53,5 +53,29 @@
   "decisionBoundary": {
     "sdkRole": "collect-and-report-evidence-only",
     "finalDecisionOwner": "customer-backend"
+  },
+  "identityContract": {
+    "schemaVersion": 1,
+    "sdkCompatibility": {
+      "minimumApi": 23,
+      "maximumApi": 36,
+      "androidVersions": ["6.0", "7.0", "7.1", "8.0", "8.1", "9", "10", "11", "12", "12L", "13", "14", "15", "16"],
+      "abis": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+      "buildModes": ["debug", "release", "release-r8"],
+      "processModes": ["single-process"],
+      "multiProcessStatus": "BLOCKED_NOT_ADMITTED_SHARED_PREFS_NOT_CROSS_PROCESS_SAFE",
+      "lifecycleScenarios": ["first-install", "warm-restart", "cold-restart", "upgrade", "clear-data", "uninstall-reinstall"],
+      "identityRole": "collect-and-report-evidence-only",
+      "finalDecisionOwner": "customer-backend"
+    },
+    "cryptoAdapterBoundary": {
+      "module": "crypto-adapter",
+      "declaredMinSdk": 24,
+      "api23Status": "blocked-until-formal-provider-contract",
+      "providerEvidenceRequired": true,
+      "loweringMinSdkAllowed": false,
+      "fallback": "none",
+      "diagnostic": "CRYPTO_PROVIDER_API23_EVIDENCE_MISSING"
+    }
   }
 }

@@ -135,12 +135,13 @@ class SecureChannelTest {
                 LeonaConfig.Builder()
                     .reportingEndpoint(server.url("/").toString())
                     .apiKey("leona_test_app_key")
+                    .environment("staging")
                     .cryptoChannel(cryptoChannel)
                     .build(),
             )
             val payload = byteArrayOf(1, 2, 3, 4)
 
-            val result = channel.upload(payload, deviceContext("e".repeat(64)))
+            val result = channel.upload(payload, deviceContext("e".repeat(64), sessionId = "session-1"))
 
             assertEquals("box-1", result.boxId.toString())
             assertEquals("I${"a".repeat(32)}", result.serverInstallId)
@@ -151,7 +152,10 @@ class SecureChannelTest {
             val protectedHeaders = LeonaCryptoProtectedHeadersCodec.decode(captured.protectedHeaders)
             assertEquals("leona_test_app_key", protectedHeaders["X-Leona-App-Key"])
             assertEquals("leo_crypto", protectedHeaders["X-Leona-Reporting-Mode"])
+            assertEquals("staging", protectedHeaders["X-Leona-Environment"])
             assertFalse(protectedHeaders.values.any { it == "install-1" || it == "Tdevice-1" })
+            assertTrue(protectedHeaders["X-Leona-Session-Id-Sha256"].orEmpty().matches(Regex("[0-9a-f]{64}")))
+            assertFalse(protectedHeaders.values.any { it == "session-1" })
 
             val outer = server.takeRequest()
             assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Content-Type"))
@@ -290,11 +294,15 @@ class SecureChannelTest {
         )
     }
 
-    private fun deviceContext(installLifecycleSha256: String? = null): SecureDeviceContext = SecureDeviceContext(
+    private fun deviceContext(
+        installLifecycleSha256: String? = null,
+        sessionId: String? = null,
+    ): SecureDeviceContext = SecureDeviceContext(
         installId = "install-1",
         resolvedDeviceId = "Tdevice-1",
         fingerprintHash = "fingerprint-1",
         installLifecycleSha256 = installLifecycleSha256,
+        sessionId = sessionId,
     )
 
     @Test

@@ -6,6 +6,7 @@ package io.leonasec.leona.config
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.fail
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -26,6 +27,7 @@ class LeonaConfigTest {
         assertNull(cfg.cryptoChannel)
         assertNull(cfg.tenantId)
         assertEquals("default", cfg.appId)
+        assertNull(cfg.environment)
         assertEquals(LeonaRegion.CN_BJ, cfg.region)
         assertTrue(cfg.transportEnabled)
         assertTrue(cfg.requireSecureReportingEngine)
@@ -150,6 +152,31 @@ class LeonaConfigTest {
         assertTrue(cfg.expectedManifestMetaDataEntrySha256.isEmpty())
         assertTrue(cfg.expectedManifestMetaDataSemanticsSha256.isEmpty())
         assertTrue(cfg.expectedMetaData.isEmpty())
+    }
+
+    @Test
+    fun `deployment environment is bounded routing context`() {
+        val cfg = LeonaConfig.Builder()
+            .environment("  staging  ")
+            .build()
+        assertEquals("staging", cfg.environment)
+    }
+
+    @Test
+    fun `deployment environment rejects overlength and control labels`() {
+        assertInvalidEnvironment("x".repeat(65))
+        assertInvalidEnvironment("staging\nprod")
+        assertInvalidEnvironment("staging\u0000prod")
+        assertInvalidEnvironment("\nstaging")
+    }
+
+    private fun assertInvalidEnvironment(value: String) {
+        try {
+            LeonaConfig.Builder().environment(value)
+            fail("expected invalid environment label to be rejected")
+        } catch (_: IllegalArgumentException) {
+            // expected
+        }
     }
 
     @Test

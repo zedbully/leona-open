@@ -153,7 +153,8 @@ android {
 
     defaultConfig {
         applicationId = "io.leonasec.leona.sample"
-        minSdk = if (leonaSampleEnableRealPlayIntegrityDep) 23 else 21
+        // The sample exercises the SDK's Android 6/API 23 identity contract.
+        minSdk = 23
         targetSdk = 36
         versionCode = 1
         versionName = "0.4.0"

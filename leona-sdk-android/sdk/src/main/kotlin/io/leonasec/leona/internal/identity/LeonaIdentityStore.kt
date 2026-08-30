@@ -22,6 +22,12 @@ import javax.crypto.spec.GCMParameterSpec
 internal class LeonaIdentityStore(
     context: Context,
 ) {
+    @Volatile
+    private var currentProtectionStatus: IdentityProtectionStatus = IdentityProtectionStatus.READY
+
+    @Volatile
+    private var snapshotQuarantineCompleted = false
+
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val lifecycleMarker = File(
@@ -31,6 +37,21 @@ internal class LeonaIdentityStore(
 
     init {
         ensureCurrentInstallLifecycle()
+        probeKeyStore()
+    }
+
+    /** Typed diagnostic state; never use this as a business decision. */
+    fun protectionStatus(): IdentityProtectionStatus = currentProtectionStatus
+
+    /** Start a collection attempt and consume a completed snapshot quarantine. */
+    fun beginResolution() {
+        val next = IdentityPersistencePolicy.statusForNextResolution(
+            current = currentProtectionStatus,
+            snapshotPresent = prefs.contains(KEY_LAST_SNAPSHOT),
+            quarantineCompleted = snapshotQuarantineCompleted,
+        )
+        if (next != currentProtectionStatus) snapshotQuarantineCompleted = false
+        currentProtectionStatus = next
     }
 
     fun loadInstallId(): String? = decrypt(prefs.getString(KEY_INSTALL_ID, null))
@@ -40,8 +61,12 @@ internal class LeonaIdentityStore(
     }
 
     fun clearLastSnapshot() {
-        check(prefs.edit().remove(KEY_LAST_SNAPSHOT).commit()) {
-            "Unable to clear Leona identity snapshot"
+        val cleared = runCatching {
+            prefs.edit().remove(KEY_LAST_SNAPSHOT).commit()
+        }.getOrDefault(false)
+        if (!cleared) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            throw IllegalStateException("Unable to clear Leona identity snapshot")
         }
     }
 
@@ -53,11 +78,36 @@ internal class LeonaIdentityStore(
         persist(KEY_CANONICAL_DEVICE_ID, encrypt(deviceId))
     }
 
-    fun loadLastSnapshot(): DeviceFingerprintSnapshot? =
-        DeviceFingerprintSnapshot.fromJson(decrypt(prefs.getString(KEY_LAST_SNAPSHOT, null)))
+    fun loadLastSnapshot(): DeviceFingerprintSnapshot? {
+        val stored = prefs.getString(KEY_LAST_SNAPSHOT, null) ?: return null
+        val decrypted = decrypt(stored)
+        if (decrypted == null) {
+            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING) {
+                quarantineCorruptSnapshot()
+            }
+            return null
+        }
+        val snapshot = DeviceFingerprintSnapshot.fromJson(decrypted)
+        if (snapshot != null) return snapshot
+
+        // Authenticated plaintext that is not a valid snapshot is still a
+        // corrupt record. Remove only this record; install/canonical state is
+        // retained and the corruption status remains on the current report.
+        currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+        quarantineCorruptSnapshot()
+        return null
+    }
 
     fun persistLastSnapshot(snapshot: DeviceFingerprintSnapshot) {
         persist(KEY_LAST_SNAPSHOT, encrypt(snapshot.toJson()))
+    }
+
+    private fun quarantineCorruptSnapshot() {
+        val cleared = runCatching {
+            prefs.edit().remove(KEY_LAST_SNAPSHOT).commit()
+        }.getOrDefault(false)
+        snapshotQuarantineCompleted = cleared
+        currentProtectionStatus = IdentityPersistencePolicy.statusAfterSnapshotQuarantine(cleared)
     }
 
     /**
@@ -66,8 +116,12 @@ internal class LeonaIdentityStore(
      * synchronous `commit()` and make failure visible to the caller.
      */
     private fun persist(key: String, encryptedValue: String) {
-        check(prefs.edit().putString(key, encryptedValue).commit()) {
-            "Unable to persist Leona identity state"
+        val committed = runCatching {
+            prefs.edit().putString(key, encryptedValue).commit()
+        }.getOrDefault(false)
+        if (!committed) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            throw IllegalStateException("Unable to persist Leona identity state")
         }
     }
 
@@ -80,8 +134,9 @@ internal class LeonaIdentityStore(
     private fun ensureCurrentInstallLifecycle() {
         if (lifecycleMarker.exists()) return
         val parent = lifecycleMarker.parentFile
-        check(parent == null || parent.isDirectory || parent.mkdirs()) {
-            "Unable to prepare Leona install lifecycle state"
+        if (parent != null && !parent.isDirectory && !runCatching { parent.mkdirs() }.getOrDefault(false)) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            return
         }
 
         // A valid Keystore envelope is stronger evidence of the current app
@@ -93,23 +148,25 @@ internal class LeonaIdentityStore(
         // fails and the restored preference is discarded below.
         val existingInstallId = decrypt(prefs.getString(KEY_INSTALL_ID, null))
         if (existingInstallId != null) {
-            check(lifecycleMarker.createNewFile() || lifecycleMarker.exists()) {
-                "Unable to restore Leona install lifecycle state"
+            if (!runCatching { lifecycleMarker.createNewFile() || lifecycleMarker.exists() }.getOrDefault(false)) {
+                currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
             }
             return
         }
 
-        check(
+        val resetSucceeded = runCatching {
             prefs.edit()
                 .remove(KEY_INSTALL_ID)
                 .remove(KEY_CANONICAL_DEVICE_ID)
                 .remove(KEY_LAST_SNAPSHOT)
-                .commit(),
-        ) {
-            "Unable to reset Leona identity state for a new install"
+                .commit()
+        }.getOrDefault(false)
+        if (!resetSucceeded) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            return
         }
-        check(lifecycleMarker.createNewFile() || lifecycleMarker.exists()) {
-            "Unable to persist Leona install lifecycle state"
+        if (!runCatching { lifecycleMarker.createNewFile() || lifecycleMarker.exists() }.getOrDefault(false)) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
         }
     }
 
@@ -118,6 +175,9 @@ internal class LeonaIdentityStore(
         // silently downgrade the identity envelope to plaintext on older hosts:
         // an installed APK must fail closed rather than make tamperable state
         // look like a trusted device anchor.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            currentProtectionStatus = IdentityProtectionStatus.API_BELOW_23
+        }
         check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             "Android Keystore-backed identity requires API 23+"
         }
@@ -134,6 +194,7 @@ internal class LeonaIdentityStore(
         }.getOrElse { cause ->
             // Android 6+ is the commercial support floor. Never silently downgrade
             // device-identity state to plaintext when Android Keystore is unavailable.
+            currentProtectionStatus = IdentityProtectionStatus.KEYSTORE_UNAVAILABLE
             throw IllegalStateException("Unable to encrypt Leona identity state", cause)
         }
     }
@@ -143,13 +204,26 @@ internal class LeonaIdentityStore(
         // Legacy plaintext preferences are never accepted as identity state.
         // This also makes an API < 23 host fail closed on the next write instead
         // of treating a pre-matrix value as a trusted anchor.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
-        if (stored.length > MAX_ENVELOPE_LENGTH) return null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            currentProtectionStatus = IdentityProtectionStatus.API_BELOW_23
+            return null
+        }
+        if (stored.length > MAX_ENVELOPE_LENGTH) {
+            currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+            return null
+        }
         // API 23+ accepts only authenticated AES-GCM envelopes. Legacy/plaintext or
         // malformed values are discarded so local preference tampering cannot become
         // trusted install/canonical/fingerprint state.
-        val json = runCatching { JSONObject(stored) }.getOrNull() ?: return null
-        if (json.optString("mode") != "keystore") return null
+        if (!IdentityEnvelopePolicy.isAuthenticatedEnvelope(stored)) {
+            currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+            return null
+        }
+        val json = runCatching { JSONObject(stored) }.getOrNull()
+        if (json == null || json.optString("mode") != "keystore") {
+            currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+            return null
+        }
         return runCatching {
             val iv = Base64.decode(json.getString("iv"), Base64.NO_WRAP)
             val ct = Base64.decode(json.getString("ct"), Base64.NO_WRAP)
@@ -162,7 +236,42 @@ internal class LeonaIdentityStore(
                 GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv),
             )
             String(cipher.doFinal(ct), StandardCharsets.UTF_8)
+        }.onSuccess {
+            currentProtectionStatus = IdentityPersistencePolicy.preserveProbeStatus(
+                current = currentProtectionStatus,
+                probeSucceeded = true,
+            )
+        }.onFailure { cause ->
+            // A missing/invalid Keystore key and an authentication-tag failure
+            // are both non-admissible local state. Keep the reason typed and
+            // bounded; never expose provider exception text to callers.
+            currentProtectionStatus = if (cause is javax.crypto.AEADBadTagException) {
+                IdentityProtectionStatus.CORRUPT_OR_MISSING
+            } else {
+                IdentityProtectionStatus.KEYSTORE_UNAVAILABLE
+            }
         }.getOrNull()
+    }
+
+    private fun probeKeyStore() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            currentProtectionStatus = IdentityProtectionStatus.API_BELOW_23
+            return
+        }
+        runCatching { keystoreKey() }
+            .onSuccess {
+                currentProtectionStatus = IdentityPersistencePolicy.preserveProbeStatus(
+                    current = currentProtectionStatus,
+                    probeSucceeded = true,
+                )
+            }
+            .onFailure {
+                currentProtectionStatus = if (currentProtectionStatus == IdentityProtectionStatus.READY) {
+                    IdentityProtectionStatus.KEYSTORE_UNAVAILABLE
+                } else {
+                    currentProtectionStatus
+                }
+            }
     }
 
     @TargetApi(Build.VERSION_CODES.M)

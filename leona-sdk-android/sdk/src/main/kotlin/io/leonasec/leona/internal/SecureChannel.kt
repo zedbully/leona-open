@@ -173,8 +173,17 @@ internal class SecureChannel(
             "X-Leona-Fingerprint" to deviceContext.fingerprintHash,
             "X-Leona-Evidence-Ref" to sha256Hex(payload),
         )
+        deviceContext.sessionId
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { headers["X-Leona-Session-Id-Sha256"] = sha256Hex(it) }
+        headers["X-Leona-Identity-Protection"] =
+            "${deviceContext.identityProtectionLevel}:${deviceContext.identityProtectionCode}:" +
+                (if (deviceContext.identityProtectionDurable) "durable" else "ephemeral") + ":" +
+                (if (deviceContext.identityProtectionRecoverable) "recoverable" else "terminal")
         config.tenantId?.let { headers["X-Leona-Tenant"] = it }
         headers["X-Leona-App-Id"] = config.appId
+        config.environment?.let { headers["X-Leona-Environment"] = it }
         config.channel?.let { headers["X-Leona-Channel"] = it }
         deviceContext.installLifecycleSha256?.let { headers["X-Leona-Install-Lifecycle-Sha256"] = it }
         deviceContext.canonicalDeviceId?.takeIf { it.isNotBlank() }?.let {

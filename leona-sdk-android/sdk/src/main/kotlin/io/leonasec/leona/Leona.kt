@@ -146,6 +146,11 @@ object Leona {
             signingCertSha256 = snapshot.signingCertSha256,
             sdkInt = snapshot.sdkInt,
             installLifecycleSha256 = snapshot.installLifecycleSha256,
+            sessionId = snapshot.sessionId,
+            identityProtectionLevel = snapshot.identityProtectionStatus.level.name,
+            identityProtectionCode = snapshot.identityProtectionStatus.code.name,
+            identityProtectionDurable = snapshot.identityProtectionStatus.durable,
+            identityProtectionRecoverable = snapshot.identityProtectionStatus.recoverable,
         )
     }
 
@@ -223,6 +228,11 @@ object Leona {
             serverRiskScore = serverVerdict?.riskScore,
             serverRiskTags = serverVerdict?.riskTags.orEmpty(),
             lastBoxId = serverVerdict?.boxId,
+            sessionId = identity.sessionId,
+            identityProtectionLevel = identity.identityProtectionStatus.level.name,
+            identityProtectionCode = identity.identityProtectionStatus.code.name,
+            identityProtectionDurable = identity.identityProtectionStatus.durable,
+            identityProtectionRecoverable = identity.identityProtectionStatus.recoverable,
         )
     }
 
@@ -306,6 +316,7 @@ object Leona {
             tenantId = state.config.tenantId,
             appId = state.config.appId,
             region = state.config.region.name,
+            environment = state.config.environment,
             transportEnabled = state.config.transportEnabled,
             cloudConfigEnabled = state.config.cloudConfigEnabled,
             syncInit = state.config.syncInit,

@@ -56,6 +56,13 @@ data class LeonaDiagnosticSnapshot(
     val serverRiskScore: Int?,
     val serverRiskTags: Set<String>,
     val lastBoxId: String?,
+    /** Process-scoped session correlation id (redacted by default). */
+    val sessionId: String = "",
+    /** Typed evidence about local identity protection, never a verdict. */
+    val identityProtectionLevel: String = "KEYSTORE_AES_GCM",
+    val identityProtectionCode: String = "READY",
+    val identityProtectionDurable: Boolean = true,
+    val identityProtectionRecoverable: Boolean = true,
 ) {
     @Deprecated(
         message = "Use evidenceSignals.",
@@ -104,6 +111,11 @@ data class LeonaDiagnosticSnapshot(
         .put("serverRiskScore", serverRiskScore)
         .put("serverRiskTags", JSONArray(serverRiskTags.toList().sorted()))
         .put("lastBoxId", lastBoxId)
+        .put("sessionId", sessionId)
+        .put("identityProtectionLevel", identityProtectionLevel)
+        .put("identityProtectionCode", identityProtectionCode)
+        .put("identityProtectionDurable", identityProtectionDurable)
+        .put("identityProtectionRecoverable", identityProtectionRecoverable)
 
     private fun redactedJsonObject(): JSONObject = JSONObject()
         .put("deviceId", LeonaJsonRedaction.hint(deviceId))
@@ -137,4 +149,9 @@ data class LeonaDiagnosticSnapshot(
         .put("serverRiskScore", serverRiskScore)
         .put("serverRiskTags", JSONArray(serverRiskTags.toList().sorted()))
         .put("lastBoxId", LeonaJsonRedaction.hint(lastBoxId))
+        .put("sessionId", LeonaJsonRedaction.hint(sessionId))
+        .put("identityProtectionLevel", identityProtectionLevel)
+        .put("identityProtectionCode", identityProtectionCode)
+        .put("identityProtectionDurable", identityProtectionDurable)
+        .put("identityProtectionRecoverable", identityProtectionRecoverable)
 }

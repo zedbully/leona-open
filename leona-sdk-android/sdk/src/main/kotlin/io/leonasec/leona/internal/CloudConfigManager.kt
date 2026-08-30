@@ -47,6 +47,7 @@ internal class CloudConfigManager(
             config.apiKey?.let { protectedHeaders["X-Leona-App-Key"] = it }
             config.tenantId?.let { protectedHeaders["X-Leona-Tenant"] = it }
             protectedHeaders["X-Leona-App-Id"] = config.appId
+            config.environment?.let { protectedHeaders["X-Leona-Environment"] = it }
             config.channel?.let { protectedHeaders["X-Leona-Channel"] = it }
             protectedHeaders["X-Leona-Protocol"] = LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR.toString()
             protectedHeaders["X-Leona-Request-Id"] = java.util.UUID.randomUUID().toString()

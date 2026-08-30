@@ -34,6 +34,13 @@ data class SecureDeviceContext(
     val nativeFactTags: Set<String> = nativeRiskTags,
     /** Hashed package-install lifecycle handle; telemetry/recovery only. */
     val installLifecycleSha256: String? = null,
+    /** Process-scoped session correlation; not persisted as install identity. */
+    val sessionId: String? = null,
+    /** Typed local storage evidence; never a client-side verdict. */
+    val identityProtectionLevel: String = "KEYSTORE_AES_GCM",
+    val identityProtectionCode: String = "READY",
+    val identityProtectionDurable: Boolean = true,
+    val identityProtectionRecoverable: Boolean = true,
 ) {
     constructor(
         installId: String,

@@ -37,6 +37,10 @@ internal data class DeviceFingerprintSnapshot(
     val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
     /** One-way app-install lifecycle handle used only for server install-id recovery. */
     val installLifecycleSha256: String? = null,
+    /** Process-scoped correlation id; never persisted as install identity. */
+    val sessionId: String = "",
+    /** Typed evidence about how local identity state was protected. */
+    val identityProtectionStatus: IdentityProtectionStatus = IdentityProtectionStatus.READY,
 ) {
     val evidenceSignals: Set<String>
         get() = ClientEvidenceSignalMapper.toEvidenceSignals(riskSignals)
@@ -68,6 +72,12 @@ internal data class DeviceFingerprintSnapshot(
         .put("riskSignals", JSONArray(riskSignals.toList().sorted()))
         .put("deviceEnvironmentEvidence", deviceEnvironmentEvidence.toPersistedJsonObject())
         .put("installLifecycleSha256", installLifecycleSha256)
+        // sessionId is process-scoped and intentionally omitted from durable
+        // identity JSON. It is attached after loading for the current process.
+        .put("identityProtectionLevel", identityProtectionStatus.level.name)
+        .put("identityProtectionCode", identityProtectionStatus.code.name)
+        .put("identityProtectionDurable", identityProtectionStatus.durable)
+        .put("identityProtectionRecoverable", identityProtectionStatus.recoverable)
         .toString()
 
     companion object {
@@ -104,6 +114,10 @@ internal data class DeviceFingerprintSnapshot(
                         obj.optJSONObject("deviceEnvironmentEvidence"),
                     ),
                     installLifecycleSha256 = obj.optString("installLifecycleSha256").ifBlank { null },
+                    // Session ids are process-only; ignore any legacy persisted
+                    // field rather than resurrecting it across a restart.
+                    sessionId = "",
+                    identityProtectionStatus = parseProtectionStatus(obj),
                 )
             }.getOrNull()
         }
@@ -117,5 +131,26 @@ internal data class DeviceFingerprintSnapshot(
                     }
                 }
             }.orEmpty()
+
+        private fun parseProtectionStatus(obj: JSONObject): IdentityProtectionStatus {
+            val level = runCatching {
+                IdentityProtectionLevel.valueOf(obj.optString("identityProtectionLevel"))
+            }.getOrDefault(IdentityProtectionLevel.KEYSTORE_AES_GCM)
+            val code = runCatching {
+                IdentityProtectionCode.valueOf(obj.optString("identityProtectionCode"))
+            }.getOrDefault(
+                if (level == IdentityProtectionLevel.KEYSTORE_AES_GCM) {
+                    IdentityProtectionCode.READY
+                } else {
+                    IdentityProtectionCode.KEYSTORE_INIT_FAILED
+                },
+            )
+            return IdentityProtectionStatus(
+                level = level,
+                code = code,
+                durable = obj.optBoolean("identityProtectionDurable", level == IdentityProtectionLevel.KEYSTORE_AES_GCM),
+                recoverable = obj.optBoolean("identityProtectionRecoverable", level != IdentityProtectionLevel.UNSUPPORTED_API),
+            )
+        }
     }
 }

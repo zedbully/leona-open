@@ -25,6 +25,8 @@ class LeonaConfig private constructor(
     val tenantId: String?,
     /** Logical app identifier used by Leona-managed server-side policies. */
     val appId: String,
+    /** Optional deployment environment label, carried only in protected context. */
+    val environment: String?,
     /** Deployment region used when deriving Leona-managed defaults. */
     val region: LeonaRegion,
     /** Enable transport when secure reporting is configured. */
@@ -294,12 +296,13 @@ class LeonaConfig private constructor(
 
     class Builder {
         private var injection = true
-        private var environment = true
+        private var environmentDetection = true
         private var reportingEndpoint: String? = null
         private var apiKey: String? = null
         private var cryptoChannel: LeonaCryptoChannel? = null
         private var tenantId: String? = null
         private var appId: String = "default"
+        private var environment: String? = null
         private var region: LeonaRegion = LeonaRegion.CN_BJ
         private var transportEnabled = true
         private var requireSecureReportingEngine = true
@@ -429,13 +432,16 @@ class LeonaConfig private constructor(
         private val expectedMetaData = linkedMapOf<String, String>()
 
         fun enableInjectionDetection(enabled: Boolean) = apply { injection = enabled }
-        fun enableEnvironmentDetection(enabled: Boolean) = apply { environment = enabled }
+        fun enableEnvironmentDetection(enabled: Boolean) = apply { environmentDetection = enabled }
         fun reportingEndpoint(url: String?) = apply { reportingEndpoint = normalizeEndpoint(url) }
         fun apiKey(key: String?) = apply { apiKey = key }
         /** Installs the caller-owned Leo transport; there is no plaintext fallback. */
         fun cryptoChannel(channel: LeonaCryptoChannel?) = apply { cryptoChannel = channel }
         fun tenantId(value: String?) = apply { tenantId = value?.trim()?.ifEmpty { null } }
         fun appId(value: String?) = apply { appId = value?.trim()?.ifEmpty { "default" } ?: "default" }
+        fun environment(value: String?) = apply {
+            environment = normalizeEnvironmentLabel(value)
+        }
         fun region(value: LeonaRegion) = apply { region = value }
         fun transportEnabled(enabled: Boolean) = apply { transportEnabled = enabled }
         /**
@@ -985,12 +991,13 @@ class LeonaConfig private constructor(
 
         fun build() = LeonaConfig(
             injectionDetectionEnabled = injection,
-            environmentDetectionEnabled = environment,
+            environmentDetectionEnabled = environmentDetection,
             reportingEndpoint = reportingEndpoint,
             apiKey = apiKey,
             cryptoChannel = cryptoChannel,
             tenantId = tenantId,
             appId = appId,
+            environment = environment,
             region = region,
             transportEnabled = transportEnabled,
             requireSecureReportingEngine = requireSecureReportingEngine,
@@ -1126,6 +1133,18 @@ class LeonaConfig private constructor(
             expectedMetaData = expectedMetaData.toMap(),
         )
 
+        private fun normalizeEnvironmentLabel(value: String?): String? {
+            val raw = value ?: return null
+            require(raw.none(Character::isISOControl)) {
+                "environment label must not contain control characters"
+            }
+            val candidate = raw.trim().ifEmpty { null } ?: return null
+            require(candidate.length <= MAX_ENVIRONMENT_LENGTH) {
+                "environment label must be at most $MAX_ENVIRONMENT_LENGTH characters"
+            }
+            return candidate
+        }
+
         private fun normalizeEndpoint(value: String?): String? =
             value?.trim()?.ifEmpty { null }
 
@@ -1154,6 +1173,10 @@ class LeonaConfig private constructor(
             if (normalizedKey.isNotEmpty() && normalizedValue != null) {
                 target[normalizedKey] = normalizedValue
             }
+        }
+
+        private companion object {
+            const val MAX_ENVIRONMENT_LENGTH = 64
         }
     }
 

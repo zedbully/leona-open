@@ -20,7 +20,9 @@ android {
     ndkVersion = "26.3.11579264"
 
     defaultConfig {
-        minSdk = 21
+        // Android 6/API 23 is the identity-storage compatibility floor.
+        // Do not lower this until a formally verified Provider contract exists.
+        minSdk = 23
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")

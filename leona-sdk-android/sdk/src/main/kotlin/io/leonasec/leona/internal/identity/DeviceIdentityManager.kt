@@ -17,10 +17,8 @@ import android.util.Base64
 import io.leonasec.leona.config.LeonaConfig
 import java.security.MessageDigest
 import java.net.NetworkInterface
-import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.TimeZone
-import java.util.UUID
 
 internal class DeviceIdentityManager(
     private val context: Context,
@@ -28,12 +26,19 @@ internal class DeviceIdentityManager(
 ) {
     private val appContext = context.applicationContext
     private val store = LeonaIdentityStore(appContext)
+    /** A process initialization is a new session even when the install is stable. */
+    private val sessionId = IdentityIdGenerator.newSessionId()
+    /** Used only when Keystore persistence is unavailable; never persisted as plaintext. */
+    private val ephemeralInstallId = IdentityIdGenerator.newInstallId()
+
+    fun currentSessionId(): String = sessionId
 
     @Synchronized
     fun resolve(
         policy: CollectionPolicy = CollectionPolicy(),
         refreshRiskSignals: Boolean = false,
     ): DeviceFingerprintSnapshot {
+        store.beginResolution()
         val cached = store.loadLastSnapshot()
         val persistedCanonicalDeviceId = store.loadCanonicalDeviceId()
             ?.let(::normalizeCanonicalId)
@@ -46,17 +51,29 @@ internal class DeviceIdentityManager(
             policy.disableCollectionWindowMs >= 0 &&
             cached != null &&
             cached.fingerprintSchemaVersion == DeviceFingerprintHasher.CACHE_SCHEMA_VERSION &&
-            cached.canonicalDeviceId == persistedCanonicalDeviceId
+            cached.canonicalDeviceId == persistedCanonicalDeviceId &&
+            cached.identityProtectionStatus.durable &&
+            store.protectionStatus().durable
         ) {
             val age = System.currentTimeMillis() - cached.generatedAtMillis
             if (age in 0..policy.disableCollectionWindowMs) {
-                return if (refreshRiskSignals) refreshCachedRiskSignals(cached, policy) else cached
+                val currentSessionSnapshot = cached.copy(
+                    // Session ids are memory-only and must never be trusted from
+                    // the persisted snapshot written by an earlier process.
+                    sessionId = sessionId,
+                    identityProtectionStatus = store.protectionStatus(),
+                )
+                return if (refreshRiskSignals) {
+                    refreshCachedRiskSignals(currentSessionSnapshot, policy)
+                } else {
+                    currentSessionSnapshot
+                }
             }
         }
 
         val canonicalDeviceId = persistedCanonicalDeviceId
         val packageInfo = packageInfo()
-        val installId = resolveLocalInstallId(packageInfo)
+        val installId = resolveLocalInstallId()
         val installLifecycleSha256 = resolveInstallLifecycleSha256(packageInfo)
         val localAndroidId = loadAndroidId()
             ?.takeIf(DeviceFingerprintHasher::isUsableAnchorValue)
@@ -148,8 +165,18 @@ internal class DeviceIdentityManager(
             riskSignals = riskSignals,
             deviceEnvironmentEvidence = deviceEnvironmentEvidence,
             installLifecycleSha256 = installLifecycleSha256,
+            sessionId = sessionId,
+            identityProtectionStatus = store.protectionStatus(),
         )
-        store.persistLastSnapshot(snapshot)
+        if (IdentityPersistencePolicy.shouldPersistSnapshot(snapshot.identityProtectionStatus)) {
+            val persisted = runCatching {
+                // Never write the process-only session id into the durable cache.
+                store.persistLastSnapshot(snapshot.copy(sessionId = ""))
+            }.isSuccess
+            if (!persisted) {
+                return snapshot.copy(identityProtectionStatus = store.protectionStatus())
+            }
+        }
         return snapshot
     }
 
@@ -175,10 +202,15 @@ internal class DeviceIdentityManager(
         )
     }
 
-    fun currentSnapshot(): DeviceFingerprintSnapshot? = store.loadLastSnapshot()
+    fun currentSnapshot(): DeviceFingerprintSnapshot? = store.loadLastSnapshot()?.copy(
+        sessionId = sessionId,
+        identityProtectionStatus = store.protectionStatus(),
+    )
 
     fun updateCanonicalDeviceId(deviceId: String?) {
-        normalizeServerCanonicalId(deviceId)?.let(store::persistCanonicalDeviceId)
+        normalizeServerCanonicalId(deviceId)?.let { normalized ->
+            runCatching { store.persistCanonicalDeviceId(normalized) }
+        }
     }
 
     /**
@@ -190,53 +222,41 @@ internal class DeviceIdentityManager(
     fun updateServerInstallId(installId: String?) {
         val normalized = normalizeServerInstallId(installId) ?: return
         if (store.loadInstallId() == normalized) return
-        store.persistInstallId(normalized)
-        store.clearLastSnapshot()
+        runCatching {
+            store.persistInstallId(normalized)
+            store.clearLastSnapshot()
+        }
     }
 
     private fun normalizeServerInstallId(value: String?): String? =
-        value?.trim()?.takeIf { SERVER_INSTALL_ID_PATTERN.matches(it) }
+        value?.trim()?.takeIf(InstallIdAdmission::isServer)
 
-    /**
-     * The server-issued value is persisted whenever the normal encrypted store
-     * is available. A few managed/emulated environments can reset app-local
-     * storage on reboot without reinstalling the package; use the package
-     * install epoch only as a deterministic, low-trust request seed in that
-     * case. PackageManager changes firstInstallTime on an uninstall/reinstall,
-     * while a reboot or force-stop keeps it stable. The seed is hashed in the
-     * public request and never acts as a canonical device identity or verdict.
-     */
-    private fun resolveLocalInstallId(packageInfo: PackageInfo?): String {
-        store.loadInstallId()?.let { return it }
-        val packageInstallEpoch = packageInfo?.firstInstallTime
-            ?.takeIf { it > 0L }
-            ?.toString()
-            ?: appContext.applicationInfo?.sourceDir
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-        val installId = packageInstallEpoch
-            ?.let { epoch ->
-                UUID.nameUUIDFromBytes(
-                    "${appContext.packageName}:install-epoch:$epoch"
-                        .toByteArray(StandardCharsets.UTF_8),
-                ).toString()
-            }
-            ?: UUID.randomUUID().toString()
-        store.persistInstallId(installId)
+    /** The server-issued value is persisted whenever the encrypted store works. */
+    private fun resolveLocalInstallId(): String {
+        store.loadInstallId()
+            ?.trim()
+            ?.takeIf(::isUsableInstallId)
+            ?.let { return it }
+
+        // A fresh installation receives a random value; package metadata is
+        // never used as an install identity seed.
+        val installId = ephemeralInstallId
+        runCatching { store.persistInstallId(installId) }
         return installId
     }
 
-    /**
-     * A one-way lifecycle handle lets the server recover the same issued
-     * install id if an emulator/managed device loses app-local storage on a
-     * reboot. PackageManager's firstInstallTime survives a reboot and changes
-     * on uninstall/reinstall; raw timestamps never leave the device.
-     */
+    /** A one-way lifecycle hint is emitted only when PackageManager has an epoch. */
     private fun resolveInstallLifecycleSha256(packageInfo: PackageInfo?): String? {
-        val firstInstallTime = packageInfo?.firstInstallTime?.takeIf { it > 0L } ?: return null
-        val seed = "${appContext.packageName}:install-epoch:$firstInstallTime"
-        return DeviceFingerprintHasher.sha256Hex(seed.toByteArray(StandardCharsets.UTF_8))
+        // The lifecycle handle is a one-way recovery hint, not install_id. It
+        // is emitted only when PackageManager provides a positive install epoch.
+        return InstallLifecycleHint.sha256(
+            packageName = appContext.packageName,
+            firstInstallTime = packageInfo?.firstInstallTime,
+        )
     }
+
+    private fun isUsableInstallId(value: String): Boolean =
+        InstallIdAdmission.isUsable(value)
 
     private fun buildIdentityAnchor(androidId: String?): String =
         when {
@@ -649,7 +669,6 @@ internal class DeviceIdentityManager(
         }
 
     companion object {
-        private val SERVER_INSTALL_ID_PATTERN = Regex("^I[0-9a-f]{32}$")
         private fun normalizeCanonicalId(value: String): String? =
             normalizeServerCanonicalId(value)
 
