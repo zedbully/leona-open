@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package leona.evidence.v1;
+
+option java_package = "io.leonasec.proto.v1";
+option java_multiple_files = true;
+option java_outer_classname = "LeonaEvidenceV1";
+
+// Provider-verified, evidence-only ingress.  Scope, identity and verdict
+// authority remain server-side; client declarations are comparison inputs.
+message EvidenceIngestRequest {
+  reserved 13 to 15;
+
+  uint32 protocol_major = 1;
+  string tenant_id = 2;
+  string app_id = 3;
+  string environment_id = 4;
+  string install_id = 5;
+  string session_id = 6;
+  string request_id = 7;
+  bytes nonce = 8;
+  string idempotency_key = 9;
+  int64 issued_at_epoch_ms = 10;
+  ClientScopeDeclaration client_scope = 11;
+  EvidenceBatch evidence_batch = 12;
+}
+
+message ClientScopeDeclaration {
+  reserved 4 to 15;
+
+  string tenant_id = 1;
+  string app_id = 2;
+  string environment_id = 3;
+}
+
+message EvidenceBatch {
+  reserved 2 to 15;
+
+  repeated EvidenceEntry entries = 1;
+}
+
+message EvidenceEntry {
+  reserved 11 to 15;
+
+  string key = 1;
+  int64 observed_at_epoch_ms = 2;
+  EvidenceSource source = 3;
+  EvidenceQuality quality = 4;
+  oneof value {
+    bool bool_value = 5;
+    sint64 int_value = 6;
+    fixed64 uint_value = 7;
+    string string_value = 8;
+    bytes bytes_value = 9;
+    EvidenceEnum enum_value = 10;
+  }
+}
+
+enum EvidenceSource {
+  EVIDENCE_SOURCE_UNSPECIFIED = 0;
+  EVIDENCE_SOURCE_ANDROID = 1;
+  EVIDENCE_SOURCE_LEO_PROVIDER = 2;
+  EVIDENCE_SOURCE_PLATFORM = 3;
+}
+
+enum EvidenceQuality {
+  EVIDENCE_QUALITY_UNSPECIFIED = 0;
+  EVIDENCE_QUALITY_RAW = 1;
+  EVIDENCE_QUALITY_VERIFIED = 2;
+  EVIDENCE_QUALITY_REDACTED = 3;
+}
+
+enum EvidenceEnum {
+  EVIDENCE_ENUM_UNSPECIFIED = 0;
+  EVIDENCE_ENUM_TRUE = 1;
+  EVIDENCE_ENUM_FALSE = 2;
+  EVIDENCE_ENUM_UNKNOWN = 3;
+}

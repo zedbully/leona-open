@@ -27,6 +27,7 @@ import io.leonasec.leona.crypto.LeonaCryptoProtectedHeadersCodec
 import io.leonasec.leona.internal.spi.SecureDeviceContext
 import io.leonasec.leona.internal.spi.SecureReportingErrorCode
 import io.leonasec.leona.internal.spi.SecureReportingException
+import io.leonasec.leona.internal.proto.LeonaProtectedLogicalPayloadHandoff
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -41,6 +42,21 @@ import org.mockito.Mockito.mock
 import java.nio.charset.StandardCharsets
 
 class SecureChannelTest {
+
+    @Test
+    fun `typed protobuf handoff stops when protected descriptor carrier is unavailable`() = runBlocking {
+        val channel = SecureChannel(mockContext(), LeonaConfig.Builder().build())
+        val handoff = LeonaProtectedLogicalPayloadHandoff.ExternalBlocked(
+            io.leonasec.leona.internal.proto.LeonaProtobufFailureCode.EXTERNAL_BLOCKED,
+        )
+        val error = runCatching { channel.uploadProtectedLogicalPayload(handoff, deviceContext()) }
+            .exceptionOrNull()
+        assertNotNull(error)
+        assertEquals(
+            SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE,
+            (error as SecureReportingException).code,
+        )
+    }
 
     @Test
     fun `upload fails closed when reporting endpoint is absent`() = runBlocking {

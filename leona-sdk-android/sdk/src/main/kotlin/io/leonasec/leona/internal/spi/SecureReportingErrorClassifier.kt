@@ -20,6 +20,7 @@ enum class SecureReportingErrorCode(val wireValue: String, val retryableByDefaul
     REPORTING_ENDPOINT_REQUIRED("reporting_endpoint_required", false),
     API_KEY_REQUIRED("api_key_required", false),
     SECURE_ENGINE_REQUIRED("secure_engine_required", false),
+    PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE("protected_payload_carrier_unavailable", false),
     UNKNOWN("unknown", false),
 }
 

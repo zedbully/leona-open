@@ -22,6 +22,7 @@ import io.leonasec.leona.internal.spi.SecureReportingErrorCode
 import io.leonasec.leona.internal.spi.SecureReportingException
 import io.leonasec.leona.internal.spi.SecureReportingErrorClassifier
 import io.leonasec.leona.internal.spi.SecureUploadResult
+import io.leonasec.leona.internal.proto.LeonaProtectedLogicalPayloadHandoff
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -151,6 +152,32 @@ internal class SecureChannel(
             canonicalDeviceId = verdict.canonicalDeviceId,
             serverVerdict = verdict,
             serverInstallId = serverInstallId,
+        )
+    }
+
+    /**
+     * Hands an exact logical payload to the channel boundary. The current public
+     * crypto adapter has no typed descriptor carrier, so this lane stops before
+     * request construction rather than guessing protected metadata or falling
+     * back to JSON/plaintext.
+     */
+    suspend fun uploadProtectedLogicalPayload(
+        handoff: LeonaProtectedLogicalPayloadHandoff,
+        deviceContext: SecureDeviceContext,
+    ): SecureUploadResult {
+        @Suppress("UNUSED_VARIABLE")
+        val ignoredDeviceContext = deviceContext
+        val detail = if (handoff is LeonaProtectedLogicalPayloadHandoff.ExternalBlocked) {
+            "upstream payload handoff is externally blocked"
+        } else {
+            "typed protobuf descriptor carrier is not admitted"
+        }
+        throw SecureReportingErrorClassifier.exception(
+            operation = "protected_payload_upload",
+            classification = SecureReportingErrorClassification(
+                SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE,
+            ),
+            detail = detail,
         )
     }
 

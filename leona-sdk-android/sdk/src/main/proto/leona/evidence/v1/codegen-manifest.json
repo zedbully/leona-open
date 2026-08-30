@@ -1,0 +1,28 @@
+{
+  "schema": "leona.evidence.v1",
+  "source": {
+    "path": "ingest.proto",
+    "sha256": "e93b2c21f55db26f0179be7d18e35ea2a5005786f8e43e3a6027ddf59b9268a3"
+  },
+  "descriptor": {
+    "path": "../../../../resources/leona/evidence/v1/ingest.pb",
+    "sha256": "1056487dea69e58894f48aea6d04a528e1e2aaf543fc708deb7cec007aaf8703"
+  },
+  "golden": {
+    "path": "../../../../../test/resources/leona/evidence/v1/valid-ingest.bin",
+    "sha256": "b372aee07b4372234bcdfa102bbbd05e1f7e68d1d15b6a2f9164bde4af89d1da"
+  },
+  "protoc": "libprotoc 29.4",
+  "java_mode": "lite",
+  "runtime": {
+    "module": "com.google.protobuf:protobuf-javalite",
+    "version": "4.29.4",
+    "license": "Apache-2.0",
+    "jar_sha256": "622f9ddfd99e8391efb5b2be5cb149dacaba1104905635eecf6ceac8e43e122e"
+  },
+  "generated_sources": {
+    "directory": "../../../../java/io/leonasec/proto/v1",
+    "file_count": 12,
+    "sha256_path_and_bytes": "644b7d2ababe4f37f04fe86af3f595f9212fef954e1bbfc7f4ab9c366d4ef500"
+  }
+}

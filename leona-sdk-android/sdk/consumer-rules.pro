@@ -23,3 +23,6 @@
 
 # --- Kotlin metadata for public API only ---
 -keepattributes *Annotation*, InnerClasses, EnclosingMethod, Signature
+
+# Generated protobuf-lite bindings are loaded reflectively by the lite runtime.
+-keep class io.leonasec.proto.v1.** { *; }

@@ -99,6 +99,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
+    implementation(libs.protobuf.javalite)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
