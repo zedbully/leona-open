@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "vectors": [
+    {
+      "id": "valid",
+      "mutation": "none",
+      "expected": "PASS"
+    },
+    {
+      "id": "bad-magic",
+      "mutation": "flip magic byte",
+      "expected": "BAD_MAGIC"
+    },
+    {
+      "id": "bad-version",
+      "mutation": "version=2",
+      "expected": "UNSUPPORTED_VERSION"
+    },
+    {
+      "id": "bad-count",
+      "mutation": "fieldCount=4 or 6",
+      "expected": "FIELD_COUNT_MISMATCH"
+    },
+    {
+      "id": "header-reserved",
+      "mutation": "header reserved nonzero",
+      "expected": "NONZERO_RESERVED"
+    },
+    {
+      "id": "unknown-tag",
+      "mutation": "replace tag 3 with tag 6",
+      "expected": "UNKNOWN_TAG"
+    },
+    {
+      "id": "duplicate-tag",
+      "mutation": "repeat tag 2",
+      "expected": "DUPLICATE_TAG"
+    },
+    {
+      "id": "out-of-order",
+      "mutation": "swap tags 2 and 3",
+      "expected": "OUT_OF_ORDER_TAG"
+    },
+    {
+      "id": "tlv-flags",
+      "mutation": "set any TLV flags nonzero",
+      "expected": "NONZERO_FLAGS"
+    },
+    {
+      "id": "tlv-reserved",
+      "mutation": "set any TLV reserved nonzero",
+      "expected": "NONZERO_RESERVED"
+    },
+    {
+      "id": "codec-mismatch",
+      "mutation": "change tag 1 bytes, preserve length",
+      "expected": "DESCRIPTOR_MISMATCH"
+    },
+    {
+      "id": "schema-mismatch",
+      "mutation": "change tag 2 bytes, preserve length",
+      "expected": "DESCRIPTOR_MISMATCH"
+    },
+    {
+      "id": "message-mismatch",
+      "mutation": "change tag 3 bytes, preserve length",
+      "expected": "DESCRIPTOR_MISMATCH"
+    },
+    {
+      "id": "digest-mismatch",
+      "mutation": "flip one tag 4 byte",
+      "expected": "DESCRIPTOR_MISMATCH"
+    },
+    {
+      "id": "invalid-utf8",
+      "mutation": "invalid UTF-8 in tags 1-3",
+      "expected": "INVALID_UTF8"
+    },
+    {
+      "id": "empty-payload",
+      "mutation": "tag 5 length=0",
+      "expected": "EMPTY_PAYLOAD"
+    },
+    {
+      "id": "max-payload",
+      "mutation": "tag 5 length=131072",
+      "expected": "PASS at carrier layer"
+    },
+    {
+      "id": "max-plus-one",
+      "mutation": "tag 5 length=131073",
+      "expected": "OVERSIZE"
+    },
+    {
+      "id": "truncated-header",
+      "mutation": "input shorter than 12 bytes",
+      "expected": "TRUNCATED"
+    },
+    {
+      "id": "truncated-value",
+      "mutation": "declared TLV length exceeds remaining bytes",
+      "expected": "TRUNCATED"
+    },
+    {
+      "id": "trailing-byte",
+      "mutation": "append one byte after tag 5",
+      "expected": "TRAILING_BYTES"
+    },
+    {
+      "id": "malformed-protobuf",
+      "mutation": "valid carrier with malformed tag-5 bytes",
+      "expected": "PROTOBUF_REJECTED"
+    },
+    {
+      "id": "provider-tamper",
+      "mutation": "change carrier ciphertext or Leo binding",
+      "expected": "PROVIDER_REJECTED before carrier bytes are exposed"
+    }
+  ]
+}
