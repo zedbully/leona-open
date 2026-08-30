@@ -161,16 +161,15 @@ class SecureChannelTest {
     }
 
     @Test
-    fun `carrier encode failures never invoke Leo or network`() = runBlocking {
+    fun `synthetic test seam carrier encode failures never invoke Leo or network`() = runBlocking {
         val server = MockWebServer()
         val transport = RecordingCryptoTransport(
             response = LeonaCryptoHttpResponse(statusCode = 200),
         )
         server.start()
         try {
-            val handoff = LeonaProtectedLogicalPayloadHandoff.ExternalBlocked(
-                io.leonasec.leona.internal.proto.LeonaProtobufFailureCode.EXTERNAL_BLOCKED,
-            )
+            val handoff = (LeonaEvidenceProtobufCodec.encode(carrierGoldenModel())
+                as LeonaProtobufEncodeResult.Success).handoff
             val failureCodes = listOf(
                 LeonaProtectedPayloadCarrierV1.FailureCode.DESCRIPTOR_MISMATCH,
                 LeonaProtectedPayloadCarrierV1.FailureCode.EMPTY_PAYLOAD,

@@ -142,6 +142,8 @@ class AndroidPayloadCarrierContractTest(unittest.TestCase):
         self.assertIn("User-Agent", doc)
         self.assertIn("Accept-Encoding", doc)
         self.assertIn("CookieJar", doc)
+        self.assertIn("synthetic test seam", doc)
+        self.assertIn("externally reachable", doc)
         self.assertNotRegex(doc, r"(?i)JSON/plaintext/custom-crypto fallback")
         self.assertNotRegex(source, r"(?i)clear\s+HTTP|X-Leona-|X-Leo-")
 

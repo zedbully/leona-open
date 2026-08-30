@@ -52,3 +52,9 @@ these Android tests.
 Android codec/parser tests execute the frozen 23-vector corpus and exact
 cross-language golden. These are host/JVM contract evidence only; API23-36
 provider/device/runtime/release admission remains open.
+
+Only the canonical private handoff and `ExternalBlocked` variants are
+externally reachable through the current SDK. The descriptor/empty/oversize/
+internal encoder-failure cases are covered by direct carrier unit tests; the
+SecureChannel failure-injection test is explicitly a synthetic test seam, not
+an externally constructible handoff.
