@@ -23,6 +23,7 @@ import io.leonasec.leona.internal.spi.SecureReportingException
 import io.leonasec.leona.internal.spi.SecureReportingErrorClassifier
 import io.leonasec.leona.internal.spi.SecureUploadResult
 import io.leonasec.leona.internal.proto.LeonaProtectedLogicalPayloadHandoff
+import io.leonasec.leona.internal.proto.LeonaProtectedPayloadCarrierV1
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +37,8 @@ import java.util.UUID
 internal class SecureChannel(
     private val context: Context,
     private val config: LeonaConfig,
+    private val protectedPayloadEncoder: (LeonaProtectedLogicalPayloadHandoff) -> LeonaProtectedPayloadCarrierV1.EncodeResult =
+        LeonaProtectedPayloadCarrierV1::encode,
 ) {
 
     suspend fun prepareTamperContext(): TamperContext {
@@ -156,29 +159,32 @@ internal class SecureChannel(
     }
 
     /**
-     * Hands an exact logical payload to the channel boundary. The current public
-     * crypto adapter has no typed descriptor carrier, so this lane stops before
-     * request construction rather than guessing protected metadata or falling
-     * back to JSON/plaintext.
+     * Wraps the canonical logical Protobuf handoff in one request-only LPCARR01
+     * body before it reaches the existing Leo authenticated upload boundary.
+     * Descriptor values are authenticated as carrier fields, never HTTP headers.
      */
     suspend fun uploadProtectedLogicalPayload(
         handoff: LeonaProtectedLogicalPayloadHandoff,
         deviceContext: SecureDeviceContext,
     ): SecureUploadResult {
-        @Suppress("UNUSED_VARIABLE")
-        val ignoredDeviceContext = deviceContext
-        val detail = if (handoff is LeonaProtectedLogicalPayloadHandoff.ExternalBlocked) {
-            "upstream payload handoff is externally blocked"
-        } else {
-            "typed protobuf descriptor carrier is not admitted"
+        val carrier = when (val encoded = protectedPayloadEncoder(handoff)) {
+            is LeonaProtectedPayloadCarrierV1.EncodeResult.Success -> encoded.bytes
+            is LeonaProtectedPayloadCarrierV1.EncodeResult.Failure -> {
+                val detail = if (encoded.code == LeonaProtectedPayloadCarrierV1.FailureCode.EXTERNAL_BLOCKED) {
+                    "upstream payload handoff is externally blocked"
+                } else {
+                    "protected payload carrier encoding failed: ${encoded.code.name.lowercase()}"
+                }
+                throw SecureReportingErrorClassifier.exception(
+                    operation = "protected_payload_upload",
+                    classification = SecureReportingErrorClassification(
+                        SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE,
+                    ),
+                    detail = detail,
+                )
+            }
         }
-        throw SecureReportingErrorClassifier.exception(
-            operation = "protected_payload_upload",
-            classification = SecureReportingErrorClassification(
-                SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE,
-            ),
-            detail = detail,
-        )
+        return upload(carrier, deviceContext)
     }
 
     private fun buildReportingRequest(

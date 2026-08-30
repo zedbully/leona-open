@@ -66,11 +66,15 @@ class AndroidProtobufContractTest(unittest.TestCase):
         self.assertIn("INVALID_ONEOF", source)
         self.assertNotRegex(source, r"(?i)json|plaintext|fallback")
 
-    def test_typed_handoff_stops_before_unadmitted_carrier(self):
+    def test_typed_handoff_encodes_carrier_before_existing_upload(self):
         source = CHANNEL.read_text()
         self.assertIn("uploadProtectedLogicalPayload", source)
         self.assertIn("PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE", source)
-        self.assertIn("typed protobuf descriptor carrier is not admitted", source)
+        self.assertIn("LeonaProtectedPayloadCarrierV1", source)
+        encode_at = source.index("protectedPayloadEncoder(handoff)")
+        upload_at = source.index("return upload(carrier, deviceContext)")
+        self.assertLess(encode_at, upload_at)
+        self.assertNotIn("typed protobuf descriptor carrier is not admitted", source)
         # Existing transport remains Leo media type only; no new clear custom headers.
         self.assertNotRegex(source, r"setHeader\(\s*\"X-(?:Leona|Leo)-")
 

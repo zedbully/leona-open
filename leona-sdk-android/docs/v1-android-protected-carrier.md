@@ -5,8 +5,10 @@ Classification: `CANDIDATE_ONLY / SUPPORT_ONLY / NON_ADMIT`.
 The SDK builds a **request-only** `LPCARR01` body from the already strict
 `leona.evidence.v1.EvidenceIngestRequest` Protobuf bytes. The body is intended
 to be passed as the opaque application body to the caller-owned Leo
-authenticated channel. This module does not seal/open Leo envelopes, create
-provider receipts, or make a network request.
+authenticated channel. `SecureChannel.uploadProtectedLogicalPayload` encodes
+that carrier once and hands those exact whole-body bytes to the existing Leo
+request path. It does not create provider receipts or make a client-side
+business decision from a server verdict.
 
 ## Exact layout
 
@@ -30,11 +32,14 @@ The frozen 339-byte carrier is byte-for-byte equal to the Rust/API golden:
 
 Descriptor fields are inside the authenticated body; they are not clear HTTP
 headers. The SDK does not add or remove wire headers before the exact Crypto
-contract is frozen. Only the existing Leo media type framing remains in scope;
-OkHttp's automatic `User-Agent` and `Accept-Encoding: gzip` are external
-transport interoperability blockers to record, not headers this module
-controls. A non-empty caller `CookieJar` is likewise forbidden and must fail
-closed; this module does not add, strip, or normalize cookies.
+contract is frozen. Only the existing Leo media type framing remains in scope.
+Under the frozen amended outer-header contract, OkHttp's automatic `User-Agent`
+and exactly one `Accept-Encoding: gzip` are transport-tolerated,
+non-authenticated, and not
+carrier metadata. This module does not add, remove, or normalize either header.
+Cookies and `Set-Cookie` remain forbidden: a caller client with a non-empty
+`CookieJar` must fail closed. Raw compressed-response verification remains a
+separate integration gate and is not accepted by these host tests.
 
 The optional Leo provider and authenticated carrier are not present in this
 candidate. Therefore actual seal/runtime interoperability remains
