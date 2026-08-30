@@ -10,6 +10,10 @@ SOURCE = (
     Path(__file__).resolve().parents[2]
     / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/LeonaIdentityStore.kt"
 ).read_text(encoding="utf-8")
+MANAGER_SOURCE = (
+    Path(__file__).resolve().parents[2]
+    / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/DeviceIdentityManager.kt"
+).read_text(encoding="utf-8")
 
 
 class LeonaIdentityStoreContractTest(unittest.TestCase):
@@ -44,6 +48,42 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertIn(".putString(key, encryptedValue).commit()", SOURCE)
         self.assertIn('"Unable to persist Leona identity state"', SOURCE)
         self.assertNotIn(".apply()", SOURCE)
+
+    def test_new_install_lifecycle_cannot_restore_identity_from_backup(self) -> None:
+        self.assertIn("context.noBackupFilesDir", SOURCE)
+        self.assertIn('"leona-install-lifecycle-v1"', SOURCE)
+        self.assertIn("ensureCurrentInstallLifecycle()", SOURCE)
+        self.assertRegex(
+            SOURCE,
+            r"remove\(KEY_INSTALL_ID\)[\s\S]{0,160}"
+            r"remove\(KEY_CANONICAL_DEVICE_ID\)[\s\S]{0,160}"
+            r"remove\(KEY_LAST_SNAPSHOT\)",
+        )
+        self.assertIn("lifecycleMarker.createNewFile()", SOURCE)
+
+    def test_valid_encrypted_state_survives_a_missing_sentinel(self) -> None:
+        self.assertRegex(
+            SOURCE,
+            r"val existingInstallId = decrypt\(prefs\.getString\(KEY_INSTALL_ID, null\)\)",
+        )
+        self.assertRegex(
+            SOURCE,
+            r"existingInstallId != null[\s\S]{0,500}lifecycleMarker\.createNewFile\(\)"
+            r"[\s\S]{0,180}return",
+        )
+        self.assertRegex(
+            SOURCE,
+            r"existingInstallId != null[\s\S]{0,520}remove\(KEY_INSTALL_ID\)",
+        )
+
+    def test_install_epoch_seed_is_only_a_storage_recovery_input(self) -> None:
+        self.assertIn("packageInfo?.firstInstallTime", MANAGER_SOURCE)
+        self.assertIn("appContext.applicationInfo?.sourceDir", MANAGER_SOURCE)
+        self.assertIn("val packageInstallEpoch", MANAGER_SOURCE)
+        self.assertIn("UUID.nameUUIDFromBytes", MANAGER_SOURCE)
+        self.assertIn('"${appContext.packageName}:install-epoch:$epoch"', MANAGER_SOURCE)
+        self.assertIn("toByteArray(StandardCharsets.UTF_8)", MANAGER_SOURCE)
+        self.assertIn("The seed is hashed in the", MANAGER_SOURCE)
 
 
 if __name__ == "__main__":

@@ -800,7 +800,19 @@ engine is absent, `SecureChannel` uses public hosted reporting mode:
 
 If `reportingEndpoint` already ends with `/v1` or `/v1/sense`, the SDK resolves
 the public hosted path to `/v1/sense/public`. The hosted API returns an opaque
-`boxId`, and may also return `canonicalDeviceId` plus evidence summary fields.
+`boxId`, a server-issued per-install `installId` (`I` plus 32 lowercase
+hexadecimal characters), and may also return `canonicalDeviceId` plus evidence
+summary fields. The SDK persists only a value matching that server-issued
+format; compatibility response aliases `install_id` and `serverInstallId` are
+accepted during rollout. The outbound request continues to send only
+`installIdSha256`, never the raw install id.
+
+The server keeps the issued value stable across reboot, process death, and
+normal app updates. A genuine uninstall followed by install starts a new local
+install lifecycle and receives a new server `installId`; the Android SDK uses a
+`noBackupFilesDir` lifecycle marker so restored preferences cannot resurrect an
+old install id. `installId` is an install correlation handle, not a canonical
+device identity or a final risk decision.
 The client still does not make allow/reject/block decisions; your backend must
 query `/v1/verdict` with the SecretKey and apply its own business policy.
 
@@ -1157,7 +1169,22 @@ For security reasons, this public repository does not include:
 
 ## Public API surface
 
-That's the entire API.
+The evidence API remains the default surface. The optional transport contract
+for the external Leo crypto facade is separate from evidence collection:
+
+```
+io.leonasec.leona.crypto
+├─ LeonaCryptoTransport
+├─ LeonaCryptoHttpRequest / LeonaCryptoHttpResponse
+├─ LeonaCryptoEnvelopeCodec
+└─ LeonaCryptoAssertionProvider / LeonaCryptoScopeProvider
+```
+
+The compile-time provider adapter lives in `crypto-adapter/` and is excluded
+unless `LEONA_CRYPTO_AAR` names an external private AAR. See
+[`docs/leo-crypto-integration.md`](docs/leo-crypto-integration.md) for the
+Android activation, API/server envelope, version gate, and no-plaintext-
+fallback rules.
 
 ```
 io.leonasec.leona

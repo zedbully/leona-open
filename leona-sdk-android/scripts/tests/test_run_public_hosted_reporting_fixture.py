@@ -56,6 +56,7 @@ class PublicHostedReportingFixtureTest(unittest.TestCase):
                 "nativeFactTags": ["native.runtime.available"],
                 "nativeFindingIds": [],
                 "installIdSha256": "a" * 64,
+                "installLifecycleSha256": "c" * 64,
                 "resolvedDeviceIdSha256": "b" * 64,
             },
         }
@@ -86,6 +87,7 @@ class PublicHostedReportingFixtureTest(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertRegex(response["boxId"], r"^[0-9a-f-]{36}$")
         self.assertRegex(response["canonicalDeviceId"], r"^L[0-9a-f]{64}$")
+        self.assertRegex(response["installId"], r"^I[0-9a-f]{32}$")
         forbidden = {"decision", "action", "allow", "deny", "riskScore", "riskLevel"}
         self.assertTrue(forbidden.isdisjoint(response))
 
@@ -103,6 +105,40 @@ class PublicHostedReportingFixtureTest(unittest.TestCase):
         self.assertNotIn(self.payload.decode("utf-8"), receipt_text)
         for value in response.values():
             self.assertNotIn(str(value), receipt_text)
+
+    def test_lifecycle_alias_keeps_server_install_id_when_client_hash_changes(self) -> None:
+        first_status, first = self._post(self._body())
+        changed_hash_body = self._body()
+        changed_hash_body["deviceContext"] = {
+            **changed_hash_body["deviceContext"],  # type: ignore[arg-type]
+            "installIdSha256": "d" * 64,
+        }
+        second_status, second = self._post(changed_hash_body)
+        self.assertEqual(200, first_status)
+        self.assertEqual(200, second_status)
+        self.assertEqual(first["installId"], second["installId"])
+
+        new_lifecycle_body = self._body()
+        new_lifecycle_body["deviceContext"] = {
+            **new_lifecycle_body["deviceContext"],  # type: ignore[arg-type]
+            "installLifecycleSha256": "e" * 64,
+        }
+        third_status, third = self._post(new_lifecycle_body)
+        self.assertEqual(200, third_status)
+        self.assertNotEqual(first["installId"], third["installId"])
+
+    def test_install_hash_is_required_and_lifecycle_hash_is_strict(self) -> None:
+        missing_install = self._body()
+        del missing_install["deviceContext"]["installIdSha256"]  # type: ignore[index]
+        status, response = self._post(missing_install)
+        self.assertEqual(400, status)
+        self.assertEqual({"error": "invalid_report"}, response)
+
+        invalid_lifecycle = self._body()
+        invalid_lifecycle["deviceContext"]["installLifecycleSha256"] = "not-a-digest"  # type: ignore[index]
+        status, response = self._post(invalid_lifecycle)
+        self.assertEqual(400, status)
+        self.assertEqual({"error": "invalid_report"}, response)
 
     def test_unauthorized_report_is_rejected_without_receipt(self) -> None:
         status, response = self._post(self._body(), api_key="wrong-key")

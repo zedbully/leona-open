@@ -40,6 +40,37 @@ Leona currently maintains three identity layers on-device:
 Canonical identity is server-owned. Client-provided canonical values, including
 legacy raw headers, are claims at most; they are not identity authority.
 
+### 1.1 Install ID lifecycle and wire contract
+
+`installId` is a **per-app-install correlation handle**, not the canonical
+device identity and not a final risk verdict:
+
+- Before the first successful report, the SDK may use a locally generated UUID
+  as a provisional seed. The public request sends only
+  `deviceContext.installIdSha256`, never the raw UUID.
+- The server atomically resolves or mints an opaque value matching
+  `I[0-9a-f]{32}` for the tenant and incoming hash. The public sense response
+  carries that value as `installId` (accepted compatibility aliases include
+  `install_id` and `serverInstallId`).
+- The SDK accepts and persists only that strict server-issued format. Once it is
+  accepted, it clears the cached fingerprint snapshot so the next report hashes
+  the server-issued value. The server registry aliases the incoming provisional
+  hash to the issued value, so subsequent reports remain on the same install
+  mapping.
+- The lifecycle sentinel lives under Android `noBackupFilesDir`. Because that
+  directory is excluded from Auto Backup, a restored preferences file cannot
+  silently resurrect the old install id. A genuine uninstall/reinstall has no
+  sentinel and resets the encrypted local install state, so the new install
+  obtains a new provisional seed and is assigned a new server `installId`.
+- Reboot, process death, cache expiry, and normal app updates do not rotate the
+  value. Rotation is tied to a new app-install lifecycle, or to an explicit
+  server-side expiry/revocation policy.
+
+The server must keep the mapping and final decision separate: `installId` is
+useful for install history, replay/freshness correlation, and evidence joins,
+but it must not be promoted to `canonicalDeviceId` or used as a standalone
+allow/deny factor. The final business decision remains server-side.
+
 ---
 
 ## 2. Client-side sources
@@ -194,6 +225,7 @@ Legacy fields, if a mixed-version client still sends them, have this meaning:
 
 ### Handshake response fields recognized by client
 
+- `installId` / `install_id` / `serverInstallId`
 - `sessionId`
 - `serverPublicKey`
 - `tamperBaseline`
@@ -209,6 +241,7 @@ Legacy fields, if a mixed-version client still sends them, have this meaning:
 
 Recommendation for server:
 
+- always return the server-issued `installId` after registration
 - always return a **canonical device id** once available
 - keep it stable across app reinstalls when your server risk policy allows
 - bind canonical identity to server-side session/device-binding state

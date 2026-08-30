@@ -34,6 +34,7 @@ class ParseCloudTestSenseResultTest(unittest.TestCase):
             "boxId": BOX_ID,
             "canonicalDeviceIdHint": "abcd...wxyz",
             "canonicalDeviceIdSha256": "a" * 16,
+            "serverInstallIdSha256": "b" * 16,
             "durationMs": 23,
             "reportingEndpointConfigured": True,
             "apiKeyConfigured": True,
@@ -46,6 +47,7 @@ class ParseCloudTestSenseResultTest(unittest.TestCase):
         self.assertEqual("abcd...wxyz", normalized["canonicalDeviceIdHint"])
         self.assertTrue(normalized["reportingEndpointConfigured"])
         self.assertTrue(normalized["apiKeyConfigured"])
+        self.assertEqual("b" * 16, normalized["serverInstallIdSha256"])
 
     def test_accepts_current_ulid_and_correlates_the_run(self) -> None:
         payload = {
@@ -174,6 +176,16 @@ class ParseCloudTestSenseResultTest(unittest.TestCase):
         self.assertEqual(2, malformed.returncode)
         stale = self.run_parser({"boxId": BOX_ID, "canonicalDeviceIdHint": "abcd...wxyz", "canonicalDeviceIdSha256": "a" * 16, "durationMs": 1}, age=301)
         self.assertEqual(2, stale.returncode)
+
+    def test_rejects_malformed_server_install_id_hash(self) -> None:
+        result = self.run_parser({
+            "boxId": BOX_ID,
+            "canonicalDeviceIdHint": None,
+            "canonicalDeviceIdSha256": None,
+            "serverInstallIdSha256": "not-a-digest",
+            "durationMs": 1,
+        })
+        self.assertEqual(2, result.returncode)
 
     def test_accepts_receiver_null_canonical_pair_and_empty_error_message(self) -> None:
         success = self.run_parser({"boxId": BOX_ID, "canonicalDeviceIdHint": None, "canonicalDeviceIdSha256": None, "durationMs": 1})

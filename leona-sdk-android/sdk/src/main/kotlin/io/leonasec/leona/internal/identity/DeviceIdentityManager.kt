@@ -17,6 +17,7 @@ import android.util.Base64
 import io.leonasec.leona.config.LeonaConfig
 import java.security.MessageDigest
 import java.net.NetworkInterface
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
@@ -53,9 +54,10 @@ internal class DeviceIdentityManager(
             }
         }
 
-        val installId = store.loadInstallId() ?: UUID.randomUUID().toString().also(store::persistInstallId)
         val canonicalDeviceId = persistedCanonicalDeviceId
         val packageInfo = packageInfo()
+        val installId = resolveLocalInstallId(packageInfo)
+        val installLifecycleSha256 = resolveInstallLifecycleSha256(packageInfo)
         val localAndroidId = loadAndroidId()
             ?.takeIf(DeviceFingerprintHasher::isUsableAnchorValue)
         val androidId = if ("androidId" in policy.disabledSignals) null else localAndroidId
@@ -145,6 +147,7 @@ internal class DeviceIdentityManager(
             screenSummary = screenSummary,
             riskSignals = riskSignals,
             deviceEnvironmentEvidence = deviceEnvironmentEvidence,
+            installLifecycleSha256 = installLifecycleSha256,
         )
         store.persistLastSnapshot(snapshot)
         return snapshot
@@ -176,6 +179,63 @@ internal class DeviceIdentityManager(
 
     fun updateCanonicalDeviceId(deviceId: String?) {
         normalizeServerCanonicalId(deviceId)?.let(store::persistCanonicalDeviceId)
+    }
+
+    /**
+     * Accept only the opaque id minted by the Leona server. A changed server
+     * install id invalidates the cached snapshot so the next report hashes the
+     * accepted value rather than continuing to report the previous install.
+     */
+    @Synchronized
+    fun updateServerInstallId(installId: String?) {
+        val normalized = normalizeServerInstallId(installId) ?: return
+        if (store.loadInstallId() == normalized) return
+        store.persistInstallId(normalized)
+        store.clearLastSnapshot()
+    }
+
+    private fun normalizeServerInstallId(value: String?): String? =
+        value?.trim()?.takeIf { SERVER_INSTALL_ID_PATTERN.matches(it) }
+
+    /**
+     * The server-issued value is persisted whenever the normal encrypted store
+     * is available. A few managed/emulated environments can reset app-local
+     * storage on reboot without reinstalling the package; use the package
+     * install epoch only as a deterministic, low-trust request seed in that
+     * case. PackageManager changes firstInstallTime on an uninstall/reinstall,
+     * while a reboot or force-stop keeps it stable. The seed is hashed in the
+     * public request and never acts as a canonical device identity or verdict.
+     */
+    private fun resolveLocalInstallId(packageInfo: PackageInfo?): String {
+        store.loadInstallId()?.let { return it }
+        val packageInstallEpoch = packageInfo?.firstInstallTime
+            ?.takeIf { it > 0L }
+            ?.toString()
+            ?: appContext.applicationInfo?.sourceDir
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+        val installId = packageInstallEpoch
+            ?.let { epoch ->
+                UUID.nameUUIDFromBytes(
+                    "${appContext.packageName}:install-epoch:$epoch"
+                        .toByteArray(StandardCharsets.UTF_8),
+                ).toString()
+            }
+            ?: UUID.randomUUID().toString()
+        store.persistInstallId(installId)
+        return installId
+    }
+
+    /**
+     * A one-way lifecycle handle lets the server recover the same issued
+     * install id if an emulator/managed device loses app-local storage on a
+     * reboot. PackageManager's firstInstallTime survives a reboot and changes
+     * on uninstall/reinstall; raw timestamps never leave the device.
+     */
+    private fun resolveInstallLifecycleSha256(packageInfo: PackageInfo?): String? {
+        val firstInstallTime = packageInfo?.firstInstallTime?.takeIf { it > 0L } ?: return null
+        val seed = "${appContext.packageName}:install-epoch:$firstInstallTime"
+        return DeviceFingerprintHasher.sha256Hex(seed.toByteArray(StandardCharsets.UTF_8))
     }
 
     private fun buildIdentityAnchor(androidId: String?): String =
@@ -589,6 +649,7 @@ internal class DeviceIdentityManager(
         }
 
     companion object {
+        private val SERVER_INSTALL_ID_PATTERN = Regex("^I[0-9a-f]{32}$")
         private fun normalizeCanonicalId(value: String): String? =
             normalizeServerCanonicalId(value)
 

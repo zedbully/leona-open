@@ -42,6 +42,7 @@ class DeviceFingerprintSnapshotTest {
                 build = mapOf("tags" to "test-keys", "type" to "userdebug"),
                 verifiedBoot = mapOf("state" to "orange"),
             ),
+            installLifecycleSha256 = "e".repeat(64),
         )
 
         val parsed = DeviceFingerprintSnapshot.fromJson(snapshot.toJson())

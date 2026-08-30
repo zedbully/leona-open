@@ -24,6 +24,7 @@ class DeviceIdStabilityScriptTest(unittest.TestCase):
             / "sample-app/src/cloudTest/kotlin/io/leonasec/leona/sample/CloudTestSenseReceiver.kt"
         ).read_text(encoding="utf-8")
         self.assertIn('put("fingerprintHashSha256", fingerprintDiagnosticSha256(diagnostic.fingerprintHash))', receiver)
+        self.assertIn('put("serverInstallIdSha256", serverInstallIdSha256)', receiver)
         self.assertNotIn('put("boxId", boxId.toString())', receiver)
         self.assertNotIn('BOX_ID_REDACTED', receiver)
         self.assertNotIn('BOX_ID_NOT_GENERATED', receiver)
@@ -54,7 +55,8 @@ class DeviceIdStabilityScriptTest(unittest.TestCase):
                 (phase_dir / "logcat.leona.txt").write_text(
                     "\n".join((
                         '{"boxId":"%s","canonicalDeviceIdHint":"abcd...wxyz",' % box_id,
-                        '"canonicalDeviceIdSha256":"%s","fingerprintHashSha256":"%s",' % (canonical, "a" * 64),
+                        '"canonicalDeviceIdSha256":"%s","serverInstallIdSha256":"%s",' % (canonical, "b" * 16),
+                        '"fingerprintHashSha256":"%s",' % ("a" * 64),
                         '"fingerprintSchemaVersion":"3","fingerprintSource":"native",'
                         '"identityAnchorSource":"install"}',
                     )),
@@ -85,8 +87,9 @@ summarize
             self.assertEqual(3, len(rows))
             for row in rows[1:]:
                 columns = row.split("\t")
-                self.assertEqual("pass", columns[8])
-                self.assertRegex(columns[4], re.compile(r"[0-9a-f]{64}\Z"))
+                self.assertEqual("pass", columns[9])
+                self.assertRegex(columns[4], re.compile(r"[0-9a-f]{16}\Z"))
+                self.assertRegex(columns[5], re.compile(r"[0-9a-f]{64}\Z"))
 
     def test_summary_accepts_hash_only_box_observations(self) -> None:
         with tempfile.TemporaryDirectory(prefix="leona-stability-hash-only-test-") as temp:

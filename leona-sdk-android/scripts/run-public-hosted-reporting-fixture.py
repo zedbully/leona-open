@@ -34,6 +34,7 @@ SCHEMA_VERSION = 1
 PUBLIC_SENSE_PATH = "/v1/sense/public"
 HEALTH_PATH = "/healthz"
 MAX_BODY_BYTES = 4 * 1024 * 1024
+SHA256_HEX = frozenset("0123456789abcdef")
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,8 +88,22 @@ class FixtureState:
         self.receipt_path = receipt_path
         self.max_requests = max_requests
         self.success_count = 0
+        # Keep the lab fixture's state model aligned with the hosted registry:
+        # a lifecycle handle is the preferred alias, while the install hash is
+        # retained for old clients that do not send one.
+        self.install_ids_by_key: dict[str, str] = {}
         self.lock = threading.Lock()
         self.server: ThreadingHTTPServer | None = None
+
+    def resolve_install_id(self, *, install_hash: str, lifecycle_hash: str | None) -> str:
+        key = f"lifecycle:{lifecycle_hash}" if lifecycle_hash else f"install:{install_hash}"
+        with self.lock:
+            existing = self.install_ids_by_key.get(key)
+            if existing is not None:
+                return existing
+            issued = "I" + secrets.token_hex(16)
+            self.install_ids_by_key[key] = issued
+            return issued
 
     def record_success(self, receipt: dict[str, Any]) -> None:
         with self.lock:
@@ -104,6 +119,7 @@ def validate_public_report(
     headers: Any,
     raw_body: bytes,
     expected_api_key: str,
+    state: FixtureState,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     supplied_key = headers.get("X-Leona-App-Key", "")
     if not secrets.compare_digest(supplied_key, expected_api_key):
@@ -135,6 +151,15 @@ def validate_public_report(
     if isinstance(sdk_int, bool) or not isinstance(sdk_int, int) or not (1 <= sdk_int <= 100):
         raise ValueError("deviceContext.sdkInt must be an integer")
 
+    install_hash = meaningful_string(device_context.get("installIdSha256"))
+    if install_hash is None or len(install_hash) != 64 or any(char not in SHA256_HEX for char in install_hash):
+        raise ValueError("deviceContext.installIdSha256 must be a lowercase SHA-256 digest")
+    lifecycle_hash = meaningful_string(device_context.get("installLifecycleSha256"))
+    if lifecycle_hash is not None and (
+        len(lifecycle_hash) != 64 or any(char not in SHA256_HEX for char in lifecycle_hash)
+    ):
+        raise ValueError("deviceContext.installLifecycleSha256 must be a lowercase SHA-256 digest")
+
     try:
         decoded_payload = base64.b64decode(encoded_payload, validate=True)
     except (ValueError, base64.binascii.Error) as error:
@@ -156,6 +181,10 @@ def validate_public_report(
     response = {
         "boxId": str(uuid.uuid4()),
         "canonicalDeviceId": "L" + canonical_seed,
+        "installId": state.resolve_install_id(
+            install_hash=install_hash,
+            lifecycle_hash=lifecycle_hash,
+        ),
     }
     receipt = {
         "schemaVersion": SCHEMA_VERSION,
@@ -227,6 +256,7 @@ def create_handler(state: FixtureState) -> type[BaseHTTPRequestHandler]:
                     headers=self.headers,
                     raw_body=raw_body,
                     expected_api_key=state.api_key,
+                    state=state,
                 )
             except PermissionError:
                 self.write_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})

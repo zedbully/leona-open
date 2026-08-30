@@ -110,6 +110,7 @@ class SecureChannelTest {
                     """
                     {
                       "boxId": "box-public-1",
+                      "installId": "I0123456789abcdef0123456789abcdef",
                       "canonicalDeviceId": "L11112222333344445555666677778888",
                       "decision": "evidence_collected",
                       "action": "business_defined",
@@ -140,6 +141,7 @@ class SecureChannelTest {
             val deviceContext = body.getJSONObject("deviceContext")
 
             assertEquals("box-public-1", result.boxId.toString())
+            assertEquals("I0123456789abcdef0123456789abcdef", result.serverInstallId)
             assertEquals("L11112222333344445555666677778888", result.canonicalDeviceId)
             assertEquals("evidence_collected", result.serverVerdict?.decision)
             assertEquals("business_defined", result.serverVerdict?.action)
@@ -211,6 +213,72 @@ class SecureChannelTest {
             assertEquals("box-public-raw", result.boxId.toString())
             assertEquals(null, result.canonicalDeviceId)
             assertEquals(null, result.serverVerdict?.canonicalDeviceId)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `public hosted reporting sends only hashed install lifecycle handle`() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"boxId":"box-lifecycle","installId":"I0123456789abcdef0123456789abcdef"}"""),
+        )
+        server.start()
+        try {
+            val lifecycleHash = "e".repeat(64)
+            val client = PublicHostedReportingClient(
+                LeonaConfig.Builder().build(),
+                OkHttpClient.Builder().build(),
+            )
+
+            client.upload(
+                endpoint = server.url("/").toString(),
+                apiKey = "leona_test_app_key",
+                sdkVersion = "test",
+                payload = byteArrayOf(1, 2, 3),
+                deviceContext = deviceContext(lifecycleHash),
+            )
+
+            val request = server.takeRequest()
+            val body = JSONObject(request.body.readUtf8())
+            val context = body.getJSONObject("deviceContext")
+            assertEquals(lifecycleHash, context.getString("installLifecycleSha256"))
+            assertFalse(body.toString().contains("firstInstallTime"))
+            assertFalse(body.toString().contains("install-epoch"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `public hosted reporting ignores malformed server install id`() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"boxId":"box-invalid-install","installId":"not-an-install-id"}"""),
+        )
+        server.start()
+        try {
+            val client = PublicHostedReportingClient(
+                LeonaConfig.Builder().build(),
+                OkHttpClient.Builder().build(),
+            )
+
+            val result = client.upload(
+                endpoint = server.url("/").toString(),
+                apiKey = "leona_test_app_key",
+                sdkVersion = "test",
+                payload = byteArrayOf(1, 2, 3),
+                deviceContext = deviceContext(),
+            )
+
+            assertEquals(null, result.serverInstallId)
         } finally {
             server.shutdown()
         }
@@ -612,10 +680,11 @@ class SecureChannelTest {
         )
     }
 
-    private fun deviceContext(): SecureDeviceContext = SecureDeviceContext(
+    private fun deviceContext(installLifecycleSha256: String? = null): SecureDeviceContext = SecureDeviceContext(
         installId = "install-1",
         resolvedDeviceId = "Tdevice-1",
         fingerprintHash = "fingerprint-1",
+        installLifecycleSha256 = installLifecycleSha256,
     )
 
     @Test

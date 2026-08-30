@@ -162,6 +162,7 @@ def normalize(payload: Any, expected_run_id_sha256: str | None = None) -> dict[s
     hash_legacy_keys = {"boxIdSha256", "canonicalDeviceIdHint", "canonicalDeviceIdSha256", "durationMs"}
     hash_reporting_keys = hash_legacy_keys | {"reportingEndpointConfigured", "apiKeyConfigured"}
     hash_correlated_keys = hash_reporting_keys | {"runIdSha256"}
+    install_id_key = "serverInstallIdSha256"
     accepted_keys = (
         raw_legacy_keys,
         raw_reporting_keys,
@@ -169,6 +170,12 @@ def normalize(payload: Any, expected_run_id_sha256: str | None = None) -> dict[s
         hash_legacy_keys,
         hash_reporting_keys,
         hash_correlated_keys,
+        raw_legacy_keys | {install_id_key},
+        raw_reporting_keys | {install_id_key},
+        raw_correlated_keys | {install_id_key},
+        hash_legacy_keys | {install_id_key},
+        hash_reporting_keys | {install_id_key},
+        hash_correlated_keys | {install_id_key},
     )
     payload_keys = set(payload)
     if payload_keys not in accepted_keys:
@@ -192,16 +199,38 @@ def normalize(payload: Any, expected_run_id_sha256: str | None = None) -> dict[s
         if not isinstance(canonical_hash, str) or not SHORT_SHA256.fullmatch(canonical_hash):
             raise ValidationError("canonicalDeviceIdSha256 must be a 16-character lowercase hex digest")
         validate_public_text(hint)
+    server_install_id_sha256 = payload.get(install_id_key)
+    if server_install_id_sha256 is not None and (
+        not isinstance(server_install_id_sha256, str)
+        or not SHORT_SHA256.fullmatch(server_install_id_sha256)
+    ):
+        raise ValidationError("serverInstallIdSha256 must be null or a 16-character lowercase hex digest")
     reporting_endpoint_configured: bool | None = None
     api_key_configured: bool | None = None
     run_id_sha256: str | None = None
-    if payload_keys in (raw_reporting_keys, raw_correlated_keys, hash_reporting_keys, hash_correlated_keys):
+    reporting_keys = (
+        raw_reporting_keys,
+        raw_correlated_keys,
+        hash_reporting_keys,
+        hash_correlated_keys,
+        raw_reporting_keys | {install_id_key},
+        raw_correlated_keys | {install_id_key},
+        hash_reporting_keys | {install_id_key},
+        hash_correlated_keys | {install_id_key},
+    )
+    correlated_keys = (
+        raw_correlated_keys,
+        hash_correlated_keys,
+        raw_correlated_keys | {install_id_key},
+        hash_correlated_keys | {install_id_key},
+    )
+    if payload_keys in reporting_keys:
         reporting_endpoint_configured = require_bool(
             payload["reportingEndpointConfigured"],
             "reportingEndpointConfigured",
         )
         api_key_configured = require_bool(payload["apiKeyConfigured"], "apiKeyConfigured")
-        if payload_keys in (raw_correlated_keys, hash_correlated_keys):
+        if payload_keys in correlated_keys:
             run_id_sha256 = require_run_id_sha256(payload["runIdSha256"])
     require_expected_run_id(run_id_sha256, expected_run_id_sha256)
     return {
@@ -213,6 +242,7 @@ def normalize(payload: Any, expected_run_id_sha256: str | None = None) -> dict[s
         "durationMs": require_duration(payload["durationMs"]),
         "reportingEndpointConfigured": reporting_endpoint_configured,
         "schemaVersion": SCHEMA_VERSION,
+        "serverInstallIdSha256": server_install_id_sha256,
         "status": "success",
         "runIdSha256": run_id_sha256,
     }

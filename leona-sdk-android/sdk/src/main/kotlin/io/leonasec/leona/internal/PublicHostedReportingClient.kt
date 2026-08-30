@@ -101,6 +101,7 @@ internal class PublicHostedReportingClient(
                 boxId = newBoxId(boxId),
                 canonicalDeviceId = verdict.canonicalDeviceId,
                 serverVerdict = verdict,
+                serverInstallId = resolveServerInstallId(json, response),
             )
         }
     }
@@ -130,6 +131,9 @@ internal class PublicHostedReportingClient(
         .put("signingCertSha256", JSONArray(signingCertSha256))
         .put("sdkInt", sdkInt)
         .apply {
+            installLifecycleSha256
+                ?.takeIf { it.matches(SHA256_HEX_PATTERN) }
+                ?.let { put("installLifecycleSha256", it) }
             canonicalDeviceId
                 ?.takeIf { it.isNotBlank() }
                 ?.let { put("canonicalDeviceIdSha256", sha256Hex(it)) }
@@ -139,6 +143,7 @@ internal class PublicHostedReportingClient(
         private const val REPORTING_MODE = "public_hosted"
         private const val PUBLIC_SENSE_PATH = "/v1/sense/public"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+        private val SHA256_HEX_PATTERN = Regex("[0-9a-f]{64}")
 
         private fun buildHttpClient(config: LeonaConfig): OkHttpClient {
             val builder = OkHttpClient.Builder()
@@ -284,6 +289,16 @@ internal class PublicHostedReportingClient(
                 json.optJSONObject("verdict")?.optString("serverCanonicalDeviceId"),
             ).mapNotNull(::validCanonicalDeviceId).firstOrNull()
 
+        private fun resolveServerInstallId(json: JSONObject, response: Response): String? =
+            sequenceOf(
+                json.optString("installId"),
+                json.optString("serverInstallId"),
+                json.optString("install_id"),
+                json.optJSONObject("identity")?.optString("installId"),
+                json.optJSONObject("identity")?.optString("serverInstallId"),
+                response.header("X-Leona-Install-Id"),
+            ).mapNotNull(::validServerInstallId).firstOrNull()
+
         private fun JSONObject?.optStringArray(key: String): Set<String> =
             this?.optJSONArray(key)?.let { array ->
                 buildSet {
@@ -301,6 +316,9 @@ internal class PublicHostedReportingClient(
         private fun validCanonicalDeviceId(value: String?): String? =
             meaningfulString(value)?.takeIf { CANONICAL_DEVICE_ID_PATTERN.matches(it) }
 
+        private fun validServerInstallId(value: String?): String? =
+            meaningfulString(value)?.takeIf { SERVER_INSTALL_ID_PATTERN.matches(it) }
+
         private fun sanitizeErrorBody(body: String, apiKey: String): String =
             body.replace(apiKey, "<redacted-api-key>")
 
@@ -317,6 +335,7 @@ internal class PublicHostedReportingClient(
 
         private val LEONA_HOSTED_TRUST_FALLBACK_HOSTS = setOf("leona.xiyanshan.com")
         private val CANONICAL_DEVICE_ID_PATTERN = Regex("^L[0-9a-fA-F]{32,64}$")
+        private val SERVER_INSTALL_ID_PATTERN = Regex("^I[0-9a-f]{32}$")
 
         private const val ISRG_ROOT_X1_PEM = """
 -----BEGIN CERTIFICATE-----

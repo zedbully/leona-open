@@ -7,6 +7,8 @@ Current slices:
 
 - `nodejs/`: Node.js 18+ wrapper skeleton with tests.
 - `java/`: Java 11+ wrapper skeleton using only the JDK standard library.
+- `java/.../LeonaCryptoServerTransport.java`: Java 11 envelope and Engine
+  boundary for a customer-owned binding to the external Leo server crypto SDK.
 
 Scope:
 
@@ -14,6 +16,8 @@ Scope:
 - query evidence reports and support bundles
 - submit customer feedback labels
 - redact Leona identifiers before logs or support export
+- decode/encode the optional Leo encrypted HTTP envelope without accepting
+  client-supplied scope commitments
 
 Non-goals:
 
@@ -21,6 +25,8 @@ Non-goals:
 - no embedded real SecretKey, provider credential, token, full BoxId, or raw
   device identifier
 - no dependency on private Leona server implementation
+- no server keys, verifier, scope derivation, or native crypto binary in this
+  public wrapper
 
 Run local checks:
 

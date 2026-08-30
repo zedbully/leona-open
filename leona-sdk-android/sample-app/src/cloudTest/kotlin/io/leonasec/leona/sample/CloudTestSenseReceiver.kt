@@ -51,11 +51,13 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
                 val diagnostic = Leona.getDiagnosticSnapshot()
                 val durationMs = System.currentTimeMillis() - startedAt
                 val boxIdSha256 = sha256Hex(boxId.toString())
+                val serverInstallIdSha256 = SampleJsonRedaction.hash(diagnostic.installId)
                 // Persist and emit only a one-way digest. Android 11+ scoped storage prevents
                 // ADB shell from reading app-owned external files, so the log terminal event
                 // must itself be sufficient for collection without exposing an opaque BoxId.
                 val terminalPayload = JSONObject()
                     .put("boxIdSha256", boxIdSha256)
+                    .put("serverInstallIdSha256", serverInstallIdSha256)
                     .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
                     .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
                     .put("durationMs", durationMs)
@@ -67,6 +69,7 @@ class CloudTestSenseReceiver : BroadcastReceiver() {
                 // already-derived fingerprint signal; the raw signal and BoxId never enter logs.
                 val fingerprintPayload = JSONObject()
                     .put("boxIdSha256", boxIdSha256)
+                    .put("serverInstallIdSha256", serverInstallIdSha256)
                     .put("canonicalDeviceIdHint", SampleJsonRedaction.hint(diagnostic.canonicalDeviceId))
                     .put("canonicalDeviceIdSha256", SampleJsonRedaction.hash(diagnostic.canonicalDeviceId))
                     .put("fingerprintHashSha256", fingerprintDiagnosticSha256(diagnostic.fingerprintHash))

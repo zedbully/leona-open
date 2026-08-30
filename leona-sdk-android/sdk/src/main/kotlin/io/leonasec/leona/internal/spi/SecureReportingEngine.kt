@@ -33,6 +33,8 @@ data class SecureDeviceContext(
     val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
     val evidenceSignals: Set<String> = ClientEvidenceSignalMapper.toEvidenceSignals(riskSignals),
     val nativeFactTags: Set<String> = nativeRiskTags,
+    /** Hashed package-install lifecycle handle; telemetry/recovery only. */
+    val installLifecycleSha256: String? = null,
 ) {
     constructor(
         installId: String,
@@ -68,7 +70,15 @@ data class SecureUploadResult(
     val boxId: BoxId,
     val canonicalDeviceId: String? = null,
     val serverVerdict: LeonaServerVerdict? = null,
-)
+    val serverInstallId: String? = null,
+) {
+    /** Retains the pre-install_id constructor for closed-source engines. */
+    constructor(
+        boxId: BoxId,
+        canonicalDeviceId: String?,
+        serverVerdict: LeonaServerVerdict?,
+    ) : this(boxId, canonicalDeviceId, serverVerdict, null)
+}
 
 interface SecureReportingEngine {
     suspend fun resolveServerTamperBaselineJson(): String?

@@ -35,6 +35,8 @@ internal data class DeviceFingerprintSnapshot(
     val screenSummary: String?,
     val riskSignals: Set<String>,
     val deviceEnvironmentEvidence: LeonaDeviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.EMPTY,
+    /** One-way app-install lifecycle handle used only for server install-id recovery. */
+    val installLifecycleSha256: String? = null,
 ) {
     val evidenceSignals: Set<String>
         get() = ClientEvidenceSignalMapper.toEvidenceSignals(riskSignals)
@@ -65,6 +67,7 @@ internal data class DeviceFingerprintSnapshot(
         .put("screenSummary", screenSummary)
         .put("riskSignals", JSONArray(riskSignals.toList().sorted()))
         .put("deviceEnvironmentEvidence", deviceEnvironmentEvidence.toPersistedJsonObject())
+        .put("installLifecycleSha256", installLifecycleSha256)
         .toString()
 
     companion object {
@@ -100,6 +103,7 @@ internal data class DeviceFingerprintSnapshot(
                     deviceEnvironmentEvidence = LeonaDeviceEnvironmentEvidence.fromJsonObject(
                         obj.optJSONObject("deviceEnvironmentEvidence"),
                     ),
+                    installLifecycleSha256 = obj.optString("installLifecycleSha256").ifBlank { null },
                 )
             }.getOrNull()
         }

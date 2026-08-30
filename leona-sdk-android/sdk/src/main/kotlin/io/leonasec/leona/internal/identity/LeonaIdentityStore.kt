@@ -12,6 +12,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import org.json.JSONObject
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -23,11 +24,25 @@ internal class LeonaIdentityStore(
 ) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val lifecycleMarker = File(
+        context.noBackupFilesDir,
+        LIFECYCLE_MARKER_NAME,
+    )
+
+    init {
+        ensureCurrentInstallLifecycle()
+    }
 
     fun loadInstallId(): String? = decrypt(prefs.getString(KEY_INSTALL_ID, null))
 
     fun persistInstallId(installId: String) {
         persist(KEY_INSTALL_ID, encrypt(installId))
+    }
+
+    fun clearLastSnapshot() {
+        check(prefs.edit().remove(KEY_LAST_SNAPSHOT).commit()) {
+            "Unable to clear Leona identity snapshot"
+        }
     }
 
     fun loadCanonicalDeviceId(): String? = decrypt(prefs.getString(KEY_CANONICAL_DEVICE_ID, null))
@@ -53,6 +68,48 @@ internal class LeonaIdentityStore(
     private fun persist(key: String, encryptedValue: String) {
         check(prefs.edit().putString(key, encryptedValue).commit()) {
             "Unable to persist Leona identity state"
+        }
+    }
+
+    /**
+     * noBackupFilesDir is deliberately used only as an install-lifecycle
+     * sentinel. Android Auto Backup excludes this directory, so a restored
+     * SharedPreferences file cannot silently resurrect an old install id.
+     * The sentinel contains no identity value and is not a trust anchor.
+     */
+    private fun ensureCurrentInstallLifecycle() {
+        if (lifecycleMarker.exists()) return
+        val parent = lifecycleMarker.parentFile
+        check(parent == null || parent.isDirectory || parent.mkdirs()) {
+            "Unable to prepare Leona install lifecycle state"
+        }
+
+        // A valid Keystore envelope is stronger evidence of the current app
+        // installation than the no-backup sentinel. Some managed/emulated
+        // environments can omit no-backup files from a reboot snapshot while
+        // retaining ordinary app data. Preserve the encrypted install state in
+        // that case; otherwise a reboot would look like an uninstall. On a
+        // genuine reinstall, the app-scoped Keystore key is gone, so decrypt
+        // fails and the restored preference is discarded below.
+        val existingInstallId = decrypt(prefs.getString(KEY_INSTALL_ID, null))
+        if (existingInstallId != null) {
+            check(lifecycleMarker.createNewFile() || lifecycleMarker.exists()) {
+                "Unable to restore Leona install lifecycle state"
+            }
+            return
+        }
+
+        check(
+            prefs.edit()
+                .remove(KEY_INSTALL_ID)
+                .remove(KEY_CANONICAL_DEVICE_ID)
+                .remove(KEY_LAST_SNAPSHOT)
+                .commit(),
+        ) {
+            "Unable to reset Leona identity state for a new install"
+        }
+        check(lifecycleMarker.createNewFile() || lifecycleMarker.exists()) {
+            "Unable to persist Leona install lifecycle state"
         }
     }
 
@@ -129,6 +186,7 @@ internal class LeonaIdentityStore(
 
     companion object {
         private const val PREFS_NAME = "io.leonasec.leona.identity"
+        private const val LIFECYCLE_MARKER_NAME = "leona-install-lifecycle-v1"
         private const val KEY_INSTALL_ID = "install.id"
         private const val KEY_CANONICAL_DEVICE_ID = "device.id.canonical"
         private const val KEY_LAST_SNAPSHOT = "fingerprint.snapshot"

@@ -6,6 +6,14 @@ val includePrivateSdkCore =
         .lowercase()
         .let { value -> value == "true" || value == "1" || value == "yes" }
 
+// The Leo crypto facade is an explicitly opted-in integration. The public
+// project must remain buildable without the private AAR or its native DSO.
+val leoCryptoAarPath = providers.gradleProperty("LEONA_CRYPTO_AAR")
+    .orElse(providers.environmentVariable("LEONA_CRYPTO_AAR"))
+    .orElse("")
+    .get()
+    .trim()
+
 pluginManagement {
     repositories {
         google {
@@ -54,4 +62,13 @@ val privateSdkCoreDir = file("private/sdk-private-core")
 if (includePrivateSdkCore && privateSdkCoreDir.isDirectory) {
     include(":sdk-private-core")
     project(":sdk-private-core").projectDir = privateSdkCoreDir
+}
+
+if (leoCryptoAarPath.isNotEmpty()) {
+    val leoCryptoAar = file(leoCryptoAarPath)
+    require(leoCryptoAar.isFile) {
+        "LEONA_CRYPTO_AAR must point to an existing external Leo Android facade AAR"
+    }
+    include(":crypto-adapter")
+    project(":crypto-adapter").projectDir = file("crypto-adapter")
 }

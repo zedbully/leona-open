@@ -119,6 +119,7 @@ object Leona {
             deviceContext = buildSecureDeviceContext(snapshot, nativeRisk),
         )
         uploadResult.canonicalDeviceId?.let(state.identityManager::updateCanonicalDeviceId)
+        uploadResult.serverInstallId?.let(state.identityManager::updateServerInstallId)
         state.lastServerVerdict.set(uploadResult.serverVerdict)
         uploadResult.boxId
     }
@@ -144,6 +145,7 @@ object Leona {
             installerPackage = snapshot.installerPackage,
             signingCertSha256 = snapshot.signingCertSha256,
             sdkInt = snapshot.sdkInt,
+            installLifecycleSha256 = snapshot.installLifecycleSha256,
         )
     }
 

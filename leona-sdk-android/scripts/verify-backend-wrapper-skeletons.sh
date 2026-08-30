@@ -18,12 +18,16 @@ node --test "${NODE_DIR}/test/"*.test.mjs | tee "${OUT_DIR}/node-test.txt"
 
 javac -d "${OUT_DIR}/java-classes" \
   "${JAVA_DIR}/src/main/java/io/leonasec/wrapper/LeonaServerClient.java" \
+  "${JAVA_DIR}/src/main/java/io/leonasec/wrapper/LeonaCryptoServerTransport.java" \
   "${JAVA_DIR}/src/test/java/io/leonasec/wrapper/LeonaServerClientSelfTest.java" \
-  "${JAVA_DIR}/src/test/java/io/leonasec/wrapper/LeonaServerClientHttpSmoke.java"
+  "${JAVA_DIR}/src/test/java/io/leonasec/wrapper/LeonaServerClientHttpSmoke.java" \
+  "${JAVA_DIR}/src/test/java/io/leonasec/wrapper/LeonaCryptoServerTransportSelfTest.java"
 java -cp "${OUT_DIR}/java-classes" io.leonasec.wrapper.LeonaServerClientSelfTest \
   | tee "${OUT_DIR}/java-self-test.txt"
 java -cp "${OUT_DIR}/java-classes" io.leonasec.wrapper.LeonaServerClientHttpSmoke \
   | tee "${OUT_DIR}/java-http-smoke.txt"
+java -cp "${OUT_DIR}/java-classes" io.leonasec.wrapper.LeonaCryptoServerTransportSelfTest \
+  | tee "${OUT_DIR}/java-crypto-transport-test.txt"
 (
   cd "${JAVA_DIR}"
   ../../gradlew --no-daemon --quiet \
@@ -47,6 +51,7 @@ fi
   echo "- node package dry-run: pass"
   echo "- java self-test: pass"
   echo "- java mock HTTP integration smoke: pass"
+  echo "- java crypto envelope/server transport self-test: pass"
   echo "- java Gradle package skeleton: pass"
   echo "- secret scan: pass"
   echo "- output: \`${OUT_DIR}\`"
