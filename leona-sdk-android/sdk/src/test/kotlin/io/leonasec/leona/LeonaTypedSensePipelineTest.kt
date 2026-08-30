@@ -13,6 +13,7 @@ import io.leonasec.leona.internal.proto.LeonaProtectedPayloadCarrierV1
 import io.leonasec.leona.internal.proto.LeonaEvidenceProtobufCodec
 import io.leonasec.leona.internal.proto.LeonaProtobufDecodeResult
 import io.leonasec.leona.internal.proto.LeonaEvidenceQualityValue
+import io.leonasec.leona.internal.proto.LeonaEvidenceValue
 import io.leonasec.leona.internal.spi.SecureDeviceContext
 import io.leonasec.leona.internal.spi.SecureUploadResult
 import kotlinx.coroutines.runBlocking
@@ -57,7 +58,10 @@ class LeonaTypedSensePipelineTest {
         val request = LeonaEvidenceProtobufCodec.decode(payload)
         assertTrue(request is LeonaProtobufDecodeResult.Success)
         val entries = (request as LeonaProtobufDecodeResult.Success).request.entries
-        assertTrue(entries.any { it.key == "identity.fingerprint_sha256" && it.quality == LeonaEvidenceQualityValue.REDACTED })
+        val fingerprint = entries.single { it.key == "identity.fingerprint_sha256" }
+        assertEquals(LeonaEvidenceQualityValue.REDACTED, fingerprint.quality)
+        assertTrue((fingerprint.value as LeonaEvidenceValue.Bytes).value.contentEquals(ByteArray(32) { 0xff.toByte() }))
+        assertTrue(entries.any { it.key == "identity.install_lifecycle_sha256" && it.quality == LeonaEvidenceQualityValue.REDACTED })
         assertTrue(entries.filter { it.key != "identity.fingerprint_sha256" }.all { it.quality != LeonaEvidenceQualityValue.VERIFIED })
         assertFalse(String(payload, Charsets.UTF_8).contains("must-not-be-uploaded"))
         assertArrayEquals(carrier, handoffBytes ?: error("typed handoff missing"))
@@ -100,6 +104,7 @@ class LeonaTypedSensePipelineTest {
         fingerprintHash = "f".repeat(64),
         fingerprintSource = DeviceFingerprintHasher.FINGERPRINT_SOURCE_BASE_V2,
         identityAnchorSource = DeviceFingerprintHasher.ANCHOR_SOURCE_DEVICE_PROFILE,
+        installLifecycleSha256 = "aa".repeat(32),
         packageName = "io.example.app",
         appVersionName = "1.0",
         appVersionCode = 1,
