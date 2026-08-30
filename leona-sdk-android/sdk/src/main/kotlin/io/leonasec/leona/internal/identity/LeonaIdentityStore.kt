@@ -19,15 +19,30 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
 
+internal data class IdentityStoreDecryptedRecord(
+    val plaintext: String,
+    val legacy: Boolean,
+)
+
+/** Internal-only fault seam used by JVM tests; production defaults stay Android Keystore-backed. */
+internal data class IdentityStoreCryptoHooks(
+    val decrypt: ((IdentityRecord, String?) -> IdentityStoreDecryptedRecord?)? = null,
+    val encrypt: ((IdentityRecord, String) -> String)? = null,
+    val probe: (() -> IdentityProtectionStatus)? = null,
+    val createLifecycleMarker: (() -> Boolean)? = null,
+)
+
 internal class LeonaIdentityStore(
     context: Context,
+    private val cryptoHooks: IdentityStoreCryptoHooks? = null,
 ) {
     private val contextPackageName = context.applicationContext.packageName
 
     private var currentProtectionStatus: IdentityProtectionStatus = IdentityProtectionStatus.READY
 
     private val completedQuarantines = mutableSetOf<IdentityRecord>()
-    private var statusRecoveryReady = false
+    private val pendingRecordRecoveries = mutableSetOf<IdentityRecord>()
+    private val protectedRecoveryReady = mutableSetOf<IdentityRecord>()
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -37,8 +52,8 @@ internal class LeonaIdentityStore(
     )
 
     init {
-        ensureCurrentInstallLifecycle()
         probeKeyStore()
+        ensureCurrentInstallLifecycle()
     }
 
     /** Typed diagnostic state; never use this as a business decision. */
@@ -48,13 +63,15 @@ internal class LeonaIdentityStore(
     /** Start a collection attempt; consume degradation only after protected recovery. */
     @Synchronized
     fun beginResolution() {
-        val hasQuarantinedRecord = completedQuarantines.isNotEmpty()
-        val recordStillPresent = if (statusRecoveryReady) {
-            false
-        } else {
-            completedQuarantines.any { prefs.contains(it.preferenceKey) }
+        val recoveredRecords = protectedRecoveryReady.intersect(pendingRecordRecoveries)
+        if (recoveredRecords.isNotEmpty()) {
+            pendingRecordRecoveries.removeAll(recoveredRecords)
+            protectedRecoveryReady.removeAll(recoveredRecords)
+            completedQuarantines.removeAll(recoveredRecords)
         }
-        val next = if (statusRecoveryReady) {
+        val hasQuarantinedRecord = completedQuarantines.isNotEmpty()
+        val recordStillPresent = completedQuarantines.any { prefs.contains(it.preferenceKey) }
+        val next = if (recoveredRecords.isNotEmpty() && pendingRecordRecoveries.isEmpty()) {
             IdentityPersistencePolicy.statusAfterSuccessfulRecovery(currentProtectionStatus)
         } else {
             IdentityPersistencePolicy.statusForNextRecordResolution(
@@ -65,7 +82,6 @@ internal class LeonaIdentityStore(
         }
         if (next != currentProtectionStatus) {
             completedQuarantines.clear()
-            statusRecoveryReady = false
         }
         currentProtectionStatus = next
     }
@@ -102,13 +118,17 @@ internal class LeonaIdentityStore(
                 .commit()
         }.getOrDefault(false)
         if (!committed) {
+            pendingRecordRecoveries += IdentityRecord.INSTALL_ID
+            pendingRecordRecoveries += IdentityRecord.SNAPSHOT
+            protectedRecoveryReady.remove(IdentityRecord.INSTALL_ID)
+            protectedRecoveryReady.remove(IdentityRecord.SNAPSHOT)
             currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
             throw IllegalStateException("Unable to atomically update Leona install identity")
         }
         completedQuarantines.remove(IdentityRecord.INSTALL_ID)
         completedQuarantines.remove(IdentityRecord.SNAPSHOT)
-        statusRecoveryReady = currentProtectionStatus.recoverable &&
-            currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
+        protectedRecoveryReady += IdentityRecord.INSTALL_ID
+        protectedRecoveryReady += IdentityRecord.SNAPSHOT
     }
 
     @Synchronized
@@ -117,12 +137,13 @@ internal class LeonaIdentityStore(
             prefs.edit().remove(KEY_LAST_SNAPSHOT).commit()
         }.getOrDefault(false)
         if (!cleared) {
+            pendingRecordRecoveries += IdentityRecord.SNAPSHOT
+            protectedRecoveryReady.remove(IdentityRecord.SNAPSHOT)
             currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
             throw IllegalStateException("Unable to clear Leona identity snapshot")
         }
         completedQuarantines.remove(IdentityRecord.SNAPSHOT)
-        statusRecoveryReady = currentProtectionStatus.recoverable &&
-            currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
+        protectedRecoveryReady += IdentityRecord.SNAPSHOT
     }
 
     @Synchronized
@@ -203,10 +224,14 @@ internal class LeonaIdentityStore(
         val cleared = runCatching {
             prefs.edit().remove(record.preferenceKey).commit()
         }.getOrDefault(false)
+        // Keep the affected record pending even when the clear itself fails;
+        // a later protected rewrite of this same record is the only recovery
+        // that may consume the degradation.
+        pendingRecordRecoveries.add(record)
         if (cleared) completedQuarantines.add(record)
         // A quarantine is evidence for the current report, not a successful
         // protected rewrite. Never let an earlier recovery marker consume it.
-        statusRecoveryReady = false
+        protectedRecoveryReady.remove(record)
         currentProtectionStatus = IdentityPersistencePolicy.statusAfterRecordQuarantine(cleared)
     }
 
@@ -229,12 +254,13 @@ internal class LeonaIdentityStore(
             prefs.edit().putString(record.preferenceKey, encryptedValue).commit()
         }.getOrDefault(false)
         if (!committed) {
+            pendingRecordRecoveries += record
+            protectedRecoveryReady.remove(record)
             currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
             throw IllegalStateException("Unable to persist Leona identity state")
         }
         completedQuarantines.remove(record)
-        statusRecoveryReady = currentProtectionStatus.recoverable &&
-            currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
+        if (pendingRecordRecoveries.contains(record)) protectedRecoveryReady.add(record)
     }
 
     /**
@@ -260,7 +286,7 @@ internal class LeonaIdentityStore(
         // fails and the restored preference is discarded below.
         val existingInstallId = loadInstallId()
         if (existingInstallId != null) {
-            if (!runCatching { lifecycleMarker.createNewFile() || lifecycleMarker.exists() }.getOrDefault(false)) {
+            if (!createLifecycleMarker()) {
                 currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
             }
             return
@@ -274,28 +300,40 @@ internal class LeonaIdentityStore(
             return
         }
 
-        if (!runCatching { lifecycleMarker.createNewFile() || lifecycleMarker.exists() }.getOrDefault(false)) {
+        val dependenciesCleared = runCatching {
+            prefs.edit()
+                .remove(KEY_INSTALL_ID)
+                .remove(KEY_CANONICAL_DEVICE_ID)
+                .remove(KEY_LAST_SNAPSHOT)
+                .commit()
+        }.getOrDefault(false)
+        if (!dependenciesCleared) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            return
+        }
+        if (!createLifecycleMarker()) {
             currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
         }
     }
 
-    private data class DecryptedRecord(
-        val plaintext: String,
-        val legacy: Boolean,
-    )
+    private fun createLifecycleMarker(): Boolean =
+        cryptoHooks?.createLifecycleMarker?.let { hook -> runCatching { hook() }.getOrDefault(false) }
+            ?: runCatching { lifecycleMarker.createNewFile() || lifecycleMarker.exists() }.getOrDefault(false)
 
     /**
      * Legacy v1 values are never returned until their v2 domain-bound rewrite
      * has committed. Encryption/provider failures keep the old ciphertext for
      * recovery; a failed rewrite commit quarantines only this record.
      */
-    private fun migrateLegacyIfNeeded(record: IdentityRecord, decrypted: DecryptedRecord): Boolean {
+    private fun migrateLegacyIfNeeded(record: IdentityRecord, decrypted: IdentityStoreDecryptedRecord): Boolean {
         if (!decrypted.legacy) return true
         val encrypted = try {
             encrypt(record, decrypted.plaintext)
         } catch (_: IllegalStateException) {
             // encrypt() has already recorded a bounded Keystore/API status.
             // The caller must not use the legacy plaintext after this failure.
+            pendingRecordRecoveries.add(record)
+            protectedRecoveryReady.remove(record)
             return false
         }
         val committed = try {
@@ -310,27 +348,40 @@ internal class LeonaIdentityStore(
             return false
         }
         completedQuarantines.remove(record)
-        statusRecoveryReady = currentProtectionStatus.recoverable &&
-            currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
+        if (pendingRecordRecoveries.contains(record)) protectedRecoveryReady.add(record)
         return true
     }
 
     private fun quarantineAfterMigrationFailure(record: IdentityRecord) {
+        val migrationFailureStatus = currentProtectionStatus
         val cleared = try {
             prefs.edit().remove(record.preferenceKey).commit()
         } catch (_: RuntimeException) {
             false
         }
+        pendingRecordRecoveries.add(record)
         if (cleared) {
             completedQuarantines.add(record)
-            currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+            currentProtectionStatus = if (migrationFailureStatus.code == IdentityProtectionCode.STORAGE_WRITE_FAILED) {
+                IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            } else {
+                IdentityProtectionStatus.CORRUPT_OR_MISSING
+            }
         } else {
             currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
         }
-        statusRecoveryReady = false
+        protectedRecoveryReady.remove(record)
     }
 
     private fun encrypt(record: IdentityRecord, plaintext: String): String {
+        cryptoHooks?.encrypt?.let { hook ->
+            return try {
+                hook(record, plaintext)
+            } catch (failure: IllegalStateException) {
+                currentProtectionStatus = IdentityProtectionStatus.KEYSTORE_UNAVAILABLE
+                throw failure
+            }
+        }
         // The public compatibility matrix starts at Android 6 / API 23. Do not
         // silently downgrade the identity envelope to plaintext on older hosts:
         // an installed APK must fail closed rather than make tamperable state
@@ -367,8 +418,9 @@ internal class LeonaIdentityStore(
     private fun decryptRecord(
         record: IdentityRecord,
         stored: String?,
-    ): DecryptedRecord? {
+    ): IdentityStoreDecryptedRecord? {
         if (stored == null) return null
+        cryptoHooks?.decrypt?.let { hook -> return hook(record, stored) }
         // Legacy plaintext preferences are never accepted as identity state.
         // This also makes an API < 23 host fail closed on the next write instead
         // of treating a pre-matrix value as a trusted anchor.
@@ -426,11 +478,16 @@ internal class LeonaIdentityStore(
                 IdentityProtectionStatus.KEYSTORE_UNAVAILABLE
             }
         }.map { plaintext ->
-            DecryptedRecord(plaintext = plaintext, legacy = descriptor.legacy)
+            IdentityStoreDecryptedRecord(plaintext = plaintext, legacy = descriptor.legacy)
         }.getOrNull()
     }
 
     private fun probeKeyStore() {
+        cryptoHooks?.probe?.let { probe ->
+            currentProtectionStatus = runCatching { probe() }
+                .getOrElse { IdentityProtectionStatus.KEYSTORE_UNAVAILABLE }
+            return
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             currentProtectionStatus = IdentityProtectionStatus.API_BELOW_23
             return

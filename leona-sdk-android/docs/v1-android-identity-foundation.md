@@ -92,7 +92,11 @@ strict record-shape and plaintext semantic validation, then synchronously
 migrated to the v2 domain-bound envelope without rotating a valid value.
 Install, canonical, and snapshot records are quarantined independently so a
 single malformed record cannot delete unrelated evidence. Keystore failures
-leave recoverable ciphertext untouched.
+leave recoverable ciphertext untouched. If the no-backup lifecycle marker is
+missing and no usable install record remains, the SDK first clears the
+install-dependent records in one synchronous transaction and creates the new
+marker only after that transaction succeeds; a temporary storage/Keystore
+failure leaves the records and marker untouched for retry.
 
 ## Android 6–16 compatibility contract
 

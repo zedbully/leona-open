@@ -207,8 +207,11 @@ internal object IdentityPersistencePolicy {
     /** A cleared envelope may be replaced with a fresh protected cache before
      * the degraded observation is consumed on the next resolution. */
     fun shouldAttemptProtectedRecovery(status: IdentityProtectionStatus): Boolean =
-        status.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
-            status.code == IdentityProtectionCode.ENVELOPE_INVALID &&
+        status.level != IdentityProtectionLevel.UNSUPPORTED_API &&
+            status.code in setOf(
+                IdentityProtectionCode.ENVELOPE_INVALID,
+                IdentityProtectionCode.STORAGE_WRITE_FAILED,
+            ) &&
             status.recoverable
 
     /**
@@ -235,7 +238,7 @@ internal object IdentityPersistencePolicy {
         quarantineCompleted: Boolean,
     ): IdentityProtectionStatus {
         // Quarantine completion alone is not recovery: the status stays
-        // attached until a protected rewrite marks statusRecoveryReady.
+        // attached until a protected rewrite marks its record ready.
         return current
     }
 
@@ -255,4 +258,19 @@ internal object IdentityPersistencePolicy {
     } else {
         current
     }
+}
+
+/** Cache admission is evidence-only and requires the same durable epoch state. */
+internal object IdentityCacheAdmission {
+    fun isAdmissible(
+        cached: DeviceFingerprintSnapshot,
+        currentInstallId: String,
+        persistedCanonicalDeviceId: String?,
+        currentProtectionStatus: IdentityProtectionStatus,
+    ): Boolean =
+        cached.fingerprintSchemaVersion == DeviceFingerprintHasher.CACHE_SCHEMA_VERSION &&
+            cached.installId == currentInstallId &&
+            cached.canonicalDeviceId == persistedCanonicalDeviceId &&
+            cached.identityProtectionStatus.durable &&
+            currentProtectionStatus.durable
 }

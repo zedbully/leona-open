@@ -114,7 +114,7 @@ class IdentityLifecycleTest {
                 IdentityProtectionStatus.CORRUPT_OR_MISSING,
             ),
         )
-        assertFalse(
+        assertTrue(
             IdentityPersistencePolicy.shouldAttemptProtectedRecovery(
                 IdentityProtectionStatus.STORAGE_WRITE_FAILED,
             ),

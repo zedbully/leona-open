@@ -78,7 +78,11 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertIn("putString(KEY_INSTALL_ID", atomic.group("body"))
         self.assertIn("remove(KEY_LAST_SNAPSHOT)", atomic.group("body"))
         self.assertIn("store.replaceInstallIdAndClearSnapshot(normalized)", MANAGER_SOURCE)
-        self.assertIn("cached.installId == currentInstallId", MANAGER_SOURCE)
+        policy = (
+            Path(__file__).resolve().parents[2]
+            / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/IdentityProtectionState.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("cached.installId == currentInstallId", policy)
 
     def test_corrupt_snapshot_is_quarantined_without_losing_current_status(self) -> None:
         self.assertIn("fun loadLastSnapshot(): DeviceFingerprintSnapshot?", SOURCE)
@@ -102,14 +106,14 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertIn("context.noBackupFilesDir", SOURCE)
         self.assertIn('"leona-install-lifecycle-v1"', SOURCE)
         self.assertIn("ensureCurrentInstallLifecycle()", SOURCE)
-        self.assertIn("quarantine(IdentityRecord.INSTALL_ID)", SOURCE)
-        self.assertNotRegex(
-            SOURCE,
-            r"prefs\.edit\(\)[\s\S]{0,220}"
-            r"remove\(KEY_INSTALL_ID\)[\s\S]{0,220}"
-            r"remove\(KEY_CANONICAL_DEVICE_ID\)[\s\S]{0,220}"
-            r"remove\(KEY_LAST_SNAPSHOT\)",
-        )
+        self.assertIn("val dependenciesCleared", SOURCE)
+        for key in ("KEY_INSTALL_ID", "KEY_CANONICAL_DEVICE_ID", "KEY_LAST_SNAPSHOT"):
+            self.assertIn(f"remove({key})", SOURCE)
+        clear_start = SOURCE.index("val dependenciesCleared")
+        marker_start = SOURCE.index("if (!createLifecycleMarker())", clear_start)
+        self.assertLess(clear_start, marker_start)
+        retry_guard = SOURCE.index("IdentityProtectionLevel.KEYSTORE_UNAVAILABLE")
+        self.assertLess(retry_guard, clear_start)
         self.assertIn("lifecycleMarker.createNewFile()", SOURCE)
 
     def test_valid_encrypted_state_survives_a_missing_sentinel(self) -> None:
@@ -119,12 +123,8 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         )
         self.assertRegex(
             SOURCE,
-            r"existingInstallId != null[\s\S]{0,500}lifecycleMarker\.createNewFile\(\)"
+            r"existingInstallId != null[\s\S]{0,500}createLifecycleMarker\(\)"
             r"[\s\S]{0,180}return",
-        )
-        self.assertNotRegex(
-            SOURCE,
-            r"existingInstallId != null[\s\S]{0,900}remove\(KEY_INSTALL_ID\)",
         )
 
     def test_install_id_is_random_and_lifecycle_hint_has_no_source_fallback(self) -> None:
@@ -135,7 +135,9 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
             r"store\.loadInstallId\(\)[\s\S]{0,180}takeIf\(::isUsableInstallId\)",
         )
         self.assertIn("InstallIdAdmission.isUsable(value)", MANAGER_SOURCE)
-        self.assertIn("runCatching { store.replaceInstallIdAndClearSnapshot(installId) }", MANAGER_SOURCE)
+        self.assertIn("store.replaceInstallIdAndClearSnapshot(installId)", MANAGER_SOURCE)
+        self.assertIn("catch (_: IllegalStateException)", MANAGER_SOURCE)
+        self.assertNotIn("runCatching { store.replaceInstallIdAndClearSnapshot(installId) }", MANAGER_SOURCE)
         self.assertNotIn("sourceDir", MANAGER_SOURCE)
         start = MANAGER_SOURCE.index("private fun resolveLocalInstallId()")
         end = MANAGER_SOURCE.index("private fun resolveInstallLifecycleSha256", start)
@@ -250,10 +252,18 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertRegex(MANAGER_SOURCE, r"@Synchronized\s+fun currentSnapshot\(\)")
         self.assertRegex(MANAGER_SOURCE, r"@Synchronized\s+fun updateCanonicalDeviceId\(")
         self.assertIn("isCacheAdmissible(cached, currentInstallId, persistedCanonicalDeviceId", MANAGER_SOURCE)
+        self.assertIn("IdentityCacheAdmission.isAdmissible", MANAGER_SOURCE)
         self.assertIn("shouldAttemptProtectedRecovery(snapshot.identityProtectionStatus)", MANAGER_SOURCE)
         self.assertIn("identityProtectionStatus = IdentityProtectionStatus.READY", MANAGER_SOURCE)
         self.assertIn("store.protectionStatus()", MANAGER_SOURCE)
         self.assertNotIn("runCatching { store.persistCanonicalDeviceId", MANAGER_SOURCE)
+
+    def test_server_install_rotation_failure_is_visible_and_not_downgraded(self) -> None:
+        update_start = MANAGER_SOURCE.index("fun updateServerInstallId")
+        update_end = MANAGER_SOURCE.index("private fun normalizeServerInstallId", update_start)
+        update = MANAGER_SOURCE[update_start:update_end]
+        self.assertIn("store.replaceInstallIdAndClearSnapshot(normalized)", update)
+        self.assertNotIn("runCatching", update)
 
     def test_quarantine_status_requires_protected_rewrite_before_consumption(self) -> None:
         policy = (
@@ -261,13 +271,15 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
             / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/IdentityProtectionState.kt"
         ).read_text(encoding="utf-8")
         self.assertIn("fun shouldAttemptProtectedRecovery", policy)
-        self.assertIn("status.level == IdentityProtectionLevel.CORRUPT_OR_MISSING", policy)
+        self.assertIn("IdentityProtectionCode.ENVELOPE_INVALID", policy)
+        self.assertIn("IdentityProtectionCode.STORAGE_WRITE_FAILED", policy)
         self.assertRegex(
             policy,
             r"fun statusForNextRecordResolution\([\s\S]*?\): IdentityProtectionStatus\s*\{[\s\S]*?return current",
         )
-        self.assertIn("statusRecoveryReady = false", SOURCE)
-        self.assertIn("statusRecoveryReady = currentProtectionStatus.recoverable", SOURCE)
+        self.assertIn("pendingRecordRecoveries", SOURCE)
+        self.assertIn("protectedRecoveryReady", SOURCE)
+        self.assertIn("protectedRecoveryReady.intersect(pendingRecordRecoveries)", SOURCE)
 
 
 if __name__ == "__main__":

@@ -235,12 +235,12 @@ internal class DeviceIdentityManager(
         currentInstallId: String,
         persistedCanonicalDeviceId: String?,
         currentProtectionStatus: IdentityProtectionStatus,
-    ): Boolean =
-        cached.fingerprintSchemaVersion == DeviceFingerprintHasher.CACHE_SCHEMA_VERSION &&
-            cached.installId == currentInstallId &&
-            cached.canonicalDeviceId == persistedCanonicalDeviceId &&
-            cached.identityProtectionStatus.durable &&
-            currentProtectionStatus.durable
+    ): Boolean = IdentityCacheAdmission.isAdmissible(
+        cached = cached,
+        currentInstallId = currentInstallId,
+        persistedCanonicalDeviceId = persistedCanonicalDeviceId,
+        currentProtectionStatus = currentProtectionStatus,
+    )
 
     /**
      * Accept only the opaque id minted by the Leona server. A changed server
@@ -251,9 +251,10 @@ internal class DeviceIdentityManager(
     fun updateServerInstallId(installId: String?) {
         val normalized = normalizeServerInstallId(installId) ?: return
         if (store.loadInstallId() == normalized) return
-        runCatching {
-            store.replaceInstallIdAndClearSnapshot(normalized)
-        }
+        // A failed synchronous replace is deliberately visible to the caller;
+        // the store retains a typed non-durable status and never admits the
+        // previous cache as a durable identity after a rotate attempt.
+        store.replaceInstallIdAndClearSnapshot(normalized)
     }
 
     private fun normalizeServerInstallId(value: String?): String? =
@@ -272,7 +273,13 @@ internal class DeviceIdentityManager(
         // A new local install value invalidates any stale cached snapshot in
         // the same synchronous transaction; a failed commit leaves both old
         // values untouched and the caller receives this process-only value.
-        runCatching { store.replaceInstallIdAndClearSnapshot(installId) }
+        try {
+            store.replaceInstallIdAndClearSnapshot(installId)
+        } catch (_: IllegalStateException) {
+            // Keep the process-only value for evidence collection. The store's
+            // typed failure status makes the resulting snapshot non-durable and
+            // blocks cached-snapshot admission on the next resolution.
+        }
         return installId
     }
 
