@@ -32,7 +32,19 @@ class LeonaTypedSensePipelineTest {
         val result = Leona.runTypedSense(
             config = config(),
             snapshot = snapshot(),
-            nativeRisk = NativePayloadInspector.NativeRiskSummary.EMPTY,
+            nativeRisk = NativePayloadInspector.NativeRiskSummary(
+                findings = listOf(
+                    NativePayloadInspector.NativeFinding(
+                        id = "injection.frida.known_library",
+                        severity = 3,
+                        category = 1,
+                        message = "native-finding-message-must-not-cross-boundary",
+                    ),
+                ),
+                riskTags = setOf("hook.frida.native"),
+                factTags = setOf("runtime.frida.evidence"),
+                highestSeverity = 3,
+            ),
             deviceContext = SecureDeviceContext(
                 installId = snapshot().installId,
                 resolvedDeviceId = snapshot().resolvedDeviceId,
@@ -63,7 +75,15 @@ class LeonaTypedSensePipelineTest {
         assertTrue((fingerprint.value as LeonaEvidenceValue.Bytes).value.contentEquals(ByteArray(32) { 0xff.toByte() }))
         assertTrue(entries.any { it.key == "identity.install_lifecycle_sha256" && it.quality == LeonaEvidenceQualityValue.REDACTED })
         assertTrue(entries.filter { it.key != "identity.fingerprint_sha256" }.all { it.quality != LeonaEvidenceQualityValue.VERIFIED })
-        assertFalse(String(payload, Charsets.UTF_8).contains("must-not-be-uploaded"))
+        val payloadText = String(payload, Charsets.UTF_8)
+        listOf(
+            "must-not-be-uploaded",
+            "Tlocal-only",
+            "io.example.app",
+            "brand",
+            "model",
+            "native-finding-message-must-not-cross-boundary",
+        ).forEach { rawValue -> assertFalse(payloadText.contains(rawValue)) }
         assertArrayEquals(carrier, handoffBytes ?: error("typed handoff missing"))
     }
 
