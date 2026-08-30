@@ -120,6 +120,16 @@ class SecureChannelTest {
             )
             assertFalse(protectedHeaders.values.any { it in descriptorValues })
             assertFalse(protectedHeaders.keys.any { it.contains("payload", ignoreCase = true) || it.contains("schema", ignoreCase = true) })
+            assertFalse(protectedHeaders.keys.any {
+                it.equals("X-Leona-Device-Id-Sha256", ignoreCase = true) ||
+                    it.equals("X-Leona-Install-Id-Sha256", ignoreCase = true) ||
+                    it.equals("X-Leona-Canonical-Device-Id-Sha256", ignoreCase = true) ||
+                    it.equals("X-Leona-Fingerprint", ignoreCase = true) ||
+                    it.equals("X-Leona-Session-Id-Sha256", ignoreCase = true)
+            })
+            assertFalse(protectedHeaders.values.any {
+                it.contains("install-1") || it.contains("Tdevice-1") || it.contains("fingerprint-1")
+            })
 
             val outer = server.takeRequest()
             assertEquals(null, outer.getHeader("X-Leona-Payload-Codec"))

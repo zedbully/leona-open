@@ -10,6 +10,15 @@ that carrier once and hands those exact whole-body bytes to the existing Leo
 request path. It does not create provider receipts or make a client-side
 business decision from a server verdict.
 
+`Leona.sense()` follows this path: it maps the bounded identity snapshot and
+native observation summary into the strict typed ingest model, encodes the
+Protobuf once, and supplies the canonical handoff to this request-only carrier.
+The typed route omits identity-derived ad-hoc protected headers; hash-only
+fingerprint commitments and opaque install/session references are carried in
+the authenticated body. Local observations are unverified evidence (`RAW`),
+while hash commitments are `REDACTED`; no raw Android ID, package/build/model
+text, native bytes, or finding message is serialized.
+
 ## Exact layout
 
 - Header: ASCII `LPCARR01` (8 bytes), version `1` (u8), field count `5` (u8),

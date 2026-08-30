@@ -50,6 +50,20 @@ internal class SecureChannel(
     }
 
     suspend fun upload(payload: ByteArray, deviceContext: SecureDeviceContext): SecureUploadResult {
+        return uploadInternal(payload, deviceContext, includeDeviceContextHeaders = true)
+    }
+
+    /**
+     * Existing raw compatibility uploads retain their historical protected
+     * context fields. Typed LPCARR01 uploads carry all evidence and opaque
+     * identity references in the authenticated body, so no identity-derived
+     * ad-hoc header is emitted on that path.
+     */
+    private suspend fun uploadInternal(
+        payload: ByteArray,
+        deviceContext: SecureDeviceContext,
+        includeDeviceContextHeaders: Boolean,
+    ): SecureUploadResult {
         if (!config.transportEnabled) {
             throw configurationError(
                 SecureReportingErrorCode.TRANSPORT_DISABLED,
@@ -81,6 +95,7 @@ internal class SecureChannel(
             apiKey = apiKey,
             payload = payload,
             deviceContext = deviceContext,
+            includeDeviceContextHeaders = includeDeviceContextHeaders,
         )
         val result = try {
             LeonaCryptoHttpClient(
@@ -184,7 +199,7 @@ internal class SecureChannel(
                 )
             }
         }
-        return upload(carrier, deviceContext)
+        return uploadInternal(carrier, deviceContext, includeDeviceContextHeaders = false)
     }
 
     private fun buildReportingRequest(
@@ -192,6 +207,7 @@ internal class SecureChannel(
         apiKey: String,
         payload: ByteArray,
         deviceContext: SecureDeviceContext,
+        includeDeviceContextHeaders: Boolean,
     ): LeonaCryptoHttpRequest {
         val url = endpoint.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("encrypted endpoint must be an absolute URL")
@@ -201,37 +217,41 @@ internal class SecureChannel(
             "X-Leona-Reporting-Mode" to "leo_crypto",
             "X-Leona-SDK-Version" to BuildConstants.VERSION_NAME,
             "X-Leona-Request-Id" to UUID.randomUUID().toString(),
-            "X-Leona-Device-Id-Sha256" to sha256Hex(deviceContext.resolvedDeviceId),
-            "X-Leona-Install-Id-Sha256" to sha256Hex(deviceContext.installId),
-            "X-Leona-Fingerprint" to deviceContext.fingerprintHash,
             "X-Leona-Evidence-Ref" to sha256Hex(payload),
         )
-        deviceContext.sessionId
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?.let { headers["X-Leona-Session-Id-Sha256"] = sha256Hex(it) }
-        headers["X-Leona-Identity-Protection"] =
-            "${deviceContext.identityProtectionLevel}:${deviceContext.identityProtectionCode}:" +
-                (if (deviceContext.identityProtectionDurable) "durable" else "ephemeral") + ":" +
-                (if (deviceContext.identityProtectionRecoverable) "recoverable" else "terminal")
+        if (includeDeviceContextHeaders) {
+            headers["X-Leona-Device-Id-Sha256"] = sha256Hex(deviceContext.resolvedDeviceId)
+            headers["X-Leona-Install-Id-Sha256"] = sha256Hex(deviceContext.installId)
+            headers["X-Leona-Fingerprint"] = deviceContext.fingerprintHash
+            deviceContext.sessionId
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { headers["X-Leona-Session-Id-Sha256"] = sha256Hex(it) }
+            headers["X-Leona-Identity-Protection"] =
+                "${deviceContext.identityProtectionLevel}:${deviceContext.identityProtectionCode}:" +
+                    (if (deviceContext.identityProtectionDurable) "durable" else "ephemeral") + ":" +
+                    (if (deviceContext.identityProtectionRecoverable) "recoverable" else "terminal")
+        }
         config.tenantId?.let { headers["X-Leona-Tenant"] = it }
         headers["X-Leona-App-Id"] = config.appId
         config.environment?.let { headers["X-Leona-Environment"] = it }
         config.channel?.let { headers["X-Leona-Channel"] = it }
-        deviceContext.installLifecycleSha256?.let { headers["X-Leona-Install-Lifecycle-Sha256"] = it }
-        deviceContext.canonicalDeviceId?.takeIf { it.isNotBlank() }?.let {
-            headers["X-Leona-Canonical-Device-Id-Sha256"] = sha256Hex(it)
+        if (includeDeviceContextHeaders) {
+            deviceContext.installLifecycleSha256?.let { headers["X-Leona-Install-Lifecycle-Sha256"] = it }
+            deviceContext.canonicalDeviceId?.takeIf { it.isNotBlank() }?.let {
+                headers["X-Leona-Canonical-Device-Id-Sha256"] = sha256Hex(it)
+            }
+            deviceContext.evidenceSignals
+                .takeIf { it.isNotEmpty() }
+                ?.let { headers["X-Leona-Evidence-Signals"] = it.sorted().joinToString(",").take(512) }
+            deviceContext.nativeFactTags
+                .takeIf { it.isNotEmpty() }
+                ?.let { headers["X-Leona-Native-Fact-Tags"] = it.sorted().joinToString(",").take(512) }
+            deviceContext.nativeFindingIds
+                .takeIf { it.isNotEmpty() }
+                ?.let { headers["X-Leona-Native-Finding-Ids"] = it.joinToString(",").take(512) }
+            deviceContext.nativeHighestSeverity?.let { headers["X-Leona-Native-Highest-Severity"] = it.toString() }
         }
-        deviceContext.evidenceSignals
-            .takeIf { it.isNotEmpty() }
-            ?.let { headers["X-Leona-Evidence-Signals"] = it.sorted().joinToString(",").take(512) }
-        deviceContext.nativeFactTags
-            .takeIf { it.isNotEmpty() }
-            ?.let { headers["X-Leona-Native-Fact-Tags"] = it.sorted().joinToString(",").take(512) }
-        deviceContext.nativeFindingIds
-            .takeIf { it.isNotEmpty() }
-            ?.let { headers["X-Leona-Native-Finding-Ids"] = it.joinToString(",").take(512) }
-        deviceContext.nativeHighestSeverity?.let { headers["X-Leona-Native-Highest-Severity"] = it.toString() }
         return LeonaCryptoHttpRequest(
             method = "POST",
             authority = url.host + if (url.port != if (url.isHttps) 443 else 80) ":${url.port}" else "",

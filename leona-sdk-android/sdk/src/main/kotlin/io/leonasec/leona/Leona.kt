@@ -17,7 +17,16 @@ import io.leonasec.leona.internal.SecureChannel
 import io.leonasec.leona.internal.TamperContext
 import io.leonasec.leona.internal.identity.DeviceFingerprintSnapshot
 import io.leonasec.leona.internal.identity.DeviceIdentityManager
+import io.leonasec.leona.internal.proto.LeonaEvidenceProtobufCodec
+import io.leonasec.leona.internal.proto.LeonaProtobufEncodeResult
+import io.leonasec.leona.internal.proto.LeonaProtectedLogicalPayloadHandoff
+import io.leonasec.leona.internal.proto.TypedSenseEvidenceMapper
 import io.leonasec.leona.internal.spi.SecureDeviceContext
+import io.leonasec.leona.internal.spi.SecureReportingErrorClassification
+import io.leonasec.leona.internal.spi.SecureReportingErrorCode
+import io.leonasec.leona.internal.spi.SecureReportingErrorClassifier
+import io.leonasec.leona.internal.spi.SecureReportingException
+import io.leonasec.leona.internal.spi.SecureUploadResult
 import io.leonasec.leona.internal.toTamperPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -114,15 +123,66 @@ object Leona {
         val payload = NativeBridge.collect()
         val nativeRisk = NativePayloadInspector.inspect(payload)
         state.lastNativeRisk.set(nativeRisk)
-        val uploadResult = state.channel.upload(
-            payload = payload,
+        val uploadResult = runTypedSense(
+            config = state.config,
+            snapshot = snapshot,
+            nativeRisk = nativeRisk,
             deviceContext = buildSecureDeviceContext(snapshot, nativeRisk),
+            upload = { handoff, deviceContext ->
+                state.channel.uploadProtectedLogicalPayload(handoff, deviceContext)
+            },
         )
         uploadResult.canonicalDeviceId?.let(state.identityManager::updateCanonicalDeviceId)
         uploadResult.serverInstallId?.let(state.identityManager::updateServerInstallId)
         state.lastServerVerdict.set(uploadResult.serverVerdict)
         uploadResult.boxId
     }
+
+    /**
+     * Shared production/test seam for the typed sense pipeline. The only
+     * externally reachable handoff is the canonical Protobuf object produced
+     * by the strict codec; callers cannot provide arbitrary payload bytes.
+     */
+    internal suspend fun runTypedSense(
+        config: LeonaConfig,
+        snapshot: DeviceFingerprintSnapshot,
+        nativeRisk: NativePayloadInspector.NativeRiskSummary,
+        deviceContext: SecureDeviceContext,
+        upload: suspend (LeonaProtectedLogicalPayloadHandoff, SecureDeviceContext) -> SecureUploadResult,
+        nowEpochMs: Long = System.currentTimeMillis(),
+        requestId: String = java.util.UUID.randomUUID().toString(),
+        nonce: ByteArray = java.util.UUID.randomUUID().toString().toByteArray(Charsets.US_ASCII),
+    ): SecureUploadResult {
+        val request = when (val mapped = TypedSenseEvidenceMapper.map(
+            config = config,
+            snapshot = snapshot,
+            nativeRisk = nativeRisk,
+            nowEpochMs = nowEpochMs,
+            requestId = requestId,
+            nonce = nonce,
+        )) {
+            is TypedSenseEvidenceMapper.Result.Success -> mapped.request
+            is TypedSenseEvidenceMapper.Result.Failure -> throw typedSenseFailure(
+                "typed evidence mapping failed: ${mapped.code.name.lowercase()}",
+            )
+        }
+        val handoff = when (val encoded = LeonaEvidenceProtobufCodec.encode(request)) {
+            is LeonaProtobufEncodeResult.Success -> encoded.handoff
+            is LeonaProtobufEncodeResult.Failure -> throw typedSenseFailure(
+                "typed evidence protobuf encoding failed: ${encoded.error.code.name.lowercase()}",
+            )
+        }
+        return upload(handoff, deviceContext)
+    }
+
+    private fun typedSenseFailure(detail: String): SecureReportingException =
+        SecureReportingErrorClassifier.exception(
+            operation = "sense",
+            classification = SecureReportingErrorClassification(
+                code = SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE,
+            ),
+            detail = detail,
+        )
 
     internal fun buildSecureDeviceContext(
         snapshot: DeviceFingerprintSnapshot,

@@ -12,6 +12,7 @@ DESCRIPTOR = ROOT / "sdk/src/main/resources/leona/evidence/v1/ingest.pb"
 GOLDEN = ROOT / "sdk/src/test/resources/leona/evidence/v1/valid-ingest.bin"
 CODEC = ROOT / "sdk/src/main/kotlin/io/leonasec/leona/internal/proto/LeonaEvidenceProtobufCodec.kt"
 CHANNEL = ROOT / "sdk/src/main/kotlin/io/leonasec/leona/internal/SecureChannel.kt"
+LEONA = ROOT / "sdk/src/main/kotlin/io/leonasec/leona/Leona.kt"
 DOC = ROOT / "docs/v1-android-protobuf.md"
 MANIFEST = ROOT / "sdk/src/main/proto/leona/evidence/v1/codegen-manifest.json"
 SBOM = ROOT / "sdk/src/main/proto/leona/evidence/v1/sbom.json"
@@ -72,11 +73,23 @@ class AndroidProtobufContractTest(unittest.TestCase):
         self.assertIn("PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE", source)
         self.assertIn("LeonaProtectedPayloadCarrierV1", source)
         encode_at = source.index("protectedPayloadEncoder(handoff)")
-        upload_at = source.index("return upload(carrier, deviceContext)")
+        upload_match = re.search(r"return\s+uploadInternal\(\s*carrier\s*,\s*deviceContext\s*,\s*includeDeviceContextHeaders\s*=\s*false\s*\)", source)
+        self.assertIsNotNone(upload_match)
+        upload_at = upload_match.start()
         self.assertLess(encode_at, upload_at)
         self.assertNotIn("typed protobuf descriptor carrier is not admitted", source)
         # Existing transport remains Leo media type only; no new clear custom headers.
         self.assertNotRegex(source, r"setHeader\(\s*\"X-(?:Leona|Leo)-")
+
+    def test_public_sense_never_uploads_raw_native_body(self):
+        source = LEONA.read_text()
+        start = source.index("suspend fun sense()")
+        end = source.index("Shared production/test seam", start)
+        sense = source[start:end]
+        self.assertIn("NativeBridge.collect()", sense)
+        self.assertIn("runTypedSense", sense)
+        self.assertIn("uploadProtectedLogicalPayload", sense)
+        self.assertNotRegex(sense, r"\.upload\(\s*payload\s*=\s*payload")
 
     def test_dependency_pin_and_consumer_rule(self):
         gradle = (ROOT / "sdk/build.gradle.kts").read_text()
@@ -90,7 +103,7 @@ class AndroidProtobufContractTest(unittest.TestCase):
         source = DOC.read_text()
         self.assertIn("128 KiB", source)
         self.assertIn("NOT_RUN/BLOCKED", source)
-        self.assertIn("protected_payload_carrier_unavailable", source)
+        self.assertIn("typed error before HTTP", source)
         self.assertNotIn("8 MiB", source)
         self.assertNotRegex(source, r"clear HTTP headers.*X-Leona")
 

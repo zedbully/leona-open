@@ -30,13 +30,30 @@ max and max+1 cases are tested. This profile intentionally uses smaller bounds i
 The codec returns a typed `LeonaProtectedLogicalPayloadHandoff` containing the
 bytes and four logical descriptor values (`payloadCodec`, `payloadSchema`,
 `messageType`, and the 32-byte descriptor digest). These values are not clear
-HTTP headers. The existing `SecureChannel` accepts this typed handoff but returns
-`protected_payload_carrier_unavailable` before request construction because the
-exact Leo protected-metadata carrier/receipt is not yet admitted. No provider
-wire or custom metadata encoding is guessed.
+HTTP headers. `Leona.sense()` maps the bounded local snapshot into this model,
+encodes it once, and passes the canonical handoff to the request-only LPCARR01
+carrier before calling the existing Leo authenticated upload boundary. If the
+mapper, codec, carrier, or Leo provider is unavailable, the call fails with a
+typed error before HTTP and never retries with the legacy raw body, JSON, or
+plaintext. No provider wire or custom metadata encoding is guessed.
+
+The mapper emits only fixed registry observations plus opaque install/session
+references and hash-only fingerprint commitments. Local observations are
+`RAW`; hash commitments are `REDACTED`; `VERIFIED` is reserved for facts
+authenticated by a provider or server. Device IDs, package/build/model text,
+native payload bytes, and finding messages are not serialized. Identity-derived
+ad-hoc protected headers are omitted on this typed path; descriptor values stay
+inside LPCARR01.
+
+The host test `Leona.runTypedSense` seam exercises the same mapper/codec call
+chain with a recording uploader; it is internal test support, not a public
+payload-construction API. Leo provider seal/runtime and Android device
+execution remain separate evidence gates.
 
 The Android SDK reports evidence and opaque install/session references only; the
-server owns identity/risk/verdict decisions. Outer HTTP metadata remains the Leo
+server owns identity/risk/verdict decisions. Tenant/app/environment is a
+protected scope declaration for server validation, never a client authorization
+or policy authority. Outer HTTP metadata remains the Leo
 authenticated channel's media type; no `X-Leona-*` or `X-Leo-*` clear headers are
 added by this lane.
 
