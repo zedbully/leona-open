@@ -160,6 +160,9 @@ class SecureChannelTest {
             val outer = server.takeRequest()
             assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Content-Type"))
             assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Accept"))
+            assertEquals(null, outer.getHeader("X-Leona-Environment"))
+            assertEquals(null, outer.getHeader("X-Leona-Session-Id-Sha256"))
+            assertEquals(null, outer.getHeader("X-Leona-Identity-Protection"))
             assertFalse(outer.body.readByteArray().toString(StandardCharsets.UTF_8).contains("leona_test_app_key"))
             assertFalse(outer.path!!.contains("/v1/sense"))
         } finally {

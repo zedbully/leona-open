@@ -33,6 +33,9 @@ authorization scope or client-side verdict input.
 * A server-issued `I` value may replace the provisional UUID only through the
   existing strict response admission rule. It remains a correlation handle,
   not canonical device identity or a business verdict.
+* Every replacement writes the encrypted install record and removes the cached
+  snapshot in one synchronous preferences transaction; a failed commit leaves
+  the previous install/snapshot pair intact.
 * The local value is never placed in a cleartext HTTP header. Public request
   metadata uses a SHA-256 handle; the raw value can appear only in a
   caller-owned protected context.
@@ -68,6 +71,25 @@ corruption status on the current report. If the clear fails, the status is
 the clear succeeds, the following resolution consumes the one-shot corruption
 status and can write a fresh encrypted snapshot; the report that observed the
 corruption remains degraded.
+
+### Protected transport boundary
+
+Identity additions such as `session_id`, protection status, environment, and
+the install-lifecycle hint are **Leo protected logical fields**. They are
+assembled into the logical header map consumed by
+`LeonaCryptoProtectedHeadersCodec` and are not emitted as clear HTTP headers.
+The outer request contains only the Leo encrypted envelope. Exact Android ↔
+Leo Provider ↔ API/Rust field mapping is `CROSS_MODULE_BLOCKED` /
+`NOT_ADMITTED` until the provider contract and evidence are frozen; this SDK
+does not guess that wire mapping or provide a plaintext fallback.
+
+Each encrypted identity record now carries a version and record-domain label
+authenticated as AES-GCM AAD. Existing v1 envelopes are accepted only after
+strict record-shape and plaintext semantic validation, then synchronously
+migrated to the v2 domain-bound envelope without rotating a valid value.
+Install, canonical, and snapshot records are quarantined independently so a
+single malformed record cannot delete unrelated evidence. Keystore failures
+leave recoverable ciphertext untouched.
 
 ## Android 6–16 compatibility contract
 

@@ -52,7 +52,7 @@ class IdentityLifecycleTest {
             generatedAtMillis = 1L,
             installId = IdentityIdGenerator.newInstallId(),
             canonicalDeviceId = null,
-            resolvedDeviceId = "Ttemporary",
+            resolvedDeviceId = "T" + "a".repeat(43),
             fingerprintHash = "a".repeat(64),
             packageName = "io.leonasec.test",
             appVersionName = "1",
@@ -113,29 +113,75 @@ class IdentityLifecycleTest {
 
     @Test
     fun `corrupt snapshot quarantine preserves report status and retries after clear failure`() {
-        val failedClear = IdentityPersistencePolicy.statusAfterSnapshotQuarantine(clearSucceeded = false)
+        val failedClear = IdentityPersistencePolicy.statusAfterRecordQuarantine(clearSucceeded = false)
         assertEquals(IdentityProtectionLevel.CORRUPT_OR_MISSING, failedClear.level)
         assertEquals(IdentityProtectionCode.STORAGE_WRITE_FAILED, failedClear.code)
         assertFalse(failedClear.durable)
         assertTrue(failedClear.recoverable)
 
-        val nextAttempt = IdentityPersistencePolicy.statusAfterSnapshotQuarantine(clearSucceeded = true)
+        val nextAttempt = IdentityPersistencePolicy.statusAfterRecordQuarantine(clearSucceeded = true)
         assertEquals(IdentityProtectionStatus.CORRUPT_OR_MISSING, nextAttempt)
         assertFalse(IdentityPersistencePolicy.shouldPersistSnapshot(nextAttempt))
         assertEquals(
             IdentityProtectionStatus.READY,
-            IdentityPersistencePolicy.statusForNextResolution(
+            IdentityPersistencePolicy.statusForNextRecordResolution(
                 current = nextAttempt,
-                snapshotPresent = false,
+                recordPresent = false,
                 quarantineCompleted = true,
             ),
         )
         assertEquals(
             nextAttempt,
-            IdentityPersistencePolicy.statusForNextResolution(
+            IdentityPersistencePolicy.statusForNextRecordResolution(
                 current = nextAttempt,
-                snapshotPresent = true,
+                recordPresent = true,
                 quarantineCompleted = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `each damaged record recovers independently after its own quarantine`() {
+        IdentityRecord.values().forEach {
+            val observed = IdentityPersistencePolicy.statusAfterRecordQuarantine(clearSucceeded = true)
+            assertEquals(IdentityProtectionLevel.CORRUPT_OR_MISSING, observed.level)
+            assertEquals(
+                IdentityProtectionStatus.READY,
+                IdentityPersistencePolicy.statusForNextRecordResolution(
+                    current = observed,
+                    recordPresent = false,
+                    quarantineCompleted = true,
+                ),
+            )
+            assertEquals(
+                observed,
+                IdentityPersistencePolicy.statusForNextRecordResolution(
+                    current = observed,
+                    recordPresent = true,
+                    quarantineCompleted = true,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `successful protected rewrite clears a recoverable degradation on next resolution`() {
+        assertEquals(
+            IdentityProtectionStatus.READY,
+            IdentityPersistencePolicy.statusAfterSuccessfulRecovery(
+                IdentityProtectionStatus.CORRUPT_OR_MISSING,
+            ),
+        )
+        assertEquals(
+            IdentityProtectionStatus.READY,
+            IdentityPersistencePolicy.statusAfterSuccessfulRecovery(
+                IdentityProtectionStatus.KEYSTORE_UNAVAILABLE,
+            ),
+        )
+        assertEquals(
+            IdentityProtectionStatus.API_BELOW_23,
+            IdentityPersistencePolicy.statusAfterSuccessfulRecovery(
+                IdentityProtectionStatus.API_BELOW_23,
             ),
         )
     }

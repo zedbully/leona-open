@@ -66,7 +66,12 @@
       "multiProcessStatus": "BLOCKED_NOT_ADMITTED_SHARED_PREFS_NOT_CROSS_PROCESS_SAFE",
       "lifecycleScenarios": ["first-install", "warm-restart", "cold-restart", "upgrade", "clear-data", "uninstall-reinstall"],
       "identityRole": "collect-and-report-evidence-only",
-      "finalDecisionOwner": "customer-backend"
+      "finalDecisionOwner": "customer-backend",
+      "transportFields": {
+        "newIdentityFields": "LEO_PROTECTED_LOGICAL_FIELDS",
+        "clearHttpHeaders": false,
+        "crossModuleStatus": "CROSS_MODULE_BLOCKED_NOT_ADMITTED"
+      }
     },
     "cryptoAdapterBoundary": {
       "module": "crypto-adapter",

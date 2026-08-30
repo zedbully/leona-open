@@ -39,6 +39,20 @@ internal data class IdentityProtectionStatus(
     val isDegraded: Boolean
         get() = level != IdentityProtectionLevel.KEYSTORE_AES_GCM
 
+    fun isSemanticallyCoherent(): Boolean = when (level) {
+        IdentityProtectionLevel.KEYSTORE_AES_GCM ->
+            code == IdentityProtectionCode.READY && durable && recoverable
+        IdentityProtectionLevel.EPHEMERAL_MEMORY_ONLY ->
+            code == IdentityProtectionCode.STORAGE_WRITE_FAILED && !durable && recoverable
+        IdentityProtectionLevel.UNSUPPORTED_API ->
+            code == IdentityProtectionCode.API_BELOW_23 && !durable && !recoverable
+        IdentityProtectionLevel.KEYSTORE_UNAVAILABLE ->
+            code == IdentityProtectionCode.KEYSTORE_INIT_FAILED && !durable && recoverable
+        IdentityProtectionLevel.CORRUPT_OR_MISSING ->
+            code in setOf(IdentityProtectionCode.ENVELOPE_INVALID, IdentityProtectionCode.STORAGE_WRITE_FAILED) &&
+                !durable && recoverable
+    }
+
     companion object {
         val READY = IdentityProtectionStatus(
             level = IdentityProtectionLevel.KEYSTORE_AES_GCM,
@@ -92,6 +106,25 @@ internal object InstallIdAdmission {
     fun isUsable(value: String): Boolean = SERVER_PATTERN.matches(value) || LOCAL_PATTERN.matches(value)
 }
 
+/** Server-owned canonical identifiers have a distinct shape from install ids. */
+internal object CanonicalIdAdmission {
+    private val PATTERN = Regex("^L[0-9a-f]{32}$")
+
+    fun isUsable(value: String): Boolean = PATTERN.matches(value)
+}
+
+internal enum class IdentityRecord(val wireName: String, val preferenceKey: String) {
+    INSTALL_ID("install_id", "install.id"),
+    CANONICAL_DEVICE_ID("canonical_device_id", "device.id.canonical"),
+    SNAPSHOT("snapshot", "fingerprint.snapshot"),
+}
+
+internal data class IdentityEnvelopeDescriptor(
+    val version: Int,
+    val record: IdentityRecord?,
+    val legacy: Boolean,
+)
+
 /** One-way install-epoch evidence; missing PackageManager data stays missing. */
 internal object InstallLifecycleHint {
     fun sha256(packageName: String, firstInstallTime: Long?): String? {
@@ -103,24 +136,60 @@ internal object InstallLifecycleHint {
     }
 }
 
-/** Pure envelope admission checks used by the store and JVM contract tests. */
+/** Pure envelope admission checks shared by the encrypted identity store. */
 internal object IdentityEnvelopePolicy {
+    const val CURRENT_VERSION = 2
+    const val LEGACY_VERSION = 1
     private const val MAX_ENVELOPE_LENGTH = 65_536
     private const val GCM_IV_LENGTH_BYTES = 12
     private const val GCM_TAG_LENGTH_BYTES = 16
 
     fun isApiSupported(apiLevel: Int): Boolean = apiLevel >= 23
 
-    fun isAuthenticatedEnvelope(stored: String?): Boolean {
-        if (stored.isNullOrBlank() || stored.length > MAX_ENVELOPE_LENGTH) return false
-        val json = runCatching { JSONObject(stored) }.getOrNull() ?: return false
-        if (json.optString("mode") != "keystore") return false
-        return runCatching {
-            val iv = decodedLengthNoWrap(json.getString("iv"))
-            val ciphertext = decodedLengthNoWrap(json.getString("ct"))
+    fun aadFor(record: IdentityRecord, version: Int = CURRENT_VERSION): String =
+        "leona.identity.v$version:${record.wireName}"
+
+    fun inspect(
+        stored: String?,
+        expectedRecord: IdentityRecord? = null,
+    ): IdentityEnvelopeDescriptor? {
+        if (stored.isNullOrBlank() || stored.length > MAX_ENVELOPE_LENGTH) return null
+        val json = runCatching { JSONObject(stored) }.getOrNull() ?: return null
+        val mode = json.opt("mode") as? String
+        if (mode != "keystore") return null
+        val versionValue = json.opt("version")
+        val version = when {
+            !json.has("version") && !json.has("record") -> LEGACY_VERSION
+            versionValue is Number -> versionValue.toInt()
+                .takeIf { versionValue.toDouble() == it.toDouble() }
+            else -> null
+        } ?: return null
+        val record = if (json.has("record")) {
+            val wireName = json.opt("record") as? String ?: return null
+            IdentityRecord.values().firstOrNull { it.wireName == wireName } ?: return null
+        } else {
+            null
+        }
+        if (version == LEGACY_VERSION) {
+            if (record != null || json.has("version") && json.get("version") !is Number) return null
+        } else if (version == CURRENT_VERSION) {
+            if (record == null || expectedRecord != null && record != expectedRecord) return null
+        } else {
+            return null
+        }
+        val shapeValid = runCatching {
+            val iv = decodedLengthNoWrap(json.get("iv") as? String ?: error("iv type"))
+            val ciphertext = decodedLengthNoWrap(json.get("ct") as? String ?: error("ct type"))
             iv == GCM_IV_LENGTH_BYTES && ciphertext >= GCM_TAG_LENGTH_BYTES
         }.getOrDefault(false)
+        if (!shapeValid) return null
+        return IdentityEnvelopeDescriptor(version = version, record = record, legacy = version == LEGACY_VERSION)
     }
+
+    fun isAuthenticatedEnvelope(
+        stored: String?,
+        expectedRecord: IdentityRecord? = null,
+    ): Boolean = inspect(stored, expectedRecord) != null
 
     private fun decodedLengthNoWrap(encoded: String): Int {
         require(encoded.isNotEmpty() && encoded.matches(BASE64_NO_WRAP))
@@ -141,7 +210,7 @@ internal object IdentityPersistencePolicy {
      * retry the quarantine, so the status remains recoverable while recording
      * the storage failure without pretending the snapshot is durable.
      */
-    fun statusAfterSnapshotQuarantine(clearSucceeded: Boolean): IdentityProtectionStatus =
+    fun statusAfterRecordQuarantine(clearSucceeded: Boolean): IdentityProtectionStatus =
         if (clearSucceeded) {
             IdentityProtectionStatus.CORRUPT_OR_MISSING
         } else {
@@ -153,13 +222,13 @@ internal object IdentityPersistencePolicy {
             )
         }
 
-    fun statusForNextResolution(
+    fun statusForNextRecordResolution(
         current: IdentityProtectionStatus,
-        snapshotPresent: Boolean,
+        recordPresent: Boolean,
         quarantineCompleted: Boolean,
     ): IdentityProtectionStatus = if (
         quarantineCompleted &&
-        !snapshotPresent &&
+        !recordPresent &&
         current.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
         current.code == IdentityProtectionCode.ENVELOPE_INVALID
     ) {
@@ -167,6 +236,14 @@ internal object IdentityPersistencePolicy {
     } else {
         current
     }
+
+    /** A successful protected rewrite clears a prior recoverable degradation on the next report. */
+    fun statusAfterSuccessfulRecovery(current: IdentityProtectionStatus): IdentityProtectionStatus =
+        if (current.recoverable && current.level != IdentityProtectionLevel.UNSUPPORTED_API) {
+            IdentityProtectionStatus.READY
+        } else {
+            current
+        }
 
     fun preserveProbeStatus(
         current: IdentityProtectionStatus,

@@ -15,6 +15,10 @@ MANAGER_SOURCE = (
     Path(__file__).resolve().parents[2]
     / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/DeviceIdentityManager.kt"
 ).read_text(encoding="utf-8")
+SECURE_CHANNEL_SOURCE = (
+    Path(__file__).resolve().parents[2]
+    / "sdk/src/main/kotlin/io/leonasec/leona/internal/SecureChannel.kt"
+).read_text(encoding="utf-8")
 
 
 class LeonaIdentityStoreContractTest(unittest.TestCase):
@@ -57,29 +61,42 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertRegex(SOURCE, r"GCM_TAG_LENGTH_BYTES\s*=\s*16")
 
     def test_identity_anchors_commit_synchronously_and_surface_failures(self) -> None:
-        for key in ("KEY_INSTALL_ID", "KEY_CANONICAL_DEVICE_ID", "KEY_LAST_SNAPSHOT"):
-            self.assertRegex(SOURCE, rf"persist\({key},\s*encrypt\(")
-        self.assertIn("private fun persist(key: String, encryptedValue: String)", SOURCE)
-        self.assertIn(".putString(key, encryptedValue).commit()", SOURCE)
+        self.assertIn("persist(\n            IdentityRecord.CANONICAL_DEVICE_ID", SOURCE)
+        self.assertIn("persist(IdentityRecord.SNAPSHOT", SOURCE)
+        self.assertIn("private fun persist(record: IdentityRecord, encryptedValue: String)", SOURCE)
+        self.assertIn(".putString(record.preferenceKey, encryptedValue).commit()", SOURCE)
         self.assertIn('"Unable to persist Leona identity state"', SOURCE)
         self.assertNotIn(".apply()", SOURCE)
 
+    def test_install_update_and_snapshot_invalidation_share_one_commit(self) -> None:
+        self.assertIn("fun replaceInstallIdAndClearSnapshot(installId: String)", SOURCE)
+        atomic = re.search(
+            r"fun replaceInstallIdAndClearSnapshot[\s\S]*?prefs\.edit\(\)(?P<body>[\s\S]*?)\.commit\(\)",
+            SOURCE,
+        )
+        self.assertIsNotNone(atomic)
+        self.assertIn("putString(KEY_INSTALL_ID", atomic.group("body"))
+        self.assertIn("remove(KEY_LAST_SNAPSHOT)", atomic.group("body"))
+        self.assertIn("store.replaceInstallIdAndClearSnapshot(normalized)", MANAGER_SOURCE)
+        self.assertIn("cached.installId == currentInstallId", MANAGER_SOURCE)
+
     def test_corrupt_snapshot_is_quarantined_without_losing_current_status(self) -> None:
         self.assertIn("fun loadLastSnapshot(): DeviceFingerprintSnapshot?", SOURCE)
-        self.assertIn("quarantineCorruptSnapshot()", SOURCE)
+        self.assertIn("quarantine(IdentityRecord.SNAPSHOT)", SOURCE)
         self.assertIn("fun beginResolution()", SOURCE)
-        self.assertIn("statusForNextResolution(", SOURCE)
+        self.assertIn("statusForNextRecordResolution(", SOURCE)
         self.assertRegex(
             SOURCE,
-            r"prefs\.edit\(\)\.remove\(KEY_LAST_SNAPSHOT\)\.commit\(\)",
+            r"prefs\.edit\(\)\.remove\(record\.preferenceKey\)\.commit\(\)",
         )
-        self.assertIn("statusAfterSnapshotQuarantine(cleared)", SOURCE)
+        self.assertIn("statusAfterRecordQuarantine(cleared)", SOURCE)
         policy = (
             Path(__file__).resolve().parents[2]
             / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/IdentityProtectionState.kt"
         ).read_text(encoding="utf-8")
         self.assertIn("IdentityProtectionLevel.CORRUPT_OR_MISSING", policy)
         self.assertIn("recoverable = true", policy)
+        self.assertIn("statusAfterSuccessfulRecovery", policy)
 
     def test_new_install_lifecycle_cannot_restore_identity_from_backup(self) -> None:
         self.assertIn("context.noBackupFilesDir", SOURCE)
@@ -96,7 +113,7 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
     def test_valid_encrypted_state_survives_a_missing_sentinel(self) -> None:
         self.assertRegex(
             SOURCE,
-            r"val existingInstallId = decrypt\(prefs\.getString\(KEY_INSTALL_ID, null\)\)",
+            r"val existingInstallId = loadInstallId\(\)",
         )
         self.assertRegex(
             SOURCE,
@@ -116,7 +133,7 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
             r"store\.loadInstallId\(\)[\s\S]{0,180}takeIf\(::isUsableInstallId\)",
         )
         self.assertIn("InstallIdAdmission.isUsable(value)", MANAGER_SOURCE)
-        self.assertIn("runCatching { store.persistInstallId(installId) }", MANAGER_SOURCE)
+        self.assertIn("runCatching { store.replaceInstallIdAndClearSnapshot(installId) }", MANAGER_SOURCE)
         self.assertNotIn("sourceDir", MANAGER_SOURCE)
         start = MANAGER_SOURCE.index("private fun resolveLocalInstallId()")
         end = MANAGER_SOURCE.index("private fun resolveInstallLifecycleSha256", start)
@@ -148,6 +165,29 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertIn("Character::isISOControl", config_source)
         self.assertNotIn("environment = value?.trim()?.take(64)", config_source)
 
+    def test_record_envelopes_are_versioned_and_domain_bound(self) -> None:
+        policy = (
+            Path(__file__).resolve().parents[2]
+            / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/IdentityProtectionState.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("const val CURRENT_VERSION = 2", policy)
+        self.assertIn("const val LEGACY_VERSION = 1", policy)
+        self.assertIn("aadFor(record", policy)
+        self.assertIn('"record", record.wireName', SOURCE)
+        self.assertIn("cipher.updateAAD", SOURCE)
+        self.assertIn("descriptor.legacy", SOURCE)
+        self.assertIn("migrateLegacyIfNeeded", SOURCE)
+
+    def test_persisted_snapshot_semantics_are_strict(self) -> None:
+        snapshot = (
+            Path(__file__).resolve().parents[2]
+            / "sdk/src/main/kotlin/io/leonasec/leona/internal/identity/DeviceFingerprintSnapshot.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("validateSemantics(obj, expectedPackageName)", snapshot)
+        self.assertIn("InstallIdAdmission.isUsable(installId)", snapshot)
+        self.assertIn("CanonicalIdAdmission.isUsable(canonicalDeviceId)", snapshot)
+        self.assertIn("isSemanticallyCoherent()", snapshot)
+
     def test_multi_process_is_explicitly_not_admitted(self) -> None:
         contract = json.loads(
             (
@@ -160,6 +200,19 @@ class LeonaIdentityStoreContractTest(unittest.TestCase):
         self.assertEqual(
             "BLOCKED_NOT_ADMITTED_SHARED_PREFS_NOT_CROSS_PROCESS_SAFE",
             compatibility["multiProcessStatus"],
+        )
+        self.assertEqual("LEO_PROTECTED_LOGICAL_FIELDS", compatibility["transportFields"]["newIdentityFields"])
+        self.assertFalse(compatibility["transportFields"]["clearHttpHeaders"])
+        self.assertEqual("CROSS_MODULE_BLOCKED_NOT_ADMITTED", compatibility["transportFields"]["crossModuleStatus"])
+
+    def test_identity_fields_are_protected_logical_fields_not_clear_headers(self) -> None:
+        self.assertIn(
+            "protectedHeaders = LeonaCryptoProtectedHeadersCodec.encode(headers)",
+            SECURE_CHANNEL_SOURCE,
+        )
+        self.assertNotRegex(
+            SECURE_CHANNEL_SOURCE,
+            r"(?:addHeader|header)\(\s*\"X-Leona-(?:Environment|Session-Id-Sha256|Identity-Protection)\"",
         )
 
 

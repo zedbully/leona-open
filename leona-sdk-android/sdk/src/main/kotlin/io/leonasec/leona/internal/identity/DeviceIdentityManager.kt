@@ -39,6 +39,7 @@ internal class DeviceIdentityManager(
         refreshRiskSignals: Boolean = false,
     ): DeviceFingerprintSnapshot {
         store.beginResolution()
+        val currentInstallId = resolveLocalInstallId()
         val cached = store.loadLastSnapshot()
         val persistedCanonicalDeviceId = store.loadCanonicalDeviceId()
             ?.let(::normalizeCanonicalId)
@@ -51,6 +52,7 @@ internal class DeviceIdentityManager(
             policy.disableCollectionWindowMs >= 0 &&
             cached != null &&
             cached.fingerprintSchemaVersion == DeviceFingerprintHasher.CACHE_SCHEMA_VERSION &&
+            cached.installId == currentInstallId &&
             cached.canonicalDeviceId == persistedCanonicalDeviceId &&
             cached.identityProtectionStatus.durable &&
             store.protectionStatus().durable
@@ -73,7 +75,7 @@ internal class DeviceIdentityManager(
 
         val canonicalDeviceId = persistedCanonicalDeviceId
         val packageInfo = packageInfo()
-        val installId = resolveLocalInstallId()
+        val installId = currentInstallId
         val installLifecycleSha256 = resolveInstallLifecycleSha256(packageInfo)
         val localAndroidId = loadAndroidId()
             ?.takeIf(DeviceFingerprintHasher::isUsableAnchorValue)
@@ -223,8 +225,7 @@ internal class DeviceIdentityManager(
         val normalized = normalizeServerInstallId(installId) ?: return
         if (store.loadInstallId() == normalized) return
         runCatching {
-            store.persistInstallId(normalized)
-            store.clearLastSnapshot()
+            store.replaceInstallIdAndClearSnapshot(normalized)
         }
     }
 
@@ -241,7 +242,10 @@ internal class DeviceIdentityManager(
         // A fresh installation receives a random value; package metadata is
         // never used as an install identity seed.
         val installId = ephemeralInstallId
-        runCatching { store.persistInstallId(installId) }
+        // A new local install value invalidates any stale cached snapshot in
+        // the same synchronous transaction; a failed commit leaves both old
+        // values untouched and the caller receives this process-only value.
+        runCatching { store.replaceInstallIdAndClearSnapshot(installId) }
         return installId
     }
 
