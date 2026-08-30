@@ -43,19 +43,10 @@ internal class DeviceIdentityManager(
         val cached = store.loadLastSnapshot()
         val persistedCanonicalDeviceId = store.loadCanonicalDeviceId()
             ?.let(::normalizeCanonicalId)
-            ?.also { normalized ->
-                if (normalized != store.loadCanonicalDeviceId()) {
-                    store.persistCanonicalDeviceId(normalized)
-                }
-            }
-        if (
-            policy.disableCollectionWindowMs >= 0 &&
+        val currentProtectionStatus = store.protectionStatus()
+        if (policy.disableCollectionWindowMs >= 0 &&
             cached != null &&
-            cached.fingerprintSchemaVersion == DeviceFingerprintHasher.CACHE_SCHEMA_VERSION &&
-            cached.installId == currentInstallId &&
-            cached.canonicalDeviceId == persistedCanonicalDeviceId &&
-            cached.identityProtectionStatus.durable &&
-            store.protectionStatus().durable
+            isCacheAdmissible(cached, currentInstallId, persistedCanonicalDeviceId, currentProtectionStatus)
         ) {
             val age = System.currentTimeMillis() - cached.generatedAtMillis
             if (age in 0..policy.disableCollectionWindowMs) {
@@ -63,7 +54,7 @@ internal class DeviceIdentityManager(
                     // Session ids are memory-only and must never be trusted from
                     // the persisted snapshot written by an earlier process.
                     sessionId = sessionId,
-                    identityProtectionStatus = store.protectionStatus(),
+                    identityProtectionStatus = currentProtectionStatus,
                 )
                 return if (refreshRiskSignals) {
                     refreshCachedRiskSignals(currentSessionSnapshot, policy)
@@ -170,10 +161,22 @@ internal class DeviceIdentityManager(
             sessionId = sessionId,
             identityProtectionStatus = store.protectionStatus(),
         )
-        if (IdentityPersistencePolicy.shouldPersistSnapshot(snapshot.identityProtectionStatus)) {
+        val persistenceSnapshot = when {
+            IdentityPersistencePolicy.shouldPersistSnapshot(snapshot.identityProtectionStatus) ->
+                snapshot.copy(sessionId = "")
+            IdentityPersistencePolicy.shouldAttemptProtectedRecovery(snapshot.identityProtectionStatus) ->
+                // Keep the current report degraded, but only clear that
+                // observation after a fresh protected cache has committed.
+                snapshot.copy(
+                    sessionId = "",
+                    identityProtectionStatus = IdentityProtectionStatus.READY,
+                )
+            else -> null
+        }
+        if (persistenceSnapshot != null) {
             val persisted = runCatching {
                 // Never write the process-only session id into the durable cache.
-                store.persistLastSnapshot(snapshot.copy(sessionId = ""))
+                store.persistLastSnapshot(persistenceSnapshot)
             }.isSuccess
             if (!persisted) {
                 return snapshot.copy(identityProtectionStatus = store.protectionStatus())
@@ -204,16 +207,40 @@ internal class DeviceIdentityManager(
         )
     }
 
-    fun currentSnapshot(): DeviceFingerprintSnapshot? = store.loadLastSnapshot()?.copy(
-        sessionId = sessionId,
-        identityProtectionStatus = store.protectionStatus(),
-    )
+    @Synchronized
+    fun currentSnapshot(): DeviceFingerprintSnapshot? {
+        store.beginResolution()
+        val currentInstallId = resolveLocalInstallId()
+        val cached = store.loadLastSnapshot() ?: return null
+        val persistedCanonicalDeviceId = store.loadCanonicalDeviceId()?.let(::normalizeCanonicalId)
+        val currentProtectionStatus = store.protectionStatus()
+        if (!isCacheAdmissible(cached, currentInstallId, persistedCanonicalDeviceId, currentProtectionStatus)) {
+            return null
+        }
+        return cached.copy(
+            sessionId = sessionId,
+            identityProtectionStatus = currentProtectionStatus,
+        )
+    }
 
+    @Synchronized
     fun updateCanonicalDeviceId(deviceId: String?) {
         normalizeServerCanonicalId(deviceId)?.let { normalized ->
-            runCatching { store.persistCanonicalDeviceId(normalized) }
+            store.persistCanonicalDeviceId(normalized)
         }
     }
+
+    private fun isCacheAdmissible(
+        cached: DeviceFingerprintSnapshot,
+        currentInstallId: String,
+        persistedCanonicalDeviceId: String?,
+        currentProtectionStatus: IdentityProtectionStatus,
+    ): Boolean =
+        cached.fingerprintSchemaVersion == DeviceFingerprintHasher.CACHE_SCHEMA_VERSION &&
+            cached.installId == currentInstallId &&
+            cached.canonicalDeviceId == persistedCanonicalDeviceId &&
+            cached.identityProtectionStatus.durable &&
+            currentProtectionStatus.durable
 
     /**
      * Accept only the opaque id minted by the Leona server. A changed server

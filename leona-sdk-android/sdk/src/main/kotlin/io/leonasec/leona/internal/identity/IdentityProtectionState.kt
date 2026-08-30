@@ -204,6 +204,13 @@ internal object IdentityEnvelopePolicy {
 internal object IdentityPersistencePolicy {
     fun shouldPersistSnapshot(status: IdentityProtectionStatus): Boolean = status.durable
 
+    /** A cleared envelope may be replaced with a fresh protected cache before
+     * the degraded observation is consumed on the next resolution. */
+    fun shouldAttemptProtectedRecovery(status: IdentityProtectionStatus): Boolean =
+        status.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
+            status.code == IdentityProtectionCode.ENVELOPE_INVALID &&
+            status.recoverable
+
     /**
      * A malformed snapshot is removed synchronously, but its observation stays
      * attached to the current report. If removal fails, the next attempt may
@@ -226,15 +233,10 @@ internal object IdentityPersistencePolicy {
         current: IdentityProtectionStatus,
         recordPresent: Boolean,
         quarantineCompleted: Boolean,
-    ): IdentityProtectionStatus = if (
-        quarantineCompleted &&
-        !recordPresent &&
-        current.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
-        current.code == IdentityProtectionCode.ENVELOPE_INVALID
-    ) {
-        IdentityProtectionStatus.READY
-    } else {
-        current
+    ): IdentityProtectionStatus {
+        // Quarantine completion alone is not recovery: the status stays
+        // attached until a protected rewrite marks statusRecoveryReady.
+        return current
     }
 
     /** A successful protected rewrite clears a prior recoverable degradation on the next report. */

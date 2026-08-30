@@ -59,18 +59,21 @@ The collector may use a process-memory-only random install handle so evidence
 collection remains explicit and non-authoritative; the status is reported as
 `EPHEMERAL_MEMORY_ONLY`/`KEYSTORE_UNAVAILABLE` (or `UNSUPPORTED_API`). A
 caller must not promote that state to an authorization decision.
-Degraded snapshots are returned to the protected evidence channel but are not
-written to the durable identity cache; failures remain visible through the
-typed status rather than being swallowed as a healthy state.
+Degraded snapshots are returned to the protected evidence channel and are
+never persisted with a degraded status. After a damaged record is cleared, the
+SDK may write a fresh protected cache as recovery; the original degraded
+observation remains on that report and is consumed only after that rewrite.
+Keystore/storage failures remain visible through the typed status rather than
+being swallowed as a healthy state.
 
 If the snapshot envelope or authenticated snapshot JSON is malformed, the SDK
 removes only that invalid snapshot record synchronously and preserves the
 corruption status on the current report. If the clear fails, the status is
 `CORRUPT_OR_MISSING` with `STORAGE_WRITE_FAILED`, `durable=false`, and
 `recoverable=true`; the next resolution retries the same clear operation. Once
-the clear succeeds, the following resolution consumes the one-shot corruption
-status and can write a fresh encrypted snapshot; the report that observed the
-corruption remains degraded.
+the clear succeeds, the next resolution may commit a fresh encrypted snapshot
+as recovery; only the following resolution consumes the one-shot corruption
+status. The report that observed the corruption remains degraded.
 
 ### Protected transport boundary
 

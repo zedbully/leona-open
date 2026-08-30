@@ -109,6 +109,16 @@ class IdentityLifecycleTest {
                 probeSucceeded = true,
             ),
         )
+        assertTrue(
+            IdentityPersistencePolicy.shouldAttemptProtectedRecovery(
+                IdentityProtectionStatus.CORRUPT_OR_MISSING,
+            ),
+        )
+        assertFalse(
+            IdentityPersistencePolicy.shouldAttemptProtectedRecovery(
+                IdentityProtectionStatus.STORAGE_WRITE_FAILED,
+            ),
+        )
     }
 
     @Test
@@ -123,7 +133,7 @@ class IdentityLifecycleTest {
         assertEquals(IdentityProtectionStatus.CORRUPT_OR_MISSING, nextAttempt)
         assertFalse(IdentityPersistencePolicy.shouldPersistSnapshot(nextAttempt))
         assertEquals(
-            IdentityProtectionStatus.READY,
+            nextAttempt,
             IdentityPersistencePolicy.statusForNextRecordResolution(
                 current = nextAttempt,
                 recordPresent = false,
@@ -147,11 +157,7 @@ class IdentityLifecycleTest {
             assertEquals(IdentityProtectionLevel.CORRUPT_OR_MISSING, observed.level)
             assertEquals(
                 IdentityProtectionStatus.READY,
-                IdentityPersistencePolicy.statusForNextRecordResolution(
-                    current = observed,
-                    recordPresent = false,
-                    quarantineCompleted = true,
-                ),
+                IdentityPersistencePolicy.statusAfterSuccessfulRecovery(observed),
             )
             assertEquals(
                 observed,

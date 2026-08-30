@@ -24,7 +24,6 @@ internal class LeonaIdentityStore(
 ) {
     private val contextPackageName = context.applicationContext.packageName
 
-    @Volatile
     private var currentProtectionStatus: IdentityProtectionStatus = IdentityProtectionStatus.READY
 
     private val completedQuarantines = mutableSetOf<IdentityRecord>()
@@ -43,9 +42,11 @@ internal class LeonaIdentityStore(
     }
 
     /** Typed diagnostic state; never use this as a business decision. */
+    @Synchronized
     fun protectionStatus(): IdentityProtectionStatus = currentProtectionStatus
 
-    /** Start a collection attempt and consume completed record quarantines. */
+    /** Start a collection attempt; consume degradation only after protected recovery. */
+    @Synchronized
     fun beginResolution() {
         val hasQuarantinedRecord = completedQuarantines.isNotEmpty()
         val recordStillPresent = if (statusRecoveryReady) {
@@ -69,10 +70,13 @@ internal class LeonaIdentityStore(
         currentProtectionStatus = next
     }
 
+    @Synchronized
     fun loadInstallId(): String? {
-        val result = decryptRecord(IdentityRecord.INSTALL_ID)
+        val result = decryptRecord(IdentityRecord.INSTALL_ID, readStored(IdentityRecord.INSTALL_ID))
         if (result == null) {
-            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING) {
+            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
+                prefs.contains(IdentityRecord.INSTALL_ID.preferenceKey)
+            ) {
                 quarantine(IdentityRecord.INSTALL_ID)
             }
             return null
@@ -82,11 +86,12 @@ internal class LeonaIdentityStore(
             quarantine(IdentityRecord.INSTALL_ID)
             return null
         }
-        migrateLegacyIfNeeded(IdentityRecord.INSTALL_ID, result)
+        if (!migrateLegacyIfNeeded(IdentityRecord.INSTALL_ID, result)) return null
         return result.plaintext
     }
 
     /** Atomically replaces install_id and invalidates the cached snapshot. */
+    @Synchronized
     fun replaceInstallIdAndClearSnapshot(installId: String) {
         require(InstallIdAdmission.isUsable(installId)) { "invalid install id" }
         val encryptedInstallId = encrypt(IdentityRecord.INSTALL_ID, installId)
@@ -106,6 +111,7 @@ internal class LeonaIdentityStore(
             currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
     }
 
+    @Synchronized
     fun clearLastSnapshot() {
         val cleared = runCatching {
             prefs.edit().remove(KEY_LAST_SNAPSHOT).commit()
@@ -119,10 +125,16 @@ internal class LeonaIdentityStore(
             currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
     }
 
+    @Synchronized
     fun loadCanonicalDeviceId(): String? {
-        val result = decryptRecord(IdentityRecord.CANONICAL_DEVICE_ID)
+        val result = decryptRecord(
+            IdentityRecord.CANONICAL_DEVICE_ID,
+            readStored(IdentityRecord.CANONICAL_DEVICE_ID),
+        )
         if (result == null) {
-            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING) {
+            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
+                prefs.contains(IdentityRecord.CANONICAL_DEVICE_ID.preferenceKey)
+            ) {
                 quarantine(IdentityRecord.CANONICAL_DEVICE_ID)
             }
             return null
@@ -133,13 +145,15 @@ internal class LeonaIdentityStore(
             quarantine(IdentityRecord.CANONICAL_DEVICE_ID)
             return null
         }
-        migrateLegacyIfNeeded(
+        val migrated = migrateLegacyIfNeeded(
             IdentityRecord.CANONICAL_DEVICE_ID,
             result.copy(plaintext = canonical),
         )
+        if (!migrated) return null
         return canonical
     }
 
+    @Synchronized
     fun persistCanonicalDeviceId(deviceId: String) {
         require(CanonicalIdAdmission.isUsable(deviceId)) { "invalid canonical device id" }
         persist(
@@ -148,11 +162,14 @@ internal class LeonaIdentityStore(
         )
     }
 
+    @Synchronized
     fun loadLastSnapshot(): DeviceFingerprintSnapshot? {
-        val stored = prefs.getString(KEY_LAST_SNAPSHOT, null) ?: return null
+        val stored = readStored(IdentityRecord.SNAPSHOT) ?: return null
         val decrypted = decryptRecord(IdentityRecord.SNAPSHOT, stored)
         if (decrypted == null) {
-            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING) {
+            if (currentProtectionStatus.level == IdentityProtectionLevel.CORRUPT_OR_MISSING &&
+                prefs.contains(IdentityRecord.SNAPSHOT.preferenceKey)
+            ) {
                 quarantine(IdentityRecord.SNAPSHOT)
             }
             return null
@@ -162,7 +179,7 @@ internal class LeonaIdentityStore(
             expectedPackageName = contextPackageName,
         )
         if (snapshot != null) {
-            migrateLegacyIfNeeded(IdentityRecord.SNAPSHOT, decrypted)
+            if (!migrateLegacyIfNeeded(IdentityRecord.SNAPSHOT, decrypted)) return null
             return snapshot
         }
 
@@ -174,6 +191,7 @@ internal class LeonaIdentityStore(
         return null
     }
 
+    @Synchronized
     fun persistLastSnapshot(snapshot: DeviceFingerprintSnapshot) {
         require(
             DeviceFingerprintSnapshot.fromJson(snapshot.toJson(), expectedPackageName = contextPackageName) != null,
@@ -186,7 +204,19 @@ internal class LeonaIdentityStore(
             prefs.edit().remove(record.preferenceKey).commit()
         }.getOrDefault(false)
         if (cleared) completedQuarantines.add(record)
+        // A quarantine is evidence for the current report, not a successful
+        // protected rewrite. Never let an earlier recovery marker consume it.
+        statusRecoveryReady = false
         currentProtectionStatus = IdentityPersistencePolicy.statusAfterRecordQuarantine(cleared)
+    }
+
+    /** SharedPreferences throws when a caller or older version stored a wrong type. */
+    private fun readStored(record: IdentityRecord): String? = try {
+        prefs.getString(record.preferenceKey, null)
+    } catch (_: ClassCastException) {
+        currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+        quarantine(record)
+        null
     }
 
     /**
@@ -235,18 +265,15 @@ internal class LeonaIdentityStore(
             }
             return
         }
-
-        val resetSucceeded = runCatching {
-            prefs.edit()
-                .remove(KEY_INSTALL_ID)
-                .remove(KEY_CANONICAL_DEVICE_ID)
-                .remove(KEY_LAST_SNAPSHOT)
-                .commit()
-        }.getOrDefault(false)
-        if (!resetSucceeded) {
-            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+        if (currentProtectionStatus.level == IdentityProtectionLevel.KEYSTORE_UNAVAILABLE ||
+            currentProtectionStatus.level == IdentityProtectionLevel.UNSUPPORTED_API ||
+            currentProtectionStatus.code == IdentityProtectionCode.STORAGE_WRITE_FAILED
+        ) {
+            // Preserve recoverable ciphertext when migration or storage failed;
+            // a later initialization can retry after the provider is available.
             return
         }
+
         if (!runCatching { lifecycleMarker.createNewFile() || lifecycleMarker.exists() }.getOrDefault(false)) {
             currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
         }
@@ -257,9 +284,50 @@ internal class LeonaIdentityStore(
         val legacy: Boolean,
     )
 
-    private fun migrateLegacyIfNeeded(record: IdentityRecord, decrypted: DecryptedRecord) {
-        if (!decrypted.legacy) return
-        runCatching { persist(record, encrypt(record, decrypted.plaintext)) }
+    /**
+     * Legacy v1 values are never returned until their v2 domain-bound rewrite
+     * has committed. Encryption/provider failures keep the old ciphertext for
+     * recovery; a failed rewrite commit quarantines only this record.
+     */
+    private fun migrateLegacyIfNeeded(record: IdentityRecord, decrypted: DecryptedRecord): Boolean {
+        if (!decrypted.legacy) return true
+        val encrypted = try {
+            encrypt(record, decrypted.plaintext)
+        } catch (_: IllegalStateException) {
+            // encrypt() has already recorded a bounded Keystore/API status.
+            // The caller must not use the legacy plaintext after this failure.
+            return false
+        }
+        val committed = try {
+            prefs.edit().putString(record.preferenceKey, encrypted).commit()
+        } catch (_: RuntimeException) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            false
+        }
+        if (!committed) {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+            quarantineAfterMigrationFailure(record)
+            return false
+        }
+        completedQuarantines.remove(record)
+        statusRecoveryReady = currentProtectionStatus.recoverable &&
+            currentProtectionStatus.level != IdentityProtectionLevel.UNSUPPORTED_API
+        return true
+    }
+
+    private fun quarantineAfterMigrationFailure(record: IdentityRecord) {
+        val cleared = try {
+            prefs.edit().remove(record.preferenceKey).commit()
+        } catch (_: RuntimeException) {
+            false
+        }
+        if (cleared) {
+            completedQuarantines.add(record)
+            currentProtectionStatus = IdentityProtectionStatus.CORRUPT_OR_MISSING
+        } else {
+            currentProtectionStatus = IdentityProtectionStatus.STORAGE_WRITE_FAILED
+        }
+        statusRecoveryReady = false
     }
 
     private fun encrypt(record: IdentityRecord, plaintext: String): String {
@@ -298,7 +366,7 @@ internal class LeonaIdentityStore(
 
     private fun decryptRecord(
         record: IdentityRecord,
-        stored: String? = prefs.getString(record.preferenceKey, null),
+        stored: String?,
     ): DecryptedRecord? {
         if (stored == null) return null
         // Legacy plaintext preferences are never accepted as identity state.
