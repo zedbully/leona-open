@@ -86,6 +86,9 @@ internal object TypedSenseEvidenceMapper {
         if (!InstallIdShape.isUsable(snapshot.installId) || !SessionIdShape.isUsable(snapshot.sessionId)) {
             return Result.Failure(Code.INVALID_IDENTITY, "opaque install/session reference is invalid")
         }
+        if (!snapshot.identityProtectionStatus.isSemanticallyCoherent()) {
+            return Result.Failure(Code.INVALID_IDENTITY, "identity protection status is incoherent")
+        }
         if (nowEpochMs < 0L || snapshot.sdkInt !in 23..36) {
             return Result.Failure(Code.BOUNDS, "timestamp or Android API level is outside profile")
         }

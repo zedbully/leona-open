@@ -102,6 +102,24 @@ class TypedSenseEvidenceMapperTest {
         assertTrue((entry.value as LeonaEvidenceValue.Bytes).value.contentEquals(ByteArray(32) { 0xaa.toByte() }))
     }
 
+    @Test
+    fun `mapper rejects incoherent protection status`() {
+        val result = TypedSenseEvidenceMapper.map(
+            config(),
+            snapshot().copy(
+                identityProtectionStatus = IdentityProtectionStatus(
+                    level = io.leonasec.leona.internal.identity.IdentityProtectionLevel.KEYSTORE_AES_GCM,
+                    code = io.leonasec.leona.internal.identity.IdentityProtectionCode.READY,
+                    durable = false,
+                    recoverable = true,
+                ),
+            ),
+            emptyRisk(),
+        )
+        assertTrue(result is TypedSenseEvidenceMapper.Result.Failure)
+        assertEquals(TypedSenseEvidenceMapper.Code.INVALID_IDENTITY, (result as TypedSenseEvidenceMapper.Result.Failure).code)
+    }
+
     private fun config() = LeonaConfig.Builder()
         .tenantId("tenant")
         .appId("app")
