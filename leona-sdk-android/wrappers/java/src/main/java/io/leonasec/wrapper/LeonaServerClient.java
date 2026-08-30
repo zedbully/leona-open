@@ -1,23 +1,25 @@
 package io.leonasec.wrapper;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
-public final class LeonaServerClient {
+/**
+ * Evidence-only client facade for a customer-owned Leo backend transport.
+ *
+ * <p>This class deliberately has no HTTP client, SecretKey, plaintext
+ * fallback, or HMAC request path. The supplied transport must pass the logical
+ * method, route, headers, and body through the paired Leo provider, send only
+ * the provider's encrypted envelope over HTTPS, and open the response before
+ * returning it. Constructing this client without that transport is rejected.</p>
+ */
+public final class LeonaServerClient implements AutoCloseable {
+    private static final int MAX_TEXT_BYTES = 4096;
+    private static final int MAX_BODY_BYTES = 8 * 1024 * 1024;
     private static final Pattern BOX_ID_PATTERN = Pattern.compile(
         "\\b(?:01[A-Z0-9]{10,}|box_[A-Za-z0-9_-]{8,})\\b"
     );
@@ -25,28 +27,14 @@ public final class LeonaServerClient {
         "(authorization|secret|token|signature|credential|deviceid|installid|androidid|serial|rawboxid|rawappkey|appkeysecret)",
         Pattern.CASE_INSENSITIVE
     );
-    private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final String baseUrl;
-    private final String secretKey;
-    private final HttpClient httpClient;
-    private final Duration timeout;
+    private final LeoCryptoBackendTransport transport;
 
-    public LeonaServerClient(String baseUrl, String secretKey) {
-        this(baseUrl, secretKey, HttpClient.newHttpClient(), Duration.ofSeconds(5));
-    }
-
-    public LeonaServerClient(String baseUrl, String secretKey, HttpClient httpClient, Duration timeout) {
-        if (baseUrl == null || baseUrl.isBlank()) {
-            throw new IllegalArgumentException("baseUrl is required");
+    public LeonaServerClient(LeoCryptoBackendTransport transport) {
+        if (transport == null) {
+            throw new IllegalArgumentException("Leo crypto backend transport is required");
         }
-        if (secretKey == null || secretKey.isBlank()) {
-            throw new IllegalArgumentException("secretKey is required");
-        }
-        this.baseUrl = validateBaseUrl(baseUrl);
-        this.secretKey = secretKey;
-        this.httpClient = httpClient;
-        this.timeout = timeout == null ? Duration.ofSeconds(5) : timeout;
+        this.transport = transport;
     }
 
     public String verdict(String boxId) throws IOException, InterruptedException {
@@ -69,33 +57,93 @@ public final class LeonaServerClient {
         return send("POST", "/v1/internal/private/evidence-feedback", jsonBody);
     }
 
-    public static SignedRequest buildSignedRequest(
-        String secretKey,
-        String method,
-        String path,
-        String body,
-        String timestamp,
-        String nonce
-    ) {
+    /** A caller-owned Leo transport; no implementation is shipped here. */
+    public interface LeoCryptoBackendTransport extends AutoCloseable {
+        /**
+         * Seal every logical field with Leo, perform the HTTPS exchange, open
+         * the authenticated response, and return only the opened result.
+         */
+        LeoResponse execute(LeoRequest request) throws IOException, InterruptedException;
+
+        @Override
+        default void close() {}
+    }
+
+    /** Logical request handed to the external Leo provider before wire sealing. */
+    public static final class LeoRequest {
+        public final String method;
+        public final String path;
+        public final String contentType;
+        public final Map<String, String> protectedHeaders;
+        public final byte[] body;
+
+        public LeoRequest(
+            String method,
+            String path,
+            String contentType,
+            Map<String, String> protectedHeaders,
+            byte[] body
+        ) {
+            this.method = boundedRequired(method, "method").toUpperCase(Locale.ROOT);
+            this.path = boundedRequired(path, "path");
+            if (!this.path.startsWith("/") || this.path.indexOf('?') >= 0 || this.path.indexOf('#') >= 0) {
+                throw new IllegalArgumentException("path must be an absolute logical route without query or fragment");
+            }
+            this.contentType = boundedRequired(contentType, "contentType");
+            if (protectedHeaders == null) {
+                throw new IllegalArgumentException("protectedHeaders is required");
+            }
+            this.protectedHeaders = Collections.unmodifiableMap(new LinkedHashMap<>(protectedHeaders));
+            if (body == null || body.length > MAX_BODY_BYTES) {
+                throw new IllegalArgumentException("body exceeds input limit");
+            }
+            this.body = body.clone();
+        }
+    }
+
+    /** Response already authenticated and opened by the Leo provider. */
+    public static final class LeoResponse {
+        public final int statusCode;
+        public final byte[] body;
+
+        public LeoResponse(int statusCode, byte[] body) {
+            if (statusCode < 100 || statusCode > 599) {
+                throw new IllegalArgumentException("invalid response status");
+            }
+            if (body == null || body.length > MAX_BODY_BYTES) {
+                throw new IllegalArgumentException("response body exceeds input limit");
+            }
+            this.statusCode = statusCode;
+            this.body = body.clone();
+        }
+    }
+
+    private String send(String method, String path, String body)
+        throws IOException, InterruptedException {
         String requestBody = body == null ? "" : body;
-        String bodySha256 = sha256Hex(requestBody);
-        String normalizedMethod = method.toUpperCase(java.util.Locale.ROOT);
-        String signingText = "backend-v2"
-            + "\n" + normalizedMethod
-            + "\n" + path
-            + "\n" + timestamp
-            + "\n" + nonce
-            + "\n" + bodySha256;
-        return new SignedRequest(
-            normalizedMethod,
-            path,
-            requestBody,
-            bodySha256,
-            "Bearer " + secretKey,
-            timestamp,
-            nonce,
-            hmacSha256Base64Url(secretKey, signingText)
+        LeoResponse response = transport.execute(
+            new LeoRequest(
+                method,
+                path,
+                "application/json",
+                Collections.emptyMap(),
+                requestBody.getBytes(StandardCharsets.UTF_8)
+            )
         );
+        if (response == null) {
+            throw new IOException("Leo transport returned no response");
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            throw new IOException("Leona request failed after authenticated Leo response: HTTP " + response.statusCode);
+        }
+        return new String(response.body, StandardCharsets.UTF_8);
+    }
+
+    private static String boundedRequired(String value, String name) {
+        if (value == null || value.isBlank() || value.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {
+            throw new IllegalArgumentException(name + " is required or exceeds input limit");
+        }
+        return value;
     }
 
     public static Object redact(Object value) {
@@ -119,140 +167,39 @@ public final class LeonaServerClient {
         return value;
     }
 
-    private String send(String method, String path, String body) throws IOException, InterruptedException {
-        SignedRequest signed = buildSignedRequest(
-            secretKey,
-            method,
-            path,
-            body,
-            Long.toString(Instant.now().toEpochMilli()),
-            randomNonce()
-        );
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-            .timeout(timeout)
-            .header("Authorization", signed.authorization)
-            .header("Content-Type", "application/json")
-            .header("X-Leona-Timestamp", signed.timestamp)
-            .header("X-Leona-Nonce", signed.nonce)
-            .header("X-Leona-Signature", signed.signature);
-        if ("GET".equals(method)) {
-            builder.GET();
-        } else {
-            builder.method(method, HttpRequest.BodyPublishers.ofString(signed.body));
-        }
-
-        HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Leona request failed: HTTP " + response.statusCode());
-        }
-        return response.body();
-    }
-
-    private static String sha256Hex(String text) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                .digest(text.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b & 0xff));
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            throw new IllegalStateException("sha256 failed", e);
-        }
-    }
-
-    private static String hmacSha256Base64Url(String secret, String text) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(mac.doFinal(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new IllegalStateException("hmac failed", e);
-        }
-    }
-
-    private static String randomNonce() {
-        byte[] bytes = new byte[16];
-        RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private static String stripTrailingSlash(String value) {
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private static String validateBaseUrl(String value) {
-        String normalized = stripTrailingSlash(value.trim());
-        final URI uri;
-        try {
-            uri = URI.create(normalized);
-        } catch (IllegalArgumentException error) {
-            throw new IllegalArgumentException("baseUrl must be a valid absolute URL", error);
-        }
-
-        String scheme = uri.getScheme();
-        boolean https = "https".equalsIgnoreCase(scheme);
-        boolean loopbackHttp = "http".equalsIgnoreCase(scheme) && isLoopbackHost(uri.getHost());
-        if (uri.getHost() == null || uri.getHost().isBlank()) {
-            throw new IllegalArgumentException("baseUrl must include a host");
-        }
-        if (!https && !loopbackHttp) {
-            throw new IllegalArgumentException(
-                "baseUrl must use HTTPS; HTTP is only allowed for loopback test endpoints"
-            );
-        }
-        if (uri.getUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
-            throw new IllegalArgumentException("baseUrl must not contain user-info, query, or fragment components");
-        }
-        return normalized;
-    }
-
-    private static boolean isLoopbackHost(String host) {
-        return "127.0.0.1".equals(host)
-            || "localhost".equalsIgnoreCase(host)
-            || "::1".equals(host)
-            || "[::1]".equals(host);
+    @Override
+    public void close() throws Exception {
+        transport.close();
     }
 
     private static String urlPath(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("boxId is required");
+        }
         return value.replace(" ", "%20").replace("/", "%2F");
     }
 
     private static String escapeJson(String value) {
         if (value == null) return "";
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    public static final class SignedRequest {
-        public final String method;
-        public final String path;
-        public final String body;
-        public final String bodySha256;
-        public final String authorization;
-        public final String timestamp;
-        public final String nonce;
-        public final String signature;
-
-        private SignedRequest(
-            String method,
-            String path,
-            String body,
-            String bodySha256,
-            String authorization,
-            String timestamp,
-            String nonce,
-            String signature
-        ) {
-            this.method = method;
-            this.path = path;
-            this.body = body;
-            this.bodySha256 = bodySha256;
-            this.authorization = authorization;
-            this.timestamp = timestamp;
-            this.nonce = nonce;
-            this.signature = signature;
+        StringBuilder out = new StringBuilder(value.length() + 8);
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '\\': out.append("\\\\"); break;
+                case '"': out.append("\\\""); break;
+                case '\b': out.append("\\b"); break;
+                case '\f': out.append("\\f"); break;
+                case '\n': out.append("\\n"); break;
+                case '\r': out.append("\\r"); break;
+                case '\t': out.append("\\t"); break;
+                default:
+                    if (character < 0x20) {
+                        out.append(String.format("\\u%04x", (int) character));
+                    } else {
+                        out.append(character);
+                    }
+            }
         }
+        return out.toString();
     }
 }

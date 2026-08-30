@@ -23,11 +23,12 @@ class LeonaConfigTest {
         assertTrue(cfg.preferStrongBoxBackedKey)
         assertNull(cfg.reportingEndpoint)
         assertNull(cfg.apiKey)
+        assertNull(cfg.cryptoChannel)
         assertNull(cfg.tenantId)
         assertEquals("default", cfg.appId)
         assertEquals(LeonaRegion.CN_BJ, cfg.region)
         assertTrue(cfg.transportEnabled)
-        assertFalse(cfg.requireSecureReportingEngine)
+        assertTrue(cfg.requireSecureReportingEngine)
         assertTrue(cfg.cloudConfigEnabled)
         assertNull(cfg.cloudConfigEndpoint)
         assertFalse(cfg.syncInit)
@@ -149,6 +150,15 @@ class LeonaConfigTest {
         assertTrue(cfg.expectedManifestMetaDataEntrySha256.isEmpty())
         assertTrue(cfg.expectedManifestMetaDataSemanticsSha256.isEmpty())
         assertTrue(cfg.expectedMetaData.isEmpty())
+    }
+
+    @Test
+    fun `legacy false cannot disable secure-only reporting`() {
+        val cfg = LeonaConfig.Builder()
+            .requireSecureReportingEngine(false)
+            .build()
+
+        assertTrue(cfg.requireSecureReportingEngine)
     }
 
     @Test

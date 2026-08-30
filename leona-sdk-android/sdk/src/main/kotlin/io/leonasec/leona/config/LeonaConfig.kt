@@ -4,6 +4,8 @@
  */
 package io.leonasec.leona.config
 
+import io.leonasec.leona.crypto.LeonaCryptoChannel
+
 /**
  * Configuration for the Leona SDK. Immutable — build once, pass to
  * `Leona.init`. Use [Builder] to construct.
@@ -15,8 +17,10 @@ class LeonaConfig private constructor(
     val environmentDetectionEnabled: Boolean,
     /** Reporting endpoint for detection events. Null disables reporting. */
     val reportingEndpoint: String?,
-    /** API key for server-side attribution. */
+    /** API key for server-side attribution; it is placed inside Leo-protected headers. */
     val apiKey: String?,
+    /** Caller-owned Leo crypto channel used for every SDK network request. */
+    val cryptoChannel: LeonaCryptoChannel?,
     /** Optional tenant or organization identifier for multi-tenant backends. */
     val tenantId: String?,
     /** Logical app identifier used by Leona-managed server-side policies. */
@@ -25,7 +29,10 @@ class LeonaConfig private constructor(
     val region: LeonaRegion,
     /** Enable transport when secure reporting is configured. */
     val transportEnabled: Boolean,
-    /** Fail closed when the authenticated secure reporting engine is unavailable. */
+    /**
+     * Secure-only reporting policy. This remains true even if legacy builder
+     * callers pass `false`; reporting never falls back to public JSON transport.
+     */
     val requireSecureReportingEngine: Boolean,
     /** Enable cloud-delivered runtime configuration. */
     val cloudConfigEnabled: Boolean,
@@ -290,11 +297,12 @@ class LeonaConfig private constructor(
         private var environment = true
         private var reportingEndpoint: String? = null
         private var apiKey: String? = null
+        private var cryptoChannel: LeonaCryptoChannel? = null
         private var tenantId: String? = null
         private var appId: String = "default"
         private var region: LeonaRegion = LeonaRegion.CN_BJ
         private var transportEnabled = true
-        private var requireSecureReportingEngine = false
+        private var requireSecureReportingEngine = true
         private var cloudConfigEnabled = true
         private var cloudConfigEndpoint: String? = null
         private var syncInit = false
@@ -424,17 +432,18 @@ class LeonaConfig private constructor(
         fun enableEnvironmentDetection(enabled: Boolean) = apply { environment = enabled }
         fun reportingEndpoint(url: String?) = apply { reportingEndpoint = normalizeEndpoint(url) }
         fun apiKey(key: String?) = apply { apiKey = key }
+        /** Installs the caller-owned Leo transport; there is no plaintext fallback. */
+        fun cryptoChannel(channel: LeonaCryptoChannel?) = apply { cryptoChannel = channel }
         fun tenantId(value: String?) = apply { tenantId = value?.trim()?.ifEmpty { null } }
         fun appId(value: String?) = apply { appId = value?.trim()?.ifEmpty { "default" } ?: "default" }
         fun region(value: LeonaRegion) = apply { region = value }
         fun transportEnabled(enabled: Boolean) = apply { transportEnabled = enabled }
         /**
-         * Require the authenticated secure reporting engine and disable the
-         * lower-trust public-hosted fallback. Enable this for commercial
-         * device-identity deployments.
+         * Retained for source compatibility. Secure reporting is mandatory;
+         * passing `false` cannot downgrade the secure-only policy.
          */
         fun requireSecureReportingEngine(required: Boolean) = apply {
-            requireSecureReportingEngine = required
+            requireSecureReportingEngine = requireSecureReportingEngine || required
         }
         fun enableCloudConfig(enabled: Boolean) = apply { cloudConfigEnabled = enabled }
         fun cloudConfigEndpoint(url: String?) = apply { cloudConfigEndpoint = normalizeEndpoint(url) }
@@ -979,6 +988,7 @@ class LeonaConfig private constructor(
             environmentDetectionEnabled = environment,
             reportingEndpoint = reportingEndpoint,
             apiKey = apiKey,
+            cryptoChannel = cryptoChannel,
             tenantId = tenantId,
             appId = appId,
             region = region,

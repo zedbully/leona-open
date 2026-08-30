@@ -24,7 +24,7 @@ This split is deliberate. Publishing backend evidence-processing internals or hi
 
 ## Usage Model
 
-Customers can fully use Leona in their APK through the public Android SDK, but the open-source SDK must be configured with a Leona API key and Leona hosted endpoints.
+Customers can fully use Leona in their APK through the public Android SDK, but the open-source SDK must be configured with a Leona API key, customer Leo-protected endpoints, and the paired external channel provider.
 
 ```text
 Android app + Leona SDK
@@ -127,90 +127,27 @@ tracked as external-input follow-ups.
 
 ## Backend: Exchange BoxId for Device Evidence
 
-The Android app must never call the evidence query API directly. The app sends
-the opaque `BoxId` to your backend, and your backend calls Leona with your
-tenant `SecretKey`.
+The Android app must never call the evidence query API directly. It forwards
+the opaque `BoxId` to your backend. The backend must use its caller-owned Leo
+transport for the complete request and response; this repository provides no
+JSON, plaintext, or HMAC-only query path.
 
 ```text
 Android app
-  -> Leona.sense() -> BoxId
+  -> Leona.sense() through LeonaCryptoChannel -> BoxId
   -> your login/payment/API request carries BoxId
-  -> your backend calls POST /v1/verdict
-  -> Leona returns deviceFingerprint, canonicalDeviceId, events,
-     provenance, and policyExplanation
+  -> your backend passes a logical /v1/verdict request to its Leo transport
+  -> Leo authenticates/opens the response
+  -> your backend receives evidence and applies its own business policy
 ```
 
-Key separation:
-
-- `LEONA_API_KEY` / AppKey: safe to configure in the APK; used for evidence upload.
-- `LEONA_SECRET_KEY`: backend-only; used to query a BoxId. Never embed it in an APK.
-
-Request:
-
-```http
-POST https://leona.xiyanshan.com/v1/verdict
-Authorization: Bearer <LEONA_SECRET_KEY>
-Content-Type: application/json
-X-Leona-Timestamp: <unix-time-ms>
-X-Leona-Nonce: <random-nonce>
-X-Leona-Signature: <base64url-hmac-sha256>
-
-{"boxId":"<BOX_ID_FROM_APP>"}
-```
-
-Signature input:
-
-```text
-signingText = timestamp + "\n" + nonce + "\n" + sha256(requestBody)
-signature = base64url_no_padding(HMAC-SHA256(secretKey, signingText))
-```
-
-`X-Leona-Timestamp` is a backend request-signing field for `/v1/verdict`; it is
-not a device environment signal. If a query fails with a timestamp-skew style
-error, refresh the backend timestamp and retry according to your own retry
-policy. Do not treat clock-skew/authentication errors as Root, Hook, emulator,
-or tamper evidence.
-
-Minimal Node.js example:
-
-```js
-import crypto from "node:crypto";
-
-async function queryLeonaBox(boxId) {
-  const endpoint = "https://leona.xiyanshan.com/v1/verdict";
-  const secret = process.env.LEONA_SECRET_KEY;
-  const body = JSON.stringify({ boxId });
-  const timestamp = Date.now().toString();
-  const nonce = crypto.randomBytes(16).toString("base64url");
-  const bodySha256 = crypto.createHash("sha256").update(body).digest("hex");
-  const signingText = `${timestamp}\n${nonce}\n${bodySha256}`;
-  const signature = crypto
-    .createHmac("sha256", secret)
-    .update(signingText)
-    .digest("base64url");
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${secret}`,
-      "Content-Type": "application/json",
-      "X-Leona-Timestamp": timestamp,
-      "X-Leona-Nonce": nonce,
-      "X-Leona-Signature": signature,
-    },
-    body,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Leona verdict query failed: ${response.status} ${await response.text()}`);
-  }
-  return response.json();
-}
-```
-
-Ready-to-run backend examples are available in
-[`examples/boxid-verdict`](examples/boxid-verdict) for Python, Java, Go, C,
-C++, and Node.js.
+The customer-owned Leo transport is responsible for provider bootstrap,
+protected headers/body, HTTPS, replay protection, and authenticated response
+opening. Use `LeonaCryptoServerTransport` from the public Java wrapper or the
+equivalent Node.js `transport.execute(...)` contract. Provider credentials,
+server keys, and the actual Leo server SDK stay outside the APK and this public
+repository. A missing transport is a configuration error and must stop before
+any network request.
 
 Typical backend flow with cache:
 
@@ -219,7 +156,7 @@ Typical backend flow with cache:
 2. App sends the opaque BoxId in the customer API request.
 3. Customer backend checks whether this business record already has a cached
    Leona evidence report.
-4. On cache miss, backend signs and calls POST /v1/verdict with SecretKey.
+4. On cache miss, backend sends the logical verdict request through its Leo transport.
 5. Backend persists the first successful report with its own record id,
    response status, query time, deviceFingerprint, canonicalDeviceId, events,
    provenance, and policyExplanation.
@@ -247,11 +184,14 @@ honeypot, or take any other product action.
 
 ## Customer Integration Checklist
 
-- Get a Leona AppKey for the Android SDK and a separate backend-only SecretKey.
-- Configure the APK with AppKey and hosted endpoint only; never package SecretKey.
+- Get a Leona AppKey for the Android SDK and provision the paired Leo provider
+  separately for the backend.
+- Configure the APK with AppKey and a Leo-protected HTTPS endpoint only; never
+  package backend provider material.
 - Call `Leona.sense()` at the protected business moment and send the opaque BoxId to your backend.
 - Include the BoxId in a backend-owned login/order/payment/risk request field.
-- Sign backend `POST /v1/verdict` calls with timestamp, nonce, body hash, and HMAC signature.
+- Send backend `/v1/verdict` and customer API calls through the Leo transport;
+  do not add a JSON, plaintext, or HMAC-only fallback.
 - Cache the first successful verdict response with your own business record because BoxId is single-use.
 - Handle `410 LEONA_BOX_ALREADY_USED` through your cache/idempotency path.
 - Log auth/signature/time/network/server failures separately so integration issues are diagnosable.
@@ -280,7 +220,8 @@ The public GitHub workflow builds only the Android public SDK:
 - `:sdk:assembleRelease`
 - native source sanity as advisory
 
-Nightly CI runs the same public SDK checks. It does not run private backend, demo backend, or closed-source alpha-closure flows.
+Nightly CI runs the same public SDK checks. It does not run the customer-owned
+Leo provider/server verifier or closed-source alpha-closure flows.
 
 ## Closed-Source Areas
 

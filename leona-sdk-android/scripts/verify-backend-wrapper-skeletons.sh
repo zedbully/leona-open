@@ -47,10 +47,10 @@ fi
   echo "# Leona Backend Wrapper Skeleton Verification"
   echo
   echo "- node tests: pass"
-  echo "- node mock HTTP integration smoke: pass"
+  echo "- node Leo transport integration smoke: pass"
   echo "- node package dry-run: pass"
   echo "- java self-test: pass"
-  echo "- java mock HTTP integration smoke: pass"
+  echo "- java Leo transport integration smoke: pass"
   echo "- java crypto envelope/server transport self-test: pass"
   echo "- java Gradle package skeleton: pass"
   echo "- secret scan: pass"

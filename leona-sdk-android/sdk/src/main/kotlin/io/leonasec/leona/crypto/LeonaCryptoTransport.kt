@@ -10,6 +10,8 @@ import java.nio.ByteOrder
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.util.Locale
+import org.json.JSONObject
 
 /** Stable, evidence-agnostic request model passed to an optional crypto provider. */
 data class LeonaCryptoHttpRequest(
@@ -155,6 +157,75 @@ fun interface LeonaCryptoScopeProvider {
     fun commitments(context: LeonaCryptoRequestContext): LeonaCryptoScopeCommitments
 }
 
+/** Supplies the locally expected commitments used to authenticate one encrypted response. */
+fun interface LeonaCryptoResponseCommitmentsProvider {
+    fun commitments(context: LeonaCryptoRequestContext): LeonaCryptoScopeCommitments
+}
+
+/**
+ * Canonical application-header encoding. These bytes are passed to Leo as
+ * protected data and are never copied to cleartext HTTP headers.
+ */
+object LeonaCryptoProtectedHeadersCodec {
+    private const val MAX_NAME_BYTES = 128
+    private const val MAX_VALUE_BYTES = 16 * 1024
+
+    fun encode(headers: Map<String, String>): ByteArray {
+        val duplicate = headers.keys
+            .groupingBy { it.lowercase(Locale.ROOT) }
+            .eachCount()
+            .entries
+            .firstOrNull { it.value > 1 }
+        require(duplicate == null) { "duplicate protected header name" }
+        val json = JSONObject()
+        headers.toSortedMap(String.CASE_INSENSITIVE_ORDER).forEach { (name, value) ->
+            validate(name, value)
+            json.put(name, value)
+        }
+        return json.toString().toByteArray(StandardCharsets.UTF_8).also { encoded ->
+            require(encoded.size <= LeonaCryptoEnvelopeCodec.MAX_TOTAL_BYTES) {
+                "protected headers exceed input limit"
+            }
+        }
+    }
+
+    fun decode(encoded: ByteArray): Map<String, String> {
+        if (encoded.isEmpty()) return emptyMap()
+        require(encoded.size <= LeonaCryptoEnvelopeCodec.MAX_TOTAL_BYTES) {
+            "protected headers exceed input limit"
+        }
+        val json = JSONObject(String(encoded, StandardCharsets.UTF_8))
+        return buildMap {
+            val normalizedNames = mutableSetOf<String>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val name = keys.next()
+                require(normalizedNames.add(name.lowercase(Locale.ROOT))) {
+                    "duplicate protected header name"
+                }
+                val value = json.getString(name)
+                validate(name, value)
+                put(name, value)
+            }
+        }
+    }
+
+    private fun validate(name: String, value: String) {
+        require(name.toByteArray(StandardCharsets.UTF_8).size in 1..MAX_NAME_BYTES) {
+            "invalid protected header name"
+        }
+        require(name.matches(HEADER_NAME)) { "invalid protected header name" }
+        require(value.toByteArray(StandardCharsets.UTF_8).size <= MAX_VALUE_BYTES) {
+            "protected header value exceeds input limit"
+        }
+        require(value.none { it.code < 0x20 || it.code == 0x7f }) {
+            "protected header value contains control characters"
+        }
+    }
+
+    private val HEADER_NAME = Regex("^[A-Za-z0-9!#\\$%&'*+.^_`|~-]{1,128}$")
+}
+
 enum class LeonaCryptoErrorCode {
     INVALID_INPUT,
     NETWORK_FAILURE,
@@ -191,6 +262,38 @@ interface LeonaCryptoTransport : AutoCloseable {
         commitments: LeonaCryptoScopeCommitments,
         nowMs: Long,
     ): LeonaCryptoResult<LeonaCryptoHttpResponse>
+}
+
+/**
+ * Complete caller-owned Leo channel configuration for every Leona SDK request.
+ *
+ * The SDK never creates a provider, invents keys, or falls back to another wire
+ * protocol. Applications must construct this with the external Leo facade
+ * adapter and keep the provider/bootstrap lifecycle under their control.
+ */
+class LeonaCryptoChannel(
+    val transport: LeonaCryptoTransport,
+    val assertions: LeonaCryptoAssertionProvider,
+    val scopes: LeonaCryptoScopeProvider,
+    val responseCommitments: LeonaCryptoResponseCommitmentsProvider,
+) {
+    init {
+        require(transport.capabilities.protocolMajor == LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR) {
+            "incompatible Leona crypto protocol major"
+        }
+        require(transport.capabilities.features.containsAll(REQUIRED_FEATURES)) {
+            "Leo crypto transport does not provide the required protected channel features"
+        }
+    }
+
+    private companion object {
+        val REQUIRED_FEATURES = setOf(
+            "request-seal",
+            "response-open",
+            "protected-headers",
+            "protected-body",
+        )
+    }
 }
 
 /**

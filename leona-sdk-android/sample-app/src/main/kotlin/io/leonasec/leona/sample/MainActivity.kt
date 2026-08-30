@@ -27,10 +27,6 @@ import io.leonasec.leona.sample.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -40,7 +36,6 @@ import java.util.UUID
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private val http = OkHttpClient()
     private var lastBoxId: BoxId? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,68 +141,23 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val baseUrl = BuildConfig.LEONA_DEMO_BACKEND_BASE_URL
-        if (baseUrl.isBlank()) {
+        val payload = runCatching { Leona.getLastServerVerdictJson() }.getOrNull()
+        if (payload.isNullOrBlank()) {
             binding.verdictResult.text = getString(R.string.verdict_backend_not_configured)
             return
         }
-
-        setBusy(true)
-        lifecycleScope.launch {
-            runCatching {
-                fetchDemoVerdictPayload(boxId)
-            }.onSuccess { payload ->
-                val json = JSONObject(payload)
+        runCatching { JSONObject(payload) }
+            .onSuccess { json ->
                 binding.verdictResult.text = renderVerdictSummary(summarizeVerdict(json))
                 binding.verdictJson.text = runCatching { json.toString(2) }.getOrDefault(payload)
                 lastBoxId = null
-            }.onFailure {
+            }
+            .onFailure {
                 binding.verdictResult.text =
                     getString(R.string.verdict_error_fmt, it.message ?: it.javaClass.simpleName)
                 binding.verdictJson.text =
                     getString(R.string.verdict_error_fmt, it.message ?: it.javaClass.simpleName)
             }
-            setBusy(false)
-        }
-    }
-
-    private suspend fun fetchDemoVerdictPayload(boxId: BoxId): String = withContext(Dispatchers.IO) {
-        val baseUrl = BuildConfig.LEONA_DEMO_BACKEND_BASE_URL
-        if (baseUrl.isBlank()) {
-            error(getString(R.string.verdict_backend_not_configured))
-        }
-
-        val currentDeviceIdHash = sampleHeaderHash(runCatching { Leona.getDeviceId() }.getOrNull())
-        val canonicalDeviceIdHash = sampleHeaderHash(
-            runCatching { Leona.getDiagnosticSnapshot().canonicalDeviceId }.getOrNull(),
-        )
-        val body = JSONObject()
-            .put("boxId", boxId.toString())
-            .toString()
-            .toRequestBody("application/json".toMediaType())
-        val request = Request.Builder()
-            .url(baseUrl.trimEnd('/') + "/demo/verdict")
-            .apply {
-                header("X-Leona-Demo-App-Id", "sample-app")
-                BuildConfig.LEONA_TENANT_ID.trim()
-                    .ifEmpty { "sample" }
-                    .let { header("X-Leona-Demo-Tenant", it) }
-                if (currentDeviceIdHash.isNotEmpty()) {
-                    header("X-Leona-Demo-Device-Id-Sha256", currentDeviceIdHash)
-                }
-                if (canonicalDeviceIdHash.isNotEmpty()) {
-                    header("X-Leona-Demo-Canonical-Device-Id-Sha256", canonicalDeviceIdHash)
-                }
-            }
-            .post(body)
-            .build()
-        http.newCall(request).execute().use { response ->
-            val payload = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                error("demo backend HTTP ${response.code}")
-            }
-            payload
-        }
     }
 
     private fun runLogcatE2E() {
@@ -230,7 +180,8 @@ class MainActivity : AppCompatActivity() {
                 emitE2E(runId, "sense", JSONObject().put("boxId", boxId.toString()))
                 emitE2E(runId, "post", withContext(Dispatchers.IO) { captureE2ESurfaces(boxId) })
 
-                val demoPayload = fetchDemoVerdictPayload(boxId)
+                val demoPayload = Leona.getLastServerVerdictJson()
+                    ?: error("Leo server verdict is unavailable")
                 val demoJson = JSONObject(demoPayload)
                 val demoSummary = summarizeVerdict(demoJson)
                 binding.verdictResult.text = renderVerdictSummary(demoSummary)
@@ -288,7 +239,7 @@ class MainActivity : AppCompatActivity() {
             bundle = supportBundle,
             reportingEndpoint = BuildConfig.LEONA_REPORTING_ENDPOINT.ifBlank { null },
             cloudConfigEndpoint = BuildConfig.LEONA_CLOUD_CONFIG_ENDPOINT.ifBlank { null },
-            demoBackendEndpoint = BuildConfig.LEONA_DEMO_BACKEND_BASE_URL.ifBlank { null },
+            demoBackendEndpoint = null,
         )
         return JSONObject()
             .put("boxId", boxId?.toString())
@@ -552,9 +503,6 @@ class MainActivity : AppCompatActivity() {
                 it.groupValues[1] + it.groupValues[2] + "<redacted>"
             }
 
-    private fun sampleHeaderHash(value: String?): String =
-        value?.trim()?.takeIf { it.isNotEmpty() }?.let(::sha256Hex).orEmpty()
-
     private fun emitE2E(runId: String, event: String, payload: JSONObject) {
         val envelope = JSONObject()
             .put("marker", "leona-e2e")
@@ -624,7 +572,7 @@ class MainActivity : AppCompatActivity() {
                 bundle = supportBundle,
                 reportingEndpoint = BuildConfig.LEONA_REPORTING_ENDPOINT.ifBlank { null },
                 cloudConfigEndpoint = BuildConfig.LEONA_CLOUD_CONFIG_ENDPOINT.ifBlank { null },
-                demoBackendEndpoint = BuildConfig.LEONA_DEMO_BACKEND_BASE_URL.ifBlank { null },
+                demoBackendEndpoint = null,
             )
             binding.diagnosticSummary.text = renderDiagnostics(snapshot)
             binding.diagnosticJson.text = Leona.getDiagnosticSnapshotJson()
@@ -652,8 +600,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.server_mode_stub)
         }
         val cloudConfig = BuildConfig.LEONA_CLOUD_CONFIG_ENDPOINT.ifBlank { "-" }
-        val demoBackend = BuildConfig.LEONA_DEMO_BACKEND_BASE_URL.ifBlank { "-" }
-        return "上报端点=$reporting\n云配置=$cloudConfig\n演示后端=$demoBackend"
+        return "上报端点=$reporting\n云配置=$cloudConfig\n网络通道=Leo 加密通道"
     }
 
     private fun renderDiagnostics(snapshot: LeonaDiagnosticSnapshot): String =

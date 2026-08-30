@@ -362,34 +362,15 @@ The compatibility contract is stored in
 It preserves the product boundary: the Android SDK only collects and reports
 evidence; the customer backend owns all final business decisions.
 
-The public repository also contains a separately triggered GitHub-hosted
-boundary runtime workflow in
-[`../.github/workflows/android-cloud-runtime.yml`](../.github/workflows/android-cloud-runtime.yml).
-It builds one short-lived `cloudTest` APK candidate, runs direct `sense()` and
-public-hosted report transport on plain AOSP/no-GMS x86_64 AVDs at API 23 and
-API 36, and uploads only redacted, hash-bound evidence. The host-only fixture
-is exposed to the app as strict loopback through a temporary `adb reverse`
-mapping; the client transport policy is not widened to the QEMU host alias.
-The fixture returns opaque identifiers but never an allow/deny decision, its
-credentials are generated ephemerally, and neither the APK nor the private
-environment file is uploaded.
-
-This boundary workflow strengthens Android 6/16 runtime coverage; it does not
-replace the complete API 23-36 matrix, clean physical/OEM coverage, domestic
-OEM attestation, or customer-backend admission, and it never claims commercial
-admission. Google Play/GMS is intentionally outside this domestic lane.
-
-After downloading the workflow artifact, consume the two API directories with
-the normal matrix readiness gate instead of trusting the uploaded summary:
-
-```bash
-LEONA_GITHUB_HOSTED_RUNTIME_ROOT=/path/to/leona-github-cloud-runtime \
-  ./scripts/verify-v0.4-android-matrix-readiness.sh
-```
-
-The gate reruns the fail-closed same-candidate verifier and records
-`github_hosted_boundary_runtime=pass`, while explicitly keeping
-`countsTowardFullExternalMatrix=false`.
+The public repository deliberately does not ship a hosted backend, a public
+runtime fixture, or a plain-HTTP/cloud-test reporting workflow. Android 6/16
+runtime evidence must be supplied by the private customer/provider lane and
+consumed through the normal matrix readiness gate. The public SDK still fails
+closed before any request when no caller-owned `LeonaCryptoChannel` is
+installed, and it never falls back to a public-hosted or plain JSON fixture.
+This boundary does not claim complete API 23-36 coverage, physical/OEM
+coverage, domestic OEM attestation, or customer-backend admission. Google
+Play/GMS is intentionally outside this domestic lane.
 
 The Android tag publish workflow dry-run is:
 
@@ -783,66 +764,42 @@ If your Leona server returns a `tamperBaseline` object from `/v1/handshake`,
 the SDK will merge that remote baseline with the local Builder values before
 each sensing session.
 
-### Public hosted reporting mode
+### Leo-only network operation
 
-The public AAR can obtain a BoxId without packaging `:sdk-private-core`. This
-path is TLS-protected **low-trust evidence transport**; its base64 payload
-encoding does not provide payload confidentiality, device authentication, or
-cryptographic authenticity beyond TLS. When
-`reportingEndpoint` and `apiKey` are configured and the closed-source secure
-engine is absent, `SecureChannel` uses public hosted reporting mode:
+Every Leona Android SDK network path is forced through a caller-owned
+`LeonaCryptoChannel`: evidence reporting and cloud-config refresh both seal
+their application fields/body with Leo and open authenticated responses. The
+SDK never sends `public_hosted`, base64/plain JSON, or an alternate fallback.
+The outer HTTP request carries only the Leo envelope content type and fixed
+routing metadata; remote endpoints must use HTTPS (certificate pins remain
+available), and loopback HTTP is allowed only by local tests.
 
-- `POST <reportingEndpoint>/v1/sense/public`
-- Header `X-Leona-App-Key: <your-leona-api-key>`
-- Header `X-Leona-Reporting-Mode: public_hosted`
-- JSON body containing an opaque base64 native payload, hashed device identity
-  fields, and low-trust evidence metadata.
-
-If `reportingEndpoint` already ends with `/v1` or `/v1/sense`, the SDK resolves
-the public hosted path to `/v1/sense/public`. The hosted API returns an opaque
-`boxId`, a server-issued per-install `installId` (`I` plus 32 lowercase
-hexadecimal characters), and may also return `canonicalDeviceId` plus evidence
-summary fields. The SDK persists only a value matching that server-issued
-format; compatibility response aliases `install_id` and `serverInstallId` are
-accepted during rollout. The outbound request continues to send only
-`installIdSha256`, never the raw install id.
-
-The server keeps the issued value stable across reboot, process death, and
-normal app updates. A genuine uninstall followed by install starts a new local
-install lifecycle and receives a new server `installId`; the Android SDK uses a
-`noBackupFilesDir` lifecycle marker so restored preferences cannot resurrect an
-old install id. `installId` is an install correlation handle, not a canonical
-device identity or a final risk decision.
-The client still does not make allow/reject/block decisions; your backend must
-query `/v1/verdict` with the SecretKey and apply its own business policy.
-
-`sense()` never fabricates a local BoxId. If transport is disabled, the
-reporting endpoint is absent, or the AppKey is absent, it fails closed with a
-structured transport/configuration error. Local support and matrix tooling can
-still use diagnostic snapshot APIs, but those diagnostic identity values are
-not server-issued BoxIds.
-
-Public hosted reporting does not require the APK to sign uploads with the
-device wall clock. `serverTimeMillis` / `serverClockOffsetMillis` are private
-signed-transport diagnostics, not public hosted response fields. If
-your backend query receives a timestamp-related error, treat it as a
-transport/authentication issue and retry with a fresh backend timestamp; do not
-interpret it as device risk evidence.
-
-Advanced private secure transport, attestation binding, encrypted sessions,
-hosted policy baselines, and private detector catalogs remain closed-source.
-Deployments that require those features should include the private runtime or
-use Leona hosted service support for the public mode above. Commercial device
-identity deployments should also enable the fail-closed profile so absence of
-the secure engine cannot silently downgrade to public-hosted transport:
+The open SDK continues to build without the external Leo AAR/private runtime,
+but a caller that does not install a channel gets a fail-closed
+`SECURE_ENGINE_REQUIRED` result from `sense()` and no cloud-config network
+request. Configure the channel explicitly:
 
 ```kotlin
-LeonaConfig.Builder()
-    .reportingEndpoint("https://your-leona-endpoint.example/v1/sense")
+val channel = LeonaCryptoChannel(
+    transport = transport,
+    assertions = assertionProvider,
+    scopes = scopeProvider,
+    responseCommitments = { context -> locallyExpectedCommitments(context) },
+)
+
+Leona.init(this, LeonaConfig.Builder()
     .apiKey("your-app-key")
-    .requireSecureReportingEngine(true)
-    .build()
+    .reportingEndpoint("https://your-leona-endpoint.example")
+    .cryptoChannel(channel)
+    .build())
 ```
+
+`requireSecureReportingEngine(false)` remains source-compatible but cannot
+downgrade the secure-only policy. The external provider AAR, its bootstrap and
+keys, and the paired server verifier are private inputs; this repository does
+not emulate them or claim provider cryptographic execution without those
+inputs. The SDK only collects/reports evidence; the customer backend owns
+identity correlation and business verdicts.
 
 You can generate the APK-side baseline fields from a built APK:
 
@@ -883,83 +840,22 @@ val loginResponse = myApi.login(
 ## Backend: query device evidence by BoxId
 
 The mobile app only forwards the opaque `BoxId`. The customer's backend owns
-the server-side query and business decision.
+the server-side query and business decision. Every backend request and response
+must use the paired Leo transport; this public SDK provides no JSON, plaintext,
+or HMAC-only fallback.
 
 ```text
 App -> your backend: login/payment/API request with leonaBoxId
-Your backend -> Leona: POST /v1/verdict with tenant SecretKey
-Leona -> your backend: deviceFingerprint, canonicalDeviceId, events, provenance
+Your backend -> Leo transport: logical POST /v1/verdict request
+Leo transport -> your backend: authenticated/opened evidence response
 Your backend -> product: allow/challenge/deny according to your own policy
 ```
 
-Use different keys for the two sides:
-
-- `LEONA_API_KEY` / AppKey goes into the Android app and is used by the SDK to
-  upload evidence.
-- `LEONA_SECRET_KEY` stays only on your backend and is used to query evidence
-  for a BoxId.
-
-`POST /v1/verdict`:
-
-```http
-POST https://leona.xiyanshan.com/v1/verdict
-Authorization: Bearer <LEONA_SECRET_KEY>
-Content-Type: application/json
-X-Leona-Timestamp: <unix-time-ms>
-X-Leona-Nonce: <random-nonce>
-X-Leona-Signature: <base64url-hmac-sha256>
-
-{"boxId":"<BOX_ID_FROM_APP>"}
-```
-
-Signature:
-
-```text
-signingText = "backend-v2" + "\n" + uppercase(httpMethod) + "\n" + requestPath
-            + "\n" + timestamp + "\n" + nonce + "\n" + sha256(requestBody)
-signature = base64url_no_padding(HMAC-SHA256(secretKey, signingText))
-```
-
-Node.js example:
-
-```js
-import crypto from "node:crypto";
-
-async function queryLeonaEvidence(boxId) {
-  const endpoint = "https://leona.xiyanshan.com/v1/verdict";
-  const secret = process.env.LEONA_SECRET_KEY;
-  const body = JSON.stringify({ boxId });
-  const timestamp = Date.now().toString();
-  const nonce = crypto.randomBytes(16).toString("base64url");
-  const bodySha256 = crypto.createHash("sha256").update(body).digest("hex");
-  const signingText = `backend-v2\nPOST\n/v1/verdict\n${timestamp}\n${nonce}\n${bodySha256}`;
-  const signature = crypto
-    .createHmac("sha256", secret)
-    .update(signingText)
-    .digest("base64url");
-
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${secret}`,
-      "Content-Type": "application/json",
-      "X-Leona-Timestamp": timestamp,
-      "X-Leona-Nonce": nonce,
-      "X-Leona-Signature": signature,
-    },
-    body,
-  });
-
-  if (!res.ok) {
-    throw new Error(`Leona query failed: ${res.status} ${await res.text()}`);
-  }
-  return res.json();
-}
-```
-
-Ready-to-run backend examples are available in
-[`../examples/boxid-verdict`](../examples/boxid-verdict) for Python, Java, Go,
-C, C++, and Node.js.
+The backend transport owns provider bootstrap, protected fields/body, HTTPS,
+replay protection, and authenticated response opening. Use the Java
+`LeonaCryptoServerTransport` or the Node.js `transport.execute(...)` contract.
+Provider credentials and server keys stay outside the APK and public source.
+If the Leo transport is unavailable, fail before making a network request.
 
 Backend cache flow:
 
@@ -967,7 +863,7 @@ Backend cache flow:
 Leona.sense()
   -> app sends BoxId to customer backend
   -> backend checks its login/order/payment/risk record cache
-  -> cache miss: backend signs POST /v1/verdict with SecretKey
+  -> cache miss: backend sends logical POST /v1/verdict through Leo transport
   -> backend stores the returned evidence report before making a business action
   -> retries/audits read the cached report instead of reusing the consumed BoxId
 ```
@@ -1019,7 +915,8 @@ Important semantics:
 Customer integration checklist:
 
 - Android SDK receives only the Leona AppKey and reporting endpoint.
-- Backend stores the Leona SecretKey outside the APK and signs verdict queries.
+- Backend provisions the paired Leo provider outside the APK and sends verdict
+  queries only through the caller-owned Leo transport.
 - App forwards only the opaque `BoxId` to the backend.
 - Backend caches the first successful `/v1/verdict` report with its own business record.
 - Backend treats `410 LEONA_BOX_ALREADY_USED` as an idempotency/cache condition.
@@ -1074,8 +971,9 @@ policy remain closed-source.
 
 - The SDK already contains the native detection path, JNI bridge, payload
   format, and the Kotlin-side secure upload implementation.
-- The public sample app is intended to run with a Leona-issued API key and
-  Leona hosted endpoints.
+- The public sample app is intended to be built with a Leona-issued API key
+  and customer Leo-protected endpoint routing; live I/O requires the private
+  external channel provider.
 - Device/environment evidence, tenant settings, and data persistence are
   handled by the Leona API/backend. The Android client collects and reports
   signals; Leona itself does not make the final business decision.
@@ -1169,19 +1067,24 @@ For security reasons, this public repository does not include:
 
 ## Public API surface
 
-The evidence API remains the default surface. The optional transport contract
-for the external Leo crypto facade is separate from evidence collection:
+The evidence API remains the default surface. The Leo transport contract is
+separate from evidence collection, but it is the mandatory network boundary for
+the Android SDK:
 
 ```
 io.leonasec.leona.crypto
 ├─ LeonaCryptoTransport
 ├─ LeonaCryptoHttpRequest / LeonaCryptoHttpResponse
 ├─ LeonaCryptoEnvelopeCodec
-└─ LeonaCryptoAssertionProvider / LeonaCryptoScopeProvider
+├─ LeonaCryptoAssertionProvider / LeonaCryptoScopeProvider
+├─ LeonaCryptoResponseCommitmentsProvider
+├─ LeonaCryptoChannel
+└─ LeonaCryptoProtectedHeadersCodec
 ```
 
 The compile-time provider adapter lives in `crypto-adapter/` and is excluded
-unless `LEONA_CRYPTO_AAR` names an external private AAR. See
+unless `LEONA_CRYPTO_AAR` names an external private AAR. All SDK network paths
+use this channel; a missing provider is a no-network/fail-closed state. See
 [`docs/leo-crypto-integration.md`](docs/leo-crypto-integration.md) for the
 Android activation, API/server envelope, version gate, and no-plaintext-
 fallback rules.
@@ -1225,9 +1128,10 @@ This repo includes:
 - regular Android public SDK CI in `../.github/workflows/android.yml`
 - nightly public SDK checks for unit tests, AAR assembly, and native source sanity
 
-Public CI does not include Leona hosted backend implementation, demo backend,
-private detector modules, private risk policy, or internal release flows.
-Those are closed-source for security reasons.
+Public CI does not include the customer-owned Leo provider, server verifier,
+private detector modules, private risk policy, or internal release flows. The
+public build and unit gates verify the fail-closed boundary only; production
+transport acceptance remains a private customer/provider responsibility.
 
 To build or install the sample app against Leona hosted endpoints:
 
@@ -1238,14 +1142,19 @@ LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
 ./scripts/run-live-sample.sh
 ```
 
-Cloud config is a control-plane input because it can tune collection policy. The
-SDK only trusts HTTPS cloud config endpoints; HTTP endpoints are ignored for
-cloud config even when they are useful for local upload/evidence-report testing.
-Canonical device identity is only persisted from the secure reporting server,
-not from mobile-config responses.
+Cloud config is a control-plane input because it can tune collection policy and
+is fetched through the same Leo channel as reporting. Its logical path, fields,
+and body are protected inside the Leo envelope; the outer endpoint is only a
+fixed routing URL. Without a channel, refresh is skipped and the last trusted
+cached policy (or local defaults) is used. Remote endpoints still require
+HTTPS, and canonical device identity is only persisted from the secure
+reporting server, not from mobile-config responses.
 
-The public SDK requires Leona hosted API/backend access for environment evidence
-reports. It does not ship a self-hosted production backend.
+The public SDK requires a customer-owned Leo API/backend for environment
+evidence reports. It does not ship a self-hosted production backend or a
+plaintext reporting endpoint. The helper only builds/installs the public
+sample candidate; a private integration must wire the external channel before
+live network I/O is possible. Without that channel, `sense()` fails closed.
 
 ## Contributing
 

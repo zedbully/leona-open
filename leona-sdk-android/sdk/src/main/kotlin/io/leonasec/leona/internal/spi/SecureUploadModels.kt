@@ -6,7 +6,6 @@ package io.leonasec.leona.internal.spi
 
 import io.leonasec.leona.BoxId
 import io.leonasec.leona.LeonaDeviceEnvironmentEvidence
-import io.leonasec.leona.LeonaSecureTransportSnapshot
 import io.leonasec.leona.LeonaServerVerdict
 import io.leonasec.leona.internal.ClientEvidenceSignalMapper
 
@@ -78,10 +77,4 @@ data class SecureUploadResult(
         canonicalDeviceId: String?,
         serverVerdict: LeonaServerVerdict?,
     ) : this(boxId, canonicalDeviceId, serverVerdict, null)
-}
-
-interface SecureReportingEngine {
-    suspend fun resolveServerTamperBaselineJson(): String?
-    suspend fun upload(payload: ByteArray, deviceContext: SecureDeviceContext): SecureUploadResult
-    fun debugSnapshot(): LeonaSecureTransportSnapshot?
 }

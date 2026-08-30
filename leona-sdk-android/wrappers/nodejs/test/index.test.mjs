@@ -1,85 +1,82 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  buildSignedRequest,
-  createLeonaClient,
-  hmacSha256Base64Url,
-  redact,
-  sha256Hex,
-} from "../src/index.mjs";
+import { createLeonaClient, redact } from "../src/index.mjs";
 
-test("builds the shared fixed signature fixture", () => {
-  const signed = buildSignedRequest({
-    secretKey: "test_secret_do_not_use",
-    method: "POST",
-    path: "/v1/verdict",
-    body: { boxId: "box_test_000000000000000000" },
-    timestamp: "1700000000000",
-    nonce: "nonce_for_dry_run",
-  });
+const BOX_ID = "box_test_000000000000000000";
 
-  assert.equal(signed.body, '{"boxId":"box_test_000000000000000000"}');
-  assert.equal(
-    signed.bodySha256,
-    "c7aba2a73265ed90feeaa0eb8d8b35591dbc157e15ac1122b6bec17d00da430d",
-  );
-  assert.equal(
-    signed.headers["X-Leona-Signature"],
-    "xm_a5DaT482f2Nv_hewtgbB3cm43eg2-wopU4AxH928",
-  );
-});
-
-test("backend signatures are bound to method and path", () => {
-  const shared = {
-    secretKey: "test_secret_do_not_use",
-    body: { boxId: "box_test_000000000000000000" },
-    timestamp: "1700000000000",
-    nonce: "nonce_for_dry_run",
-  };
-  const verdict = buildSignedRequest({ ...shared, method: "POST", path: "/v1/verdict" });
-  const report = buildSignedRequest({
-    ...shared,
-    method: "GET",
-    path: "/v1/internal/private/evidence-reports/box_test_000000000000000000",
-  });
-  assert.notEqual(verdict.headers["X-Leona-Signature"], report.headers["X-Leona-Signature"]);
-});
-
-test("signing helpers are deterministic", () => {
-  assert.equal(sha256Hex("body"), "230d8358dc8e8890b4c58deeb62912ee2f20357ae92a5cc861b98e68fe31acb5");
-  assert.equal(hmacSha256Base64Url("secret", "text"), "L0Q2hVkpAOYZ8vOyNQw8ilc44ueia8miRNM5PDzWq9Y");
-});
-
-test("client calls verdict with signed backend-only headers", async () => {
+function transportFor(response = { status: 200, body: '{"evidenceOnly":true}' }) {
   const calls = [];
-  const client = createLeonaClient({
-    baseUrl: "https://api.example.leona/",
-    secretKey: "test_secret_do_not_use",
-    now: () => "1700000000000",
-    nonceFactory: () => "nonce_for_dry_run",
-    fetchImpl: async (url, init) => {
-      calls.push({ url, init });
-      return new Response('{"boxIdHint":"box_...0000","evidence":[]}', { status: 200 });
+  return {
+    calls,
+    execute: async (request) => {
+      calls.push(request);
+      return response;
     },
-  });
+  };
+}
 
-  const result = await client.verdict("box_test_000000000000000000");
-  assert.equal(result.boxIdHint, "box_...0000");
-  assert.equal(calls[0].url, "https://api.example.leona/v1/verdict");
-  assert.equal(calls[0].init.method, "POST");
-  assert.equal(calls[0].init.headers.Authorization, "Bearer test_secret_do_not_use");
-  assert.equal(calls[0].init.headers["X-Leona-Timestamp"], "1700000000000");
-  assert.equal(calls[0].init.headers["X-Leona-Nonce"], "nonce_for_dry_run");
+test("requires a caller-owned Leo transport", () => {
+  assert.throws(
+    () => createLeonaClient(),
+    /Leo crypto backend transport is required/,
+  );
+  assert.throws(
+    () => createLeonaClient({ transport: { execute: "not-a-function" } }),
+    /Leo crypto backend transport is required/,
+  );
 });
 
-test("rejects remote plaintext wrapper endpoints", () => {
-  assert.throws(
-    () => createLeonaClient({
-      baseUrl: "http://api.example.leona",
-      secretKey: "test_secret_do_not_use",
-    }),
-    /baseUrl must use HTTPS/,
+test("client hands logical request fields to Leo transport", async () => {
+  const transport = transportFor();
+  const client = createLeonaClient({ transport });
+  const result = await client.verdict(BOX_ID);
+
+  assert.equal(result.evidenceOnly, true);
+  assert.equal(transport.calls.length, 1);
+  assert.equal(transport.calls[0].method, "POST");
+  assert.equal(transport.calls[0].path, "/v1/verdict");
+  assert.equal(transport.calls[0].contentType, "application/json");
+  assert.deepEqual(transport.calls[0].protectedHeaders, {});
+  assert.equal(transport.calls[0].body, JSON.stringify({ boxId: BOX_ID }));
+});
+
+test("all wrapper operations use the same Leo transport boundary", async () => {
+  const transport = transportFor({ status: 200, body: '{"accepted":true}' });
+  const client = createLeonaClient({ transport });
+
+  await client.evidenceReport(BOX_ID);
+  await client.supportBundle(BOX_ID);
+  await client.submitFeedback({
+    boxId: BOX_ID,
+    label: "false_positive",
+    customerReason: "integration smoke",
+  });
+
+  assert.deepEqual(
+    transport.calls.map(({ method, path }) => `${method} ${path}`),
+    [
+      `GET /v1/internal/private/evidence-reports/${encodeURIComponent(BOX_ID)}`,
+      `GET /v1/internal/private/evidence-reports/${encodeURIComponent(BOX_ID)}/support-bundle`,
+      "POST /v1/internal/private/evidence-feedback",
+    ],
+  );
+});
+
+test("opened Leo HTTP errors become transport errors without business decisions", async () => {
+  const client = createLeonaClient({
+    transport: transportFor({ status: 401, body: '{"error":"unauthorized"}' }),
+  });
+
+  await assert.rejects(
+    () => client.evidenceReport(BOX_ID),
+    (error) => {
+      assert.equal(error.name, "LeonaTransportError");
+      assert.equal(error.status, 401);
+      assert.equal(error.diagnostic, "transport_http_error");
+      assert.deepEqual(error.body, { error: "unauthorized" });
+      return true;
+    },
   );
 });
 
@@ -88,9 +85,9 @@ test("redacts secrets, raw identifiers, and complete BoxIds", () => {
     secretKey: "test_secret_do_not_use",
     authorization: "Bearer test_secret_do_not_use",
     nested: {
-      boxId: "01ABCDEFGHJKL1234567890",
+      boxId: BOX_ID,
       deviceId: "raw-device-id",
-      note: "seen box_test_000000000000000000 in a ticket",
+      note: `seen ${BOX_ID} in a ticket`,
     },
   });
 
@@ -101,21 +98,17 @@ test("redacts secrets, raw identifiers, and complete BoxIds", () => {
   assert.equal(output.nested.note, "seen [redacted-box-id] in a ticket");
 });
 
-test("http errors become transport errors without leaking the secret", async () => {
+test("transport timeout is fail closed", async () => {
   const client = createLeonaClient({
-    baseUrl: "https://api.example.leona",
-    secretKey: "test_secret_do_not_use",
-    fetchImpl: async () =>
-      new Response('{"error":"bad secret test_secret_do_not_use"}', { status: 401 }),
+    timeoutMs: 10,
+    transport: { execute: () => new Promise(() => {}) },
   });
 
   await assert.rejects(
-    () => client.evidenceReport("box_test_000000000000000000"),
+    () => client.verdict(BOX_ID),
     (error) => {
       assert.equal(error.name, "LeonaTransportError");
-      assert.equal(error.status, 401);
-      assert.equal(error.diagnostic, "transport_http_error");
-      assert.doesNotMatch(JSON.stringify(error), /test_secret_do_not_use/);
+      assert.equal(error.diagnostic, "transport_error");
       return true;
     },
   );

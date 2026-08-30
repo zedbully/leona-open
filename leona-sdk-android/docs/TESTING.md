@@ -12,7 +12,7 @@ Run the public SDK checks from `leona-sdk-android`:
 ./gradlew :sdk:testDebugUnitTest :sdk:assembleRelease --no-configuration-cache
 ```
 
-Optional sample app build against Leona hosted endpoints:
+Optional sample app build with customer Leo endpoint routing:
 
 ```bash
 LEONA_API_KEY=<appKey> \
@@ -21,9 +21,14 @@ LEONA_CLOUD_CONFIG_ENDPOINT=https://<leona-config-api>/v1/mobile-config \
 ./scripts/run-live-sample.sh
 ```
 
-`LEONA_API_KEY` and `LEONA_REPORTING_ENDPOINT` are required for the public
-sample path. The client collects signals and uploads them; authoritative
-verdicts are produced by Leona API/backend.
+`LEONA_API_KEY` and `LEONA_REPORTING_ENDPOINT` configure routing only. A
+customer-owned `LeonaCryptoChannel` must also be wired from the paired Leo
+provider before any request can be made. The client collects and reports
+evidence; authoritative verdicts are produced by the backend.
+
+The helper builds/installs the public sample candidate; it does not package a
+Leo provider or perform a live request by itself. Without a private provider
+channel, the sample fails closed before network I/O.
 
 `LEONA_CLOUD_CONFIG_ENDPOINT` must use HTTPS to be trusted. HTTP/LAN endpoints
 are still useful for local upload or verdict testing, but the SDK ignores
@@ -32,10 +37,10 @@ cannot change collection policy. The SDK does not persist canonical device
 identity from mobile-config responses; canonical identity comes from the secure
 reporting server path.
 
-Do not build server-side verdict secrets into the sample APK. Direct `/v1/verdict`
-signature verification belongs in a host-side script or your backend; the sample
-app only sends the BoxId and low-trust demo context to the configured demo
-backend.
+Do not build backend provider credentials into the sample APK. Backend verdict
+and customer API calls must go through the paired Leo transport. The sample app
+reads the authenticated verdict returned by the SDK and has no direct demo
+backend or plaintext API client.
 
 The sample app's logcat automation is a debug-only field-test helper. It only
 runs when the debug APK is built with `LEONA_E2E_TOKEN` and the launch intent
@@ -80,52 +85,31 @@ diagnostic pass.
 
 ## Device Smoke Test
 
-1. Install the sample app built with hosted Leona configuration.
+1. Install the sample app built with the customer Leo provider configuration.
 2. Tap **Run sense()**.
-3. Confirm a BoxId is returned.
-4. Query verdict data through the configured Leona/customer backend endpoint.
+3. Confirm a BoxId is returned only when a compatible Leo provider/channel is installed.
+4. Query verdict data through the same Leo-protected customer backend channel.
 
 The expected clean-device result is not a client-side allow/deny decision. A
 clean device should upload normally and leave final policy evaluation to the
 server.
 
-## Hosted API Diagnostics
+## Leo-protected API Diagnostics
 
-The public hosted upload path (`POST /v1/sense/public`) uses `X-Leona-App-Key`
-tenant authentication and does not require a client-side HMAC timestamp. A
-missing or invalid AppKey should return a structured `401` response with
-`LEONA_AUTH_MISSING` or `LEONA_AUTH_INVALID`; it must not surface as a generic
-HTTP 500 to the SDK.
+The SDK sends a binary `application/vnd.leona.crypto.v1+octet-stream` envelope
+to the configured HTTPS endpoint. AppKey, tenant, request identity, device
+correlation hashes, application headers, and body fields are protected by the
+Leo channel; they are not sent as cleartext JSON or ordinary application HTTP
+headers. The response must use the same content type and pass Leo
+authentication/opening before the SDK accepts any status, headers, or body.
 
-The signed private upload path (`POST /v1/sense`) still requires timestamp,
-nonce, signature, and session headers. Timestamp parsing or clock-window
-failures should return `401 LEONA_TIMESTAMP_SKEW`, while missing signed headers
-should return `401 LEONA_AUTH_MISSING`. SDK diagnostics classify these cases as
-`timestamp_skew` or `auth_failed`; generic 5xx responses are classified as
-`server_5xx` and should not trigger timestamp-skew retry behavior unless the
-server explicitly returns a timestamp-skew marker.
-
-Clock handling has two separate contracts:
-
-- Public hosted reporting (`/v1/sense/public`) does not ask the APK to sign the
-  upload with the device wall clock. This path is designed for the public AAR
-  and should be validated through AppKey authentication, network timeout, and
-  server 5xx diagnostics. `serverTimeMillis` and `serverClockOffsetMillis` are
-  not public hosted response fields in `v0.2.0`.
-- Private signed reporting (`/v1/sense`) can receive `serverTimeMillis` during
-  handshake. The SDK derives `serverClockOffsetMillis` as
-  `serverTimeMillis - currentDeviceTimeMillis`, persists it with the session,
-  and signs later uploads with the corrected timestamp. If the server returns a
-  clear timestamp-skew error, the SDK may discard the old session, refresh the
-  handshake, and retry once.
-
-`timestamp_skew` is a transport/authentication diagnostic. It is not evidence
-that the device is rooted, hooked, emulated, or otherwise risky. Record it in
-logs and retry/fallback handling, but do not turn it into a business verdict or
-device-risk tag.
+Missing channel/provider material, unsupported protocol versions, malformed
+envelopes, invalid commitments, or provider failures are fail-closed transport
+errors. They must never trigger a plaintext retry. Transport/authentication
+errors are diagnostic data, not device-risk or business decisions.
 
 For the Android 10 realme-style clock-offset regression, run the direct
-cloudTest wrapper instead of tapping the UI:
+cloudTest wrapper with a customer-supplied Leo provider instead of tapping the UI:
 
 ```bash
 LEONA_APK=/path/to/sample-app-cloudTest.apk \
@@ -174,11 +158,9 @@ BoxIds keep the evidence captured at the time they were minted.
 
 When testing against a backend on a physical device, use an HTTPS address
 reachable from the phone. Do not use plain HTTP to a LAN address for a
-production or customer build. For a local emulator fixture, prefer loopback
-with an explicit `adb reverse` mapping; `localhost` and `127.0.0.1` from inside
-the app otherwise refer to the Android device itself, not your development
-machine. Use HTTPS for cloud and LAN validation; only the explicitly loopback
-fixture path is permitted to use HTTP.
+production or customer build. The SDK allows HTTP only for explicitly
+loopback-bound local tests; this does not relax Leo envelope protection or
+permit a cleartext remote endpoint.
 
 ## Emulator And Tooling Checks
 
@@ -204,25 +186,9 @@ return a local trust verdict.
 
 ## CI
 
-GitHub Actions runs the public Android SDK build and unit-test gate in
-`.github/workflows/android.yml`. The separately triggered
-`.github/workflows/android-cloud-runtime.yml` builds one ephemeral `cloudTest`
-APK and exercises direct `sense()` plus public-hosted reporting on API 23 and
-API 36 GitHub-managed plain AOSP/no-GMS AVDs. The app reaches the host-only
-fixture through temporary `adb reverse` using a strict loopback endpoint; the
-SDK's HTTPS/loopback transport boundary is not relaxed. It publishes only
-redacted import, fixture receipt, provenance, and verifier summaries; the APK,
-AppKey, cloud-test token, raw BoxId, and raw device identifiers are not
-artifacts.
-
-The hosted AVD result is boundary runtime evidence only. It is not the complete
-API 23-36 runtime matrix, physical/OEM or real attestation evidence, a customer
-backend decision, or commercial admission. Internal backend, private runtime,
-and tenant policy validation remain closed-source and run outside this public
-repository.
-
-To bind a downloaded artifact into matrix readiness, set
-`LEONA_GITHUB_HOSTED_RUNTIME_ROOT` to its `leona-github-cloud-runtime`
-directory and run `scripts/verify-v0.4-android-matrix-readiness.sh`. The gate
-reruns the evidence verifier; it does not count this hosted boundary as a
-physical/OEM full-matrix sample.
+GitHub Actions runs the public Android SDK build, unit-test, and static
+Leo-only boundary gate in `.github/workflows/android.yml`. It does not invent a
+provider, create keys, send plaintext JSON, or claim production provider
+acceptance. Runtime/provider acceptance requires the customer-controlled Leo
+AAR/bootstrap, matching server verifier, HTTPS endpoint, and redacted evidence
+outside the public repository.

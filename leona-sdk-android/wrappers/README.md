@@ -12,11 +12,11 @@ Current slices:
 
 Scope:
 
-- sign backend-only Leona requests with a tenant SecretKey
+- delegate backend-only Leona requests to a caller-owned Leo crypto transport
 - query evidence reports and support bundles
 - submit customer feedback labels
 - redact Leona identifiers before logs or support export
-- decode/encode the optional Leo encrypted HTTP envelope without accepting
+- decode/encode the Leo encrypted HTTP envelope without accepting
   client-supplied scope commitments
 
 Non-goals:
@@ -24,9 +24,12 @@ Non-goals:
 - no final business `allow`, `reject`, `block`, or `deny` decision
 - no embedded real SecretKey, provider credential, token, full BoxId, or raw
   device identifier
-- no dependency on private Leona server implementation
+- no dependency on private Leona server implementation; the caller supplies
+  the provider binding
 - no server keys, verifier, scope derivation, or native crypto binary in this
   public wrapper
+- no direct HTTP client, plaintext JSON fallback, or HMAC-only compatibility
+  path
 
 Run local checks:
 

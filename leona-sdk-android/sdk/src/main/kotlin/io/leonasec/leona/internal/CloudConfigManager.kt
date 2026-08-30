@@ -7,16 +7,16 @@ package io.leonasec.leona.internal
 import android.content.Context
 import android.content.SharedPreferences
 import io.leonasec.leona.config.LeonaConfig
+import io.leonasec.leona.crypto.LeonaCryptoEnvelopeCodec
+import io.leonasec.leona.crypto.LeonaCryptoHttpRequest
+import io.leonasec.leona.crypto.LeonaCryptoProtectedHeadersCodec
 import io.leonasec.leona.internal.identity.CollectionPolicy
 import io.leonasec.leona.internal.identity.DeviceFingerprintSnapshot
 import io.leonasec.leona.internal.identity.DeviceIdentityManager
-import okhttp3.CertificatePinner
-import okhttp3.OkHttpClient
-import okhttp3.Response
-import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONObject
 import java.security.MessageDigest
-import java.util.concurrent.TimeUnit
+import java.nio.charset.StandardCharsets
 
 internal class CloudConfigManager(
     context: Context,
@@ -26,25 +26,10 @@ internal class CloudConfigManager(
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val httpClient: OkHttpClient by lazy {
-        val builder = OkHttpClient.Builder()
-            .callTimeout(5, TimeUnit.SECONDS)
-            .connectTimeout(2, TimeUnit.SECONDS)
-            .readTimeout(4, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
-        if (config.certificatePins.isNotEmpty()) {
-            val pinner = CertificatePinner.Builder()
-            config.certificatePins.forEach { (host, pins) ->
-                pins.forEach { pin -> pinner.add(host, pin) }
-            }
-            builder.certificatePinner(pinner.build())
-        }
-        builder.build()
-    }
-
     suspend fun refreshIfNeeded(force: Boolean = false): CollectionPolicy {
         val cached = currentPolicy()
         if (!config.cloudConfigEnabled) return cached
+        val channel = config.cryptoChannel ?: return cached
         val endpoint = resolvedEndpoint() ?: return cached
         val trustedConfigSource = isTrustedCloudConfigEndpoint(endpoint)
         if (!trustedConfigSource) return cached
@@ -57,30 +42,44 @@ internal class CloudConfigManager(
 
         return runCatching {
             val snapshot = identityManager.resolve(cached, refreshRiskSignals = true)
-            val request = Request.Builder()
-                .url(endpoint)
-                .get()
-                .apply {
-                    config.apiKey?.let { header("X-Leona-App-Key", it) }
-                    config.tenantId?.let { header("X-Leona-Tenant", it) }
-                    header("X-Leona-App-Id", config.appId)
-                    config.channel?.let { header("X-Leona-Channel", it) }
-                    applyIdentityHeaders(snapshot)
-                }
-                .build()
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@use cached
-                val body = response.body?.string().orEmpty()
-                val remote = parseRemoteConfig(body, response).onlyIfTrusted(trustedConfigSource)
-                if (trustedConfigSource) {
-                    prefs.edit()
-                        .putString(KEY_REMOTE_JSON, body)
-                        .putString(KEY_REMOTE_ENDPOINT, endpoint)
-                        .putLong(KEY_FETCHED_AT, now)
-                        .apply()
-                }
-                remote.toPolicy(config)
+            val url = endpoint.toHttpUrlOrNull() ?: return@runCatching cached
+            val protectedHeaders = linkedMapOf<String, String>()
+            config.apiKey?.let { protectedHeaders["X-Leona-App-Key"] = it }
+            config.tenantId?.let { protectedHeaders["X-Leona-Tenant"] = it }
+            protectedHeaders["X-Leona-App-Id"] = config.appId
+            config.channel?.let { protectedHeaders["X-Leona-Channel"] = it }
+            protectedHeaders["X-Leona-Protocol"] = LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR.toString()
+            protectedHeaders["X-Leona-Request-Id"] = java.util.UUID.randomUUID().toString()
+            protectedHeaders.putAll(redactedIdentityHeaders(snapshot))
+            val request = LeonaCryptoHttpRequest(
+                method = "GET",
+                authority = url.host + if (url.port != if (url.isHttps) 443 else 80) ":${url.port}" else "",
+                path = "/v1/mobile-config",
+                contentType = "application/json",
+                protectedHeaders = LeonaCryptoProtectedHeadersCodec.encode(protectedHeaders),
+            )
+            val response = LeonaCryptoHttpClient(
+                channel = channel,
+                endpointUrl = endpoint,
+                certificatePins = config.certificatePins,
+                callTimeoutSeconds = 5,
+                connectTimeoutSeconds = 2,
+                readTimeoutSeconds = 4,
+            ).execute(request)
+            val opened = when (response) {
+                is io.leonasec.leona.crypto.LeonaCryptoResult.Success -> response.value
+                is io.leonasec.leona.crypto.LeonaCryptoResult.Failure -> return@runCatching cached
             }
+            if (opened.statusCode !in 200..299) return@runCatching cached
+            val body = opened.body.toString(StandardCharsets.UTF_8)
+            val responseHeaders = LeonaCryptoProtectedHeadersCodec.decode(opened.protectedHeaders)
+            val remote = parseRemoteConfig(body, responseHeaders).onlyIfTrusted(trustedConfigSource)
+            prefs.edit()
+                .putString(KEY_REMOTE_JSON, body)
+                .putString(KEY_REMOTE_ENDPOINT, endpoint)
+                .putLong(KEY_FETCHED_AT, now)
+                .apply()
+            remote.toPolicy(config)
         }.getOrDefault(cached)
     }
 
@@ -102,13 +101,11 @@ internal class CloudConfigManager(
 
     private fun resolvedEndpoint(): String? =
         config.cloudConfigEndpoint?.trim()?.ifEmpty { null }
-            ?: config.reportingEndpoint
-                ?.trimEnd('/')
-                ?.let { "$it${config.region.cloudConfigPath}" }
+            ?: config.reportingEndpoint?.trim()?.ifEmpty { null }
 
-    private fun parseRemoteConfig(body: String?, response: Response? = null): RemoteConfig {
+    private fun parseRemoteConfig(body: String?, protectedHeaders: Map<String, String> = emptyMap()): RemoteConfig {
         val remoteFromBody = parseRemoteConfigBody(body)
-        val remoteFromHeaders = response?.toRemoteConfigFromHeaders() ?: RemoteConfig()
+        val remoteFromHeaders = parseRemoteConfigHeaders(protectedHeaders)
         return remoteFromBody.merge(remoteFromHeaders)
     }
 
@@ -140,19 +137,6 @@ internal class CloudConfigManager(
         val rawJson: String?,
         val fetchedAtMillis: Long?,
     )
-
-    private fun Request.Builder.applyIdentityHeaders(snapshot: DeviceFingerprintSnapshot) {
-        redactedIdentityHeaders(snapshot).forEach { (name, value) -> header(name, value) }
-    }
-
-    private fun Response.toRemoteConfigFromHeaders(): RemoteConfig {
-        return parseRemoteConfigHeaders(
-            mapOf(
-                "X-Leona-Disabled-Signals" to header("X-Leona-Disabled-Signals"),
-                "X-Leona-Disable-Collection-Window-Ms" to header("X-Leona-Disable-Collection-Window-Ms"),
-            ),
-        )
-    }
 
     internal companion object {
         const val PREFS_NAME = "io.leonasec.leona.cloud"

@@ -1,10 +1,46 @@
 # Leo crypto SDK integration
 
 This repository integrates the external Leo crypto facade through an optional,
-version-gated adapter. The regular Leona Android SDK and its evidence upload
-path remain independent of the external AAR. The integration is therefore
-safe to build, test, and ship for domestic deployments that do not use Google
-runtime services.
+version-gated adapter. The regular Leona Android SDK remains buildable without
+the external AAR, but every SDK network path is Leo-only at runtime:
+`SecureChannel` reporting and cloud-config refresh both require a caller-owned
+`LeonaCryptoChannel`. There is no public-hosted, plaintext JSON, or alternate
+transport fallback.
+
+The adapter described here is a public application-transport seam; it does not
+define, emulate, or automatically activate the private reporting engine. Its
+provider bootstrap, keys, and authenticated reporting contract remain private.
+
+## Secure-channel gate boundary
+
+`LeonaConfig.Builder` defaults to secure-only operation. The caller installs the
+same `LeonaCryptoChannel` for all SDK HTTP requests:
+
+```kotlin
+val channel = LeonaCryptoChannel(
+    transport = transport,
+    assertions = assertionProvider,
+    scopes = scopeProvider,
+    responseCommitments = { context -> locallyExpectedCommitments(context) },
+)
+
+Leona.init(this, LeonaConfig.Builder()
+    .apiKey("your-app-key")
+    .reportingEndpoint("https://api.example.test")
+    .cryptoChannel(channel)
+    .build())
+```
+
+Without a channel, `SecureChannel` fails closed with
+`SECURE_ENGINE_REQUIRED` before making a request. Cloud-config refresh does not
+make a request and uses the last trusted cached policy (or local defaults).
+`requireSecureReportingEngine(false)` is retained only for source compatibility
+and cannot disable the secure-only policy.
+
+The SDK applies the channel to both reporting and cloud-config refresh. The
+application API path is not automatically intercepted: customer-owned API
+clients must use the same Leo adapter/channel rather than adding a plaintext
+client beside the SDK.
 
 ## Contract
 
@@ -56,7 +92,8 @@ The application creates `LeoFacadeCryptoTransport` through
 1. the provider-owned native configuration;
 2. the provider-owned session bootstrap;
 3. an application-owned assertion bridge; and
-4. an application-owned scope provider.
+    4. an application-owned scope provider; and
+    5. the locally expected response-commitment provider.
 
 The API client is deliberately explicit about the fixed outer route and the
 server-derived response commitments (the provider-specific construction of
@@ -96,6 +133,11 @@ val response = client.execute(
 )
 ```
 
+To wire the channel into the Leona SDK, keep the provider-owned transport and
+all commitment inputs in the application and pass the complete channel to
+`LeonaConfig.Builder.cryptoChannel(...)`. Do not construct a second JSON,
+plaintext, or HMAC-only client for SDK reporting or cloud configuration.
+
 `privateNativeConfiguration`, `privateSessionBootstrap`, provider outputs, and
 `locallyExpectedCommitments` above are placeholders for customer-controlled
 private inputs, not repository fixtures. Do not log or persist them.
@@ -109,9 +151,10 @@ major, or provider failure returns a failure result; it never downgrades to a
 plaintext request.
 
 For a fixed API route, `LeoFacadeOkHttpClient` posts the encoded request to an
-HTTPS endpoint and opens only a successful, authenticated response. It does
-not copy the protected request path/query into the cleartext URL and rejects
-remote HTTP endpoints. A loopback HTTP URL is allowed only for local tests.
+HTTPS endpoint and opens an authenticated response, including encrypted error
+responses. It does not copy the protected request path/query into the cleartext
+URL and rejects remote HTTP endpoints. A loopback HTTP URL is allowed only for
+local tests. The core SDK uses the same rules through `LeonaCryptoHttpClient`.
 
 ### Local API and HTTPS smoke
 
@@ -139,9 +182,12 @@ decisions.
 ## Server/API activation
 
 `wrappers/java/src/main/java/io/leonasec/wrapper/LeonaCryptoServerTransport.java`
-provides the matching Java 11 boundary without depending on the private Leo
-server library. The customer service supplies an `Engine` implementation that
-maps to the external C server SDK:
+provides the matching Java 11 inbound boundary without depending on the private
+Leo server library. `LeonaServerClient` also has no HTTP or plaintext fallback:
+the customer service must supply a Leo backend transport that seals each
+logical request and opens each response before returning it to the wrapper.
+The customer service supplies an `Engine` implementation that maps to the
+external C server SDK:
 
 - `Engine.open(...)` must call the paired commercial server open operation,
   pass the exact assertion envelope, verify the assertion, and use only a
@@ -163,8 +209,9 @@ APK.
 
 The core Android SDK has no compile or runtime dependency on the Leo AAR, so a
 Leo AAR update cannot break the default SDK build. The optional adapter is
-deliberately the only version-sensitive seam. Before publishing an adapter
-update, verify:
+deliberately the only version-sensitive seam. The public Android and backend
+wrappers do not create a provider or invent keys; without one they fail closed.
+Before publishing an adapter update, verify:
 
 ```bash
 ./gradlew :sdk:test --no-daemon --console=plain

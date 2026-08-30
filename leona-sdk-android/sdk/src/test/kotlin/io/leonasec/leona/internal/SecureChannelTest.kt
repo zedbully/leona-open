@@ -8,36 +8,39 @@ package io.leonasec.leona.internal
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.leonasec.leona.crypto.LeonaCryptoCapabilities
+import io.leonasec.leona.crypto.LeonaCryptoChannel
+import io.leonasec.leona.crypto.LeonaCryptoEnvelopeCodec
+import io.leonasec.leona.crypto.LeonaCryptoHttpRequest
+import io.leonasec.leona.crypto.LeonaCryptoHttpResponse
+import io.leonasec.leona.crypto.LeonaCryptoPreparedAssertion
+import io.leonasec.leona.crypto.LeonaCryptoRequestContext
+import io.leonasec.leona.crypto.LeonaCryptoResult
+import io.leonasec.leona.crypto.LeonaCryptoScopeCommitments
+import io.leonasec.leona.crypto.LeonaCryptoScopeProvider
+import io.leonasec.leona.crypto.LeonaCryptoAssertionProvider
+import io.leonasec.leona.crypto.LeonaCryptoSealedRequest
+import io.leonasec.leona.crypto.LeonaCryptoSealedResponse
+import io.leonasec.leona.crypto.LeonaCryptoTransport
 import io.leonasec.leona.config.LeonaConfig
+import io.leonasec.leona.crypto.LeonaCryptoProtectedHeadersCodec
+import io.leonasec.leona.internal.spi.SecureDeviceContext
 import io.leonasec.leona.internal.spi.SecureReportingErrorCode
 import io.leonasec.leona.internal.spi.SecureReportingException
-import io.leonasec.leona.internal.spi.SecureDeviceContext
-import okhttp3.OkHttpClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.json.JSONObject
-import org.junit.Assert.assertFalse
+import okio.Buffer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
-import java.io.IOException
-import java.security.cert.CertPathValidatorException
-import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLHandshakeException
+import java.nio.charset.StandardCharsets
 
 class SecureChannelTest {
-
-    @Test
-    fun `public hosted transport rejects cleartext endpoints`() {
-        val error = runCatching {
-            PublicHostedReportingClient.validatedPublicSenseUrl("http://api.example.test")
-        }.exceptionOrNull()
-        assertTrue(error is IllegalArgumentException)
-    }
 
     @Test
     fun `upload fails closed when reporting endpoint is absent`() = runBlocking {
@@ -77,231 +80,16 @@ class SecureChannelTest {
     }
 
     @Test
-    fun `commercial reporting profile fails closed without secure engine`() = runBlocking {
-        val ctx = mockContext()
-        val channel = SecureChannel(
-            ctx,
-            LeonaConfig.Builder()
-                .reportingEndpoint("https://api.example.test/v1/sense")
-                .apiKey("leona_test_app_key")
-                .requireSecureReportingEngine(true)
-                .build(),
-        )
-
-        val error = runCatching { channel.upload(byteArrayOf(1, 2, 3), deviceContext()) }
-            .exceptionOrNull()
-
-        assertNotNull(error)
-        assertEquals(
-            SecureReportingErrorCode.SECURE_ENGINE_REQUIRED,
-            (error as SecureReportingException).code,
-        )
-        assertTrue(error.message.orEmpty().contains("diagnostic=secure_engine_required"))
-    }
-
-    @Test
-    fun `public hosted reporting posts evidence envelope and returns BoxId`() = runBlocking {
+    fun `reporting requires a configured Leo channel and never uses a legacy engine`() = runBlocking {
         val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setBody(
-                    """
-                    {
-                      "boxId": "box-public-1",
-                      "installId": "I0123456789abcdef0123456789abcdef",
-                      "canonicalDeviceId": "L11112222333344445555666677778888",
-                      "decision": "evidence_collected",
-                      "action": "business_defined",
-                      "risk": {
-                        "level": "LOW",
-                        "score": 0,
-                        "tags": ["evidence.received"]
-                      }
-                    }
-                    """.trimIndent(),
-                ),
-        )
         server.start()
         try {
-            val ctx = mockContext()
-            val secret = "leona_live_secret_should_not_leak"
             val channel = SecureChannel(
-                ctx,
-                LeonaConfig.Builder()
-                    .reportingEndpoint(server.url("/").toString())
-                    .apiKey(secret)
-                    .build(),
-            )
-
-            val result = channel.upload(byteArrayOf(1, 2, 3), deviceContext())
-            val request = server.takeRequest()
-            val body = JSONObject(request.body.readUtf8())
-            val deviceContext = body.getJSONObject("deviceContext")
-
-            assertEquals("box-public-1", result.boxId.toString())
-            assertEquals("I0123456789abcdef0123456789abcdef", result.serverInstallId)
-            assertEquals("L11112222333344445555666677778888", result.canonicalDeviceId)
-            assertEquals("evidence_collected", result.serverVerdict?.decision)
-            assertEquals("business_defined", result.serverVerdict?.action)
-            assertEquals("/v1/sense/public", request.path)
-            assertEquals(secret, request.getHeader("X-Leona-App-Key"))
-            assertEquals("public_hosted", request.getHeader("X-Leona-Reporting-Mode"))
-            assertEquals("public_hosted", body.getString("mode"))
-            assertEquals("base64", body.getString("payloadEncoding"))
-            assertEquals("AQID", body.getString("payload"))
-            assertEquals("fingerprint-1", deviceContext.getString("fingerprintHash"))
-            assertTrue(deviceContext.has("installIdSha256"))
-            assertFalse(body.toString().contains("install-1"))
-            assertFalse(body.toString().contains("Tdevice-1"))
-            assertFalse(body.toString().contains(secret))
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting ignores raw device ids when resolving canonical`() = runBlocking {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setHeader("X-Leona-Canonical-Device-Id", "raw-header-device")
-                .setBody(
-                    """
-                    {
-                      "boxId": "box-public-raw",
-                      "deviceId": "Tdevice-raw",
-                      "canonicalDeviceId": "Tdevice-claimed",
-                      "device": {
-                        "canonicalDeviceId": "Tdevice-nested",
-                        "deviceId": "raw-device-id",
-                        "id": "raw-id"
-                      },
-                      "identity": {
-                        "canonicalDeviceId": "raw-identity",
-                        "deviceId": "Tidentity"
-                      },
-                      "deviceIdentity": {
-                        "canonicalDeviceId": "raw-device-identity",
-                        "deviceId": "Tdevice-identity",
-                        "resolvedDeviceId": "Tresolved"
-                      },
-                      "verdict": {
-                        "canonicalDeviceId": "Tverdict-claimed"
-                      }
-                    }
-                    """.trimIndent(),
-                ),
-        )
-        server.start()
-        try {
-            val ctx = mockContext()
-            val channel = SecureChannel(
-                ctx,
+                mockContext(),
                 LeonaConfig.Builder()
                     .reportingEndpoint(server.url("/").toString())
                     .apiKey("leona_test_app_key")
-                    .build(),
-            )
-
-            val result = channel.upload(byteArrayOf(1, 2, 3), deviceContext())
-            server.takeRequest()
-
-            assertEquals("box-public-raw", result.boxId.toString())
-            assertEquals(null, result.canonicalDeviceId)
-            assertEquals(null, result.serverVerdict?.canonicalDeviceId)
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting sends only hashed install lifecycle handle`() = runBlocking {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"boxId":"box-lifecycle","installId":"I0123456789abcdef0123456789abcdef"}"""),
-        )
-        server.start()
-        try {
-            val lifecycleHash = "e".repeat(64)
-            val client = PublicHostedReportingClient(
-                LeonaConfig.Builder().build(),
-                OkHttpClient.Builder().build(),
-            )
-
-            client.upload(
-                endpoint = server.url("/").toString(),
-                apiKey = "leona_test_app_key",
-                sdkVersion = "test",
-                payload = byteArrayOf(1, 2, 3),
-                deviceContext = deviceContext(lifecycleHash),
-            )
-
-            val request = server.takeRequest()
-            val body = JSONObject(request.body.readUtf8())
-            val context = body.getJSONObject("deviceContext")
-            assertEquals(lifecycleHash, context.getString("installLifecycleSha256"))
-            assertFalse(body.toString().contains("firstInstallTime"))
-            assertFalse(body.toString().contains("install-epoch"))
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting ignores malformed server install id`() = runBlocking {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"boxId":"box-invalid-install","installId":"not-an-install-id"}"""),
-        )
-        server.start()
-        try {
-            val client = PublicHostedReportingClient(
-                LeonaConfig.Builder().build(),
-                OkHttpClient.Builder().build(),
-            )
-
-            val result = client.upload(
-                endpoint = server.url("/").toString(),
-                apiKey = "leona_test_app_key",
-                sdkVersion = "test",
-                payload = byteArrayOf(1, 2, 3),
-                deviceContext = deviceContext(),
-            )
-
-            assertEquals(null, result.serverInstallId)
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting error does not leak api key`() = runBlocking {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(401)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"error":"bad key leona_live_secret_should_not_leak"}"""),
-        )
-        server.start()
-        try {
-            val ctx = mockContext()
-            val secret = "leona_live_secret_should_not_leak"
-            val channel = SecureChannel(
-                ctx,
-                LeonaConfig.Builder()
-                    .reportingEndpoint(server.url("/").toString())
-                    .apiKey(secret)
+                    .requireSecureReportingEngine(false)
                     .build(),
             )
 
@@ -309,248 +97,70 @@ class SecureChannelTest {
                 .exceptionOrNull()
 
             assertNotNull(error)
-            assertFalse(error!!.message.orEmpty().contains(secret))
-            assertTrue(error.message.orEmpty().contains("responseBodySha256="))
-            assertEquals(SecureReportingErrorCode.AUTH_FAILED, (error as SecureReportingException).code)
-            assertTrue(error.message.orEmpty().contains("diagnostic=auth_failed"))
+            assertEquals(
+                SecureReportingErrorCode.SECURE_ENGINE_REQUIRED,
+                (error as SecureReportingException).code,
+            )
+            assertTrue(error.message.orEmpty().contains("diagnostic=secure_engine_required"))
+            assertEquals(0, server.requestCount)
         } finally {
             server.shutdown()
         }
     }
 
     @Test
-    fun `public hosted reporting classifies timestamp skew response`() = runBlocking {
+    fun `reporting sends only Leo envelope and protects app fields`() = runBlocking {
         val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(401)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"code":"LEONA_TIMESTAMP_SKEW","message":"Request timestamp outside acceptable window"}"""),
+        val transport = RecordingCryptoTransport(
+            response = LeonaCryptoHttpResponse(
+                statusCode = 200,
+                body = """{"boxId":"box-1","installId":"I${"a".repeat(32)}","decision":"allow"}"""
+                    .toByteArray(StandardCharsets.UTF_8),
+            ),
         )
-        server.start()
-        try {
-            val ctx = mockContext()
-            val channel = SecureChannel(
-                ctx,
-                LeonaConfig.Builder()
-                    .reportingEndpoint(server.url("/").toString())
-                    .apiKey("leona_test_app_key")
-                    .build(),
-            )
-
-            val error = runCatching { channel.upload(byteArrayOf(1, 2, 3), deviceContext()) }
-                .exceptionOrNull()
-
-            assertNotNull(error)
-            assertEquals(SecureReportingErrorCode.TIMESTAMP_SKEW, (error as SecureReportingException).code)
-            assertTrue(error.message.orEmpty().contains("diagnostic=timestamp_skew"))
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting classifies generic server error without timestamp skew`() = runBlocking {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(500)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"error":"internal server error"}"""),
+        val responseEnvelope = LeonaCryptoEnvelopeCodec.encodeResponse(
+            LeonaCryptoSealedResponse(byteArrayOf(9, 8, 7)),
         )
-        server.start()
-        try {
-            val ctx = mockContext()
-            val channel = SecureChannel(
-                ctx,
-                LeonaConfig.Builder()
-                    .reportingEndpoint(server.url("/").toString())
-                    .apiKey("leona_test_app_key")
-                    .build(),
-            )
-
-            val error = runCatching { channel.upload(byteArrayOf(1, 2, 3), deviceContext()) }
-                .exceptionOrNull()
-
-            assertNotNull(error)
-            assertEquals(SecureReportingErrorCode.SERVER_5XX, (error as SecureReportingException).code)
-            assertTrue(error.message.orEmpty().contains("diagnostic=server_5xx"))
-            assertFalse(error.message.orEmpty().contains("diagnostic=timestamp_skew"))
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting classifies network timeout`() = runBlocking {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setHeadersDelay(1, TimeUnit.SECONDS)
-                .setBody("""{"boxId":"late"}"""),
-        )
-        server.start()
-        try {
-            val timeoutClient = OkHttpClient.Builder()
-                .callTimeout(200, TimeUnit.MILLISECONDS)
-                .connectTimeout(50, TimeUnit.MILLISECONDS)
-                .readTimeout(50, TimeUnit.MILLISECONDS)
-                .build()
-            val client = PublicHostedReportingClient(LeonaConfig.Builder().build(), timeoutClient)
-
-            val error = runCatching {
-                client.upload(
-                    endpoint = server.url("/").toString(),
-                    apiKey = "leona_test_app_key",
-                    sdkVersion = "test",
-                    payload = byteArrayOf(1, 2, 3),
-                    deviceContext = deviceContext(),
-                )
-            }.exceptionOrNull()
-
-            assertNotNull(error)
-            assertEquals(SecureReportingErrorCode.NETWORK_TIMEOUT, (error as SecureReportingException).code)
-            assertTrue(error.message.orEmpty().contains("diagnostic=network_timeout"))
-        } finally {
-            server.shutdown()
-        }
-    }
-
-    @Test
-    fun `public hosted reporting unknown network failure includes safe cause class`() = runBlocking {
-        val client = PublicHostedReportingClient(
-            LeonaConfig.Builder().build(),
-            OkHttpClient.Builder()
-                .addInterceptor {
-                    throw IOException("broken transport ct_0123456789abcdef0123456789")
-                }
-                .build(),
-        )
-
-        val error = runCatching {
-            client.upload(
-                endpoint = "https://example.invalid",
-                apiKey = "leona_test_app_key",
-                sdkVersion = "test",
-                payload = byteArrayOf(1, 2, 3),
-                deviceContext = deviceContext(),
-            )
-        }.exceptionOrNull()
-
-        assertNotNull(error)
-        assertEquals(SecureReportingErrorCode.UNKNOWN, (error as SecureReportingException).code)
-        assertTrue(error.message.orEmpty().contains("diagnostic=unknown"))
-        assertTrue(error.message.orEmpty().contains("cause=java.io.IOException"))
-        assertFalse(error.message.orEmpty().contains("ct_0123456789abcdef0123456789"))
-        assertTrue(error.message.orEmpty().contains("messageSha256="))
-    }
-
-    @Test
-    fun `public hosted reporting classifies tls trust anchor failure`() = runBlocking {
-        val tlsError = SSLHandshakeException("handshake failed").apply {
-            initCause(CertPathValidatorException("Trust anchor for certification path not found."))
-        }
-        val client = PublicHostedReportingClient(
-            LeonaConfig.Builder().build(),
-            OkHttpClient.Builder()
-                .addInterceptor {
-                    throw tlsError
-                }
-                .build(),
-        )
-
-        val error = runCatching {
-            client.upload(
-                endpoint = "https://example.invalid",
-                apiKey = "leona_test_app_key",
-                sdkVersion = "test",
-                payload = byteArrayOf(1, 2, 3),
-                deviceContext = deviceContext(),
-            )
-        }.exceptionOrNull()
-
-        assertNotNull(error)
-        assertEquals(SecureReportingErrorCode.TLS_TRUST_ANCHOR, (error as SecureReportingException).code)
-        assertTrue(error.message.orEmpty().contains("diagnostic=tls_trust_anchor"))
-        assertFalse(error.message.orEmpty().contains("diagnostic=unknown"))
-    }
-
-    @Test
-    fun `public hosted reporting enables trust fallback only for leona hosted endpoint`() {
-        assertTrue(
-            PublicHostedReportingClient.shouldUseHostedTrustFallback("https://leona.xiyanshan.com"),
-        )
-        assertTrue(
-            PublicHostedReportingClient.shouldUseHostedTrustFallback("https://leona.xiyanshan.com/v1/sense"),
-        )
-        assertFalse(
-            PublicHostedReportingClient.shouldUseHostedTrustFallback("https://api.example.test"),
-        )
-        assertFalse(
-            PublicHostedReportingClient.shouldUseHostedTrustFallback(""),
-        )
-    }
-
-    @Test
-    fun `public hosted cleartext transport accepts strict loopback but rejects emulator host alias`() {
-        assertEquals(
-            "http://127.0.0.1:18080/v1/sense/public",
-            PublicHostedReportingClient.validatedPublicSenseUrl("http://127.0.0.1:18080"),
-        )
-        val error = runCatching {
-            PublicHostedReportingClient.validatedPublicSenseUrl("http://10.0.2.2:18080")
-        }.exceptionOrNull()
-        assertTrue(error is IllegalArgumentException)
-    }
-
-    @Test
-    fun `public hosted reporting accepts endpoint already pointing at v1 sense`() = runBlocking {
-        val server = MockWebServer()
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setHeader("X-Leona-Canonical-Device-Id", "Laaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-                .setBody("""{"boxId":"box-public-2"}"""),
+                .setHeader("Content-Type", LeonaCryptoEnvelopeCodec.CONTENT_TYPE)
+                .setBody(Buffer().write(responseEnvelope)),
         )
         server.start()
         try {
-            val ctx = mockContext()
+            val cryptoChannel = testCryptoChannel(transport)
             val channel = SecureChannel(
-                ctx,
+                mockContext(),
                 LeonaConfig.Builder()
-                    .reportingEndpoint(server.url("/v1/sense").toString())
+                    .reportingEndpoint(server.url("/").toString())
                     .apiKey("leona_test_app_key")
+                    .cryptoChannel(cryptoChannel)
                     .build(),
             )
+            val payload = byteArrayOf(1, 2, 3, 4)
 
-            val result = channel.upload(byteArrayOf(1, 2, 3), deviceContext())
-            val request = server.takeRequest()
+            val result = channel.upload(payload, deviceContext("e".repeat(64)))
 
-            assertEquals("box-public-2", result.boxId.toString())
-            assertEquals("Laaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", result.canonicalDeviceId)
-            assertEquals("/v1/sense/public", request.path)
+            assertEquals("box-1", result.boxId.toString())
+            assertEquals("I${"a".repeat(32)}", result.serverInstallId)
+            val captured = transport.request ?: error("Leo transport did not receive request")
+            assertEquals("POST", captured.method)
+            assertEquals("/v1/sense", captured.path)
+            assertEquals(payload.toList(), captured.body.toList())
+            val protectedHeaders = LeonaCryptoProtectedHeadersCodec.decode(captured.protectedHeaders)
+            assertEquals("leona_test_app_key", protectedHeaders["X-Leona-App-Key"])
+            assertEquals("leo_crypto", protectedHeaders["X-Leona-Reporting-Mode"])
+            assertFalse(protectedHeaders.values.any { it == "install-1" || it == "Tdevice-1" })
+
+            val outer = server.takeRequest()
+            assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Content-Type"))
+            assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Accept"))
+            assertFalse(outer.body.readByteArray().toString(StandardCharsets.UTF_8).contains("leona_test_app_key"))
+            assertFalse(outer.path!!.contains("/v1/sense"))
         } finally {
             server.shutdown()
         }
-    }
-
-    @Test
-    fun `missing api key for hosted reporting fails before upload`() = runBlocking {
-        val ctx = mockContext()
-        val channel = SecureChannel(
-            ctx,
-            LeonaConfig.Builder()
-                .reportingEndpoint("https://api.example.test/v1/sense")
-                .build(),
-        )
-
-        val error = runCatching { channel.upload(byteArrayOf(1, 2, 3), deviceContext()) }
-            .exceptionOrNull()
-
-        assertNotNull(error)
-        assertEquals(SecureReportingErrorCode.API_KEY_REQUIRED, (error as SecureReportingException).code)
-        assertTrue(error.message.orEmpty().contains("diagnostic=api_key_required"))
     }
 
     @Test
@@ -710,6 +320,83 @@ class SecureChannelTest {
         val method = companion.javaClass.getDeclaredMethod("parseServerTamperPolicy", String::class.java)
         method.isAccessible = true
         return method.invoke(companion, json) as TamperPolicy
+    }
+
+    private fun testCryptoChannel(transport: RecordingCryptoTransport): LeonaCryptoChannel = LeonaCryptoChannel(
+        transport = transport,
+        assertions = object : LeonaCryptoAssertionProvider {
+            override fun prepare(request: LeonaCryptoRequestContext) = LeonaCryptoPreparedAssertion(
+                format = "test",
+                audience = "test",
+                challenge = byteArrayOf(1),
+                issuedAtMs = 1,
+                expiresAtMs = 2,
+            )
+
+            override fun issue(
+                request: LeonaCryptoRequestContext,
+                prepared: LeonaCryptoPreparedAssertion,
+                contextDigest: ByteArray,
+            ): ByteArray = byteArrayOf(1)
+        },
+        scopes = LeonaCryptoScopeProvider { commitments() },
+        responseCommitments = { commitments() },
+    )
+
+    private fun commitments() = LeonaCryptoScopeCommitments(
+        deployment = ByteArray(32) { 1 },
+        tenant = ByteArray(32) { 2 },
+        policy = ByteArray(32) { 3 },
+    )
+
+    private class RecordingCryptoTransport(
+        private val response: LeonaCryptoHttpResponse,
+    ) : LeonaCryptoTransport {
+        var request: LeonaCryptoHttpRequest? = null
+
+        override val capabilities = LeonaCryptoCapabilities(
+            protocolMajor = LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR,
+            adapterVersion = "test",
+            providerVersion = "13.0.0",
+            features = setOf(
+                "request-seal",
+                "response-open",
+                "protected-headers",
+                "protected-body",
+            ),
+        )
+
+        override fun seal(
+            request: LeonaCryptoHttpRequest,
+            assertions: LeonaCryptoAssertionProvider,
+            scopes: LeonaCryptoScopeProvider,
+        ): LeonaCryptoResult<LeonaCryptoSealedRequest> {
+            this.request = request
+            return LeonaCryptoResult.Success(
+                LeonaCryptoSealedRequest(
+                    encryptedWire = byteArrayOf(1, 2, 3),
+                    assertionEnvelope = io.leonasec.leona.crypto.LeonaCryptoAssertionEnvelope(
+                        context = LeonaCryptoPreparedAssertion(
+                            format = "test",
+                            audience = "test",
+                            challenge = byteArrayOf(1),
+                            issuedAtMs = 1,
+                            expiresAtMs = 2,
+                        ),
+                        contextDigest = ByteArray(32),
+                        assertion = byteArrayOf(4),
+                    ),
+                ),
+            )
+        }
+
+        override fun openResponse(
+            encryptedWire: ByteArray,
+            commitments: LeonaCryptoScopeCommitments,
+            nowMs: Long,
+        ): LeonaCryptoResult<LeonaCryptoHttpResponse> = LeonaCryptoResult.Success(response)
+
+        override fun close() = Unit
     }
 
     private fun mockContext(): Context {

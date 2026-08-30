@@ -8,37 +8,34 @@ import android.content.Context
 import android.util.Log
 import io.leonasec.leona.BoxId
 import io.leonasec.leona.BoxIdCallback
+import io.leonasec.leona.LeonaServerVerdict
 import io.leonasec.leona.BuildConstants
 import io.leonasec.leona.LeonaSecureTransportSnapshot
 import io.leonasec.leona.config.LeonaConfig
+import io.leonasec.leona.crypto.LeonaCryptoEnvelopeCodec
+import io.leonasec.leona.crypto.LeonaCryptoErrorCode
+import io.leonasec.leona.crypto.LeonaCryptoHttpRequest
+import io.leonasec.leona.crypto.LeonaCryptoProtectedHeadersCodec
 import io.leonasec.leona.internal.spi.SecureDeviceContext
 import io.leonasec.leona.internal.spi.SecureReportingErrorClassification
 import io.leonasec.leona.internal.spi.SecureReportingErrorCode
 import io.leonasec.leona.internal.spi.SecureReportingException
+import io.leonasec.leona.internal.spi.SecureReportingErrorClassifier
 import io.leonasec.leona.internal.spi.SecureUploadResult
-import io.leonasec.leona.internal.spi.SecureReportingEngine
-import io.leonasec.leona.internal.spi.SecureReportingEngineLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONObject
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.UUID
 
 internal class SecureChannel(
     private val context: Context,
     private val config: LeonaConfig,
 ) {
-
-    private val engine: SecureReportingEngine? by lazy {
-        SecureReportingEngineLoader.load(
-            context = context.applicationContext,
-            config = config,
-            sdkVersion = BuildConstants.VERSION_NAME,
-        )
-    }
-    private val publicHostedClient: PublicHostedReportingClient by lazy {
-        PublicHostedReportingClient(config)
-    }
 
     suspend fun prepareTamperContext(): TamperContext {
         val effectivePolicy = resolveEffectiveTamperPolicy()
@@ -68,25 +65,226 @@ internal class SecureChannel(
                 "AppKey required",
             )
 
-        val reportingEngine = engine
-        if (reportingEngine == null && config.requireSecureReportingEngine) {
-            throw SecureReportingException(
-                classification = SecureReportingErrorClassification(
-                    code = SecureReportingErrorCode.SECURE_ENGINE_REQUIRED,
-                ),
-                message = "secure reporting engine required: diagnostic=secure_engine_required, retryable=false",
+        val channel = config.cryptoChannel ?: throw SecureReportingException(
+            classification = SecureReportingErrorClassification(
+                code = SecureReportingErrorCode.SECURE_ENGINE_REQUIRED,
+            ),
+            message = "Leo crypto channel required: diagnostic=secure_engine_required, retryable=false",
+        )
+
+        val request = buildReportingRequest(
+            endpoint = endpoint,
+            apiKey = apiKey,
+            payload = payload,
+            deviceContext = deviceContext,
+        )
+        val result = try {
+            LeonaCryptoHttpClient(
+                channel = channel,
+                endpointUrl = endpoint,
+                certificatePins = config.certificatePins,
+                callTimeoutSeconds = 10,
+                connectTimeoutSeconds = 3,
+                readTimeoutSeconds = 8,
+            ).execute(request)
+        } catch (error: IllegalArgumentException) {
+            throw SecureReportingErrorClassifier.exception(
+                operation = "sense()",
+                classification = SecureReportingErrorClassification(SecureReportingErrorCode.UNKNOWN),
+                detail = "leo_crypto_invalid_endpoint",
+                cause = error,
+            )
+        }
+        val response = when (result) {
+            is io.leonasec.leona.crypto.LeonaCryptoResult.Success -> result.value
+            is io.leonasec.leona.crypto.LeonaCryptoResult.Failure -> throw cryptoFailure(result)
+        }
+        if (response.statusCode !in 200..299) {
+            val body = response.body.toString(StandardCharsets.UTF_8)
+            val classification = SecureReportingErrorClassifier.classifyHttpFailure(
+                statusCode = response.statusCode,
+                errorBody = body,
+            )
+            throw SecureReportingErrorClassifier.exception(
+                operation = "sense()",
+                classification = classification,
+                detail = SecureReportingErrorClassifier.httpFailureDetail(body),
             )
         }
 
-        return reportingEngine?.upload(payload, deviceContext)
-            ?: publicHostedClient.upload(
-                endpoint = endpoint,
-                apiKey = apiKey,
-                sdkVersion = BuildConstants.VERSION_NAME,
-                payload = payload,
-                deviceContext = deviceContext,
+        val protectedHeaders = try {
+            LeonaCryptoProtectedHeadersCodec.decode(response.protectedHeaders)
+        } catch (_: IllegalArgumentException) {
+            throw SecureReportingErrorClassifier.exception(
+                operation = "sense()",
+                classification = SecureReportingErrorClassification(SecureReportingErrorCode.UNKNOWN),
+                detail = "leo_crypto_invalid_response_headers",
             )
+        }
+        val body = response.body.toString(StandardCharsets.UTF_8)
+        val json = try {
+            JSONObject(body)
+        } catch (_: Exception) {
+            throw SecureReportingErrorClassifier.exception(
+                operation = "sense()",
+                classification = SecureReportingErrorClassification(SecureReportingErrorCode.UNKNOWN),
+                detail = "leo_crypto_invalid_response_body",
+            )
+        }
+        val verdict = parseServerVerdict(json, protectedHeaders)
+        val boxId = verdict.boxId
+            ?: throw SecureReportingErrorClassifier.exception(
+                operation = "sense()",
+                classification = SecureReportingErrorClassification(SecureReportingErrorCode.UNKNOWN),
+                detail = "leo_crypto_response_missing_box_id",
+            )
+        val serverInstallId = firstMeaningful(
+            json.optString("installId"),
+            json.optString("install_id"),
+            json.optString("serverInstallId"),
+            json.optJSONObject("verdict")?.optString("installId"),
+            protectedHeaders["X-Leona-Install-Id"],
+        )?.takeIf(::isServerInstallId)
+
+        return SecureUploadResult(
+            boxId = BoxId.of(boxId),
+            canonicalDeviceId = verdict.canonicalDeviceId,
+            serverVerdict = verdict,
+            serverInstallId = serverInstallId,
+        )
     }
+
+    private fun buildReportingRequest(
+        endpoint: String,
+        apiKey: String,
+        payload: ByteArray,
+        deviceContext: SecureDeviceContext,
+    ): LeonaCryptoHttpRequest {
+        val url = endpoint.toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("encrypted endpoint must be an absolute URL")
+        val headers = linkedMapOf(
+            "X-Leona-App-Key" to apiKey,
+            "X-Leona-Protocol" to LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR.toString(),
+            "X-Leona-Reporting-Mode" to "leo_crypto",
+            "X-Leona-SDK-Version" to BuildConstants.VERSION_NAME,
+            "X-Leona-Request-Id" to UUID.randomUUID().toString(),
+            "X-Leona-Device-Id-Sha256" to sha256Hex(deviceContext.resolvedDeviceId),
+            "X-Leona-Install-Id-Sha256" to sha256Hex(deviceContext.installId),
+            "X-Leona-Fingerprint" to deviceContext.fingerprintHash,
+            "X-Leona-Evidence-Ref" to sha256Hex(payload),
+        )
+        config.tenantId?.let { headers["X-Leona-Tenant"] = it }
+        headers["X-Leona-App-Id"] = config.appId
+        config.channel?.let { headers["X-Leona-Channel"] = it }
+        deviceContext.installLifecycleSha256?.let { headers["X-Leona-Install-Lifecycle-Sha256"] = it }
+        deviceContext.canonicalDeviceId?.takeIf { it.isNotBlank() }?.let {
+            headers["X-Leona-Canonical-Device-Id-Sha256"] = sha256Hex(it)
+        }
+        deviceContext.evidenceSignals
+            .takeIf { it.isNotEmpty() }
+            ?.let { headers["X-Leona-Evidence-Signals"] = it.sorted().joinToString(",").take(512) }
+        deviceContext.nativeFactTags
+            .takeIf { it.isNotEmpty() }
+            ?.let { headers["X-Leona-Native-Fact-Tags"] = it.sorted().joinToString(",").take(512) }
+        deviceContext.nativeFindingIds
+            .takeIf { it.isNotEmpty() }
+            ?.let { headers["X-Leona-Native-Finding-Ids"] = it.joinToString(",").take(512) }
+        deviceContext.nativeHighestSeverity?.let { headers["X-Leona-Native-Highest-Severity"] = it.toString() }
+        return LeonaCryptoHttpRequest(
+            method = "POST",
+            authority = url.host + if (url.port != if (url.isHttps) 443 else 80) ":${url.port}" else "",
+            path = "/v1/sense",
+            contentType = "application/octet-stream",
+            protectedHeaders = LeonaCryptoProtectedHeadersCodec.encode(headers),
+            body = payload.copyOf(),
+        )
+    }
+
+    private fun parseServerVerdict(
+        json: JSONObject,
+        protectedHeaders: Map<String, String>,
+    ): LeonaServerVerdict {
+        val nestedVerdict = json.optJSONObject("verdict")
+        val nestedRisk = json.optJSONObject("risk")
+        val boxId = firstMeaningful(
+            json.optString("boxId"),
+            nestedVerdict?.optString("boxId"),
+            protectedHeaders["X-Leona-Box-Id"],
+        )
+        val decision = firstMeaningful(
+            json.optString("decision"),
+            nestedVerdict?.optString("decision"),
+            protectedHeaders["X-Leona-Decision"],
+        )
+        val action = firstMeaningful(
+            json.optString("action"),
+            nestedVerdict?.optString("action"),
+            nestedRisk?.optString("action"),
+            protectedHeaders["X-Leona-Action"],
+        )
+        val riskLevel = firstMeaningful(
+            json.optString("riskLevel"),
+            nestedVerdict?.optString("riskLevel"),
+            nestedRisk?.optString("level"),
+            protectedHeaders["X-Leona-Risk-Level"],
+        )
+        val riskScore = sequenceOf(
+            json.optInt("riskScore", Int.MIN_VALUE),
+            nestedVerdict?.optInt("riskScore", Int.MIN_VALUE) ?: Int.MIN_VALUE,
+            nestedRisk?.optInt("score", Int.MIN_VALUE) ?: Int.MIN_VALUE,
+            protectedHeaders["X-Leona-Risk-Score"]?.toIntOrNull() ?: Int.MIN_VALUE,
+        ).firstOrNull { it != Int.MIN_VALUE }
+        val riskTags = buildSet {
+            addAll(json.optStringArray("riskTags"))
+            nestedVerdict?.let { addAll(it.optStringArray("riskTags")) }
+            nestedRisk?.let { addAll(it.optStringArray("tags")) }
+            protectedHeaders["X-Leona-Risk-Tags"]
+                ?.split(',')
+                ?.mapNotNull { it.trim().ifEmpty { null } }
+                ?.let(::addAll)
+        }
+        return LeonaServerVerdict(
+            boxId = boxId,
+            canonicalDeviceId = firstMeaningful(
+                json.optString("canonicalDeviceId"),
+                nestedVerdict?.optString("canonicalDeviceId"),
+                protectedHeaders["X-Leona-Canonical-Device-Id"],
+            ),
+            decision = decision,
+            action = action,
+            riskLevel = riskLevel,
+            riskScore = riskScore,
+            riskTags = riskTags,
+        )
+    }
+
+    private fun cryptoFailure(
+        failure: io.leonasec.leona.crypto.LeonaCryptoResult.Failure,
+    ): SecureReportingException = SecureReportingErrorClassifier.exception(
+        operation = "sense()",
+        classification = SecureReportingErrorClassification(
+            code = SecureReportingErrorCode.UNKNOWN,
+        ),
+        detail = "leo_crypto_${failure.code.name.lowercase()}",
+    )
+
+    private fun firstMeaningful(vararg values: String?): String? =
+        values.firstOrNull { value ->
+            value?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) } != null
+        }?.trim()
+
+    private fun isServerInstallId(value: String): Boolean =
+        value.matches(Regex("^I[0-9a-f]{32}$"))
+
+    private fun sha256Hex(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(StandardCharsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+
+    private fun sha256Hex(value: ByteArray): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun configurationError(
         code: SecureReportingErrorCode,
@@ -96,35 +294,26 @@ internal class SecureChannel(
         message = "$operation: diagnostic=${code.wireValue}, retryable=false",
     )
 
-    fun debugSnapshot(): LeonaSecureTransportSnapshot = engine?.debugSnapshot()
-        ?: LeonaSecureTransportSnapshot(
-            engineAvailable = false,
-            engineClassName = null,
-            endpointConfigured = !config.reportingEndpoint.isNullOrBlank(),
-            apiKeyConfigured = !config.apiKey.isNullOrBlank(),
-            attestationProviderConfigured = config.attestationProvider != null,
-            deviceBinding = null,
-            session = null,
-            lastAttestation = null,
-            lastHandshakeAtMillis = null,
-            lastHandshakeError = null,
-            lastHandshakeErrorClass = null,
-            lastHandshakeErrorCode = null,
-            lastHandshakeErrorProvider = null,
-            lastHandshakeRetryable = null,
-        )
+    fun debugSnapshot(): LeonaSecureTransportSnapshot = LeonaSecureTransportSnapshot(
+        engineAvailable = config.cryptoChannel != null,
+        engineClassName = config.cryptoChannel?.let {
+            "leo-crypto/${it.transport.capabilities.adapterVersion}"
+        },
+        endpointConfigured = !config.reportingEndpoint.isNullOrBlank(),
+        apiKeyConfigured = !config.apiKey.isNullOrBlank(),
+        attestationProviderConfigured = config.attestationProvider != null,
+        deviceBinding = null,
+        session = null,
+        lastAttestation = null,
+        lastHandshakeAtMillis = null,
+        lastHandshakeError = null,
+        lastHandshakeErrorClass = null,
+        lastHandshakeErrorCode = null,
+        lastHandshakeErrorProvider = null,
+        lastHandshakeRetryable = null,
+    )
 
-    private suspend fun resolveEffectiveTamperPolicy(): TamperPolicy {
-        val local = config.toTamperPolicy()
-        config.reportingEndpoint ?: return local
-        config.apiKey ?: return local
-        val reportingEngine = engine ?: return local
-        val remote = reportingEngine.resolveServerTamperBaselineJson()
-            ?.takeIf { it.isNotBlank() }
-            ?.let(::parseServerTamperPolicy)
-            ?: TamperPolicy.EMPTY
-        return local.merge(remote)
-    }
+    private suspend fun resolveEffectiveTamperPolicy(): TamperPolicy = config.toTamperPolicy()
 
     companion object {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

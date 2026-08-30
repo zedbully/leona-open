@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${LEONA_V04_ANDROID_MATRIX_OUT:-$(mktemp -d /tmp/leona-v0.4-android-matrix-readiness.XXXXXX)}"
 REQUIRE_FULL_MATRIX="${LEONA_REQUIRE_FULL_V04_ANDROID_MATRIX:-0}"
-HOSTED_RUNTIME_ROOT="${LEONA_GITHUB_HOSTED_RUNTIME_ROOT:-}"
 
 ROM_MATRIX="${ROOT_DIR}/docs/rom-matrix.md"
 EMULATOR_MATRIX="${ROOT_DIR}/docs/emulator-matrix.md"
@@ -12,22 +11,7 @@ WETEST_RUNBOOK="${ROOT_DIR}/docs/wetest-matrix-runbook.md"
 
 mkdir -p "${OUT_DIR}"
 
-HOSTED_RUNTIME_SUMMARY=""
-if [[ -n "${HOSTED_RUNTIME_ROOT}" ]]; then
-  if [[ ! -d "${HOSTED_RUNTIME_ROOT}" ]]; then
-    echo "GitHub-hosted runtime root does not exist: ${HOSTED_RUNTIME_ROOT}" >&2
-    exit 2
-  fi
-  HOSTED_VERIFY_DIR="${OUT_DIR}/github-hosted-runtime"
-  python3 "${ROOT_DIR}/scripts/verify-github-hosted-runtime-evidence.py" \
-    --input-root "${HOSTED_RUNTIME_ROOT}" \
-    --output-dir "${HOSTED_VERIFY_DIR}" \
-    --required-api 23 \
-    --required-api 36
-  HOSTED_RUNTIME_SUMMARY="${HOSTED_VERIFY_DIR}/summary.json"
-fi
-
-python3 - "${OUT_DIR}" "${REQUIRE_FULL_MATRIX}" "${ROM_MATRIX}" "${EMULATOR_MATRIX}" "${WETEST_RUNBOOK}" "${HOSTED_RUNTIME_SUMMARY}" <<'PY'
+python3 - "${OUT_DIR}" "${REQUIRE_FULL_MATRIX}" "${ROM_MATRIX}" "${EMULATOR_MATRIX}" "${WETEST_RUNBOOK}" <<'PY'
 import json
 import re
 import sys
@@ -38,7 +22,6 @@ require_full = sys.argv[2] == "1"
 rom_path = Path(sys.argv[3])
 emulator_path = Path(sys.argv[4])
 wetest_path = Path(sys.argv[5])
-hosted_runtime_summary_arg = sys.argv[6]
 
 paths = [rom_path, emulator_path, wetest_path]
 missing = [str(path) for path in paths if not path.exists()]
@@ -185,39 +168,6 @@ checks = [
         "blockedOn": ["additional hide module/version sample beyond current Magisk Canary/Zygisk/LSPosed/HMA/Shamiko baseline"],
     },
 ]
-
-hosted_runtime_check = {
-    "id": "github_hosted_boundary_runtime",
-    "status": "not-run",
-    "requiredApis": [23, 36],
-    "countsTowardFullExternalMatrix": False,
-    "commercialAdmissionClaimed": False,
-}
-if hosted_runtime_summary_arg:
-    hosted_runtime_summary_path = Path(hosted_runtime_summary_arg)
-    try:
-        hosted_runtime = json.loads(hosted_runtime_summary_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        hosted_runtime_check.update(status="fail", error=f"invalid hosted runtime summary: {error}")
-    else:
-        required_fields_pass = all([
-            hosted_runtime.get("status") == "pass",
-            hosted_runtime.get("requiredApis") == [23, 36],
-            hosted_runtime.get("runtimeComplete") is True,
-            hosted_runtime.get("sameApkCandidate") is True,
-            hosted_runtime.get("sdkRole") == "collect-and-report-evidence-only",
-            hosted_runtime.get("businessDecisionOwner") == "customer-backend",
-            hosted_runtime.get("commercialAdmissionClaimed") is False,
-            hosted_runtime.get("secretValuesPrinted") is False,
-            hosted_runtime.get("rawIdentifiersPrinted") is False,
-        ])
-        hosted_runtime_check.update(
-            status="pass" if required_fields_pass else "fail",
-            summary=str(hosted_runtime_summary_path),
-            runtimeComplete=hosted_runtime.get("runtimeComplete") is True,
-            sameApkCandidate=hosted_runtime.get("sameApkCandidate") is True,
-        )
-checks.append(hosted_runtime_check)
 
 hard_failures = [check for check in checks if check["status"] == "fail"]
 blocked = [check for check in checks if check["status"] == "blocked"]

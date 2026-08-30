@@ -53,6 +53,35 @@ class LeonaCryptoEnvelopeCodecTest {
     }
 
     @Test
+    fun `protected headers are canonical and reject ambiguous input`() {
+        val first = LeonaCryptoProtectedHeadersCodec.encode(
+            linkedMapOf("X-Z" to "z", "X-A" to "a"),
+        )
+        val second = LeonaCryptoProtectedHeadersCodec.encode(
+            linkedMapOf("X-A" to "a", "X-Z" to "z"),
+        )
+
+        assertArrayEquals(first, second)
+        assertEquals(
+            mapOf("X-A" to "a", "X-Z" to "z"),
+            LeonaCryptoProtectedHeadersCodec.decode(first),
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            LeonaCryptoProtectedHeadersCodec.encode(
+                mapOf("X-Test" to "one", "x-test" to "two"),
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            LeonaCryptoProtectedHeadersCodec.encode(mapOf("X-Test" to "line\nfeed"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            LeonaCryptoProtectedHeadersCodec.decode(
+                "{\"X-Test\":\"one\",\"x-test\":\"two\"}".toByteArray(),
+            )
+        }
+    }
+
+    @Test
     fun `decoder rejects scope-like trailing data and version drift`() {
         val packet = LeonaCryptoSealedRequest(
             encryptedWire = byteArrayOf(1),
