@@ -14,6 +14,7 @@ CODEC = ROOT / "sdk/src/main/kotlin/io/leonasec/leona/internal/proto/LeonaEviden
 CHANNEL = ROOT / "sdk/src/main/kotlin/io/leonasec/leona/internal/SecureChannel.kt"
 DOC = ROOT / "docs/v1-android-protobuf.md"
 MANIFEST = ROOT / "sdk/src/main/proto/leona/evidence/v1/codegen-manifest.json"
+SBOM = ROOT / "sdk/src/main/proto/leona/evidence/v1/sbom.json"
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -43,6 +44,10 @@ class AndroidProtobufContractTest(unittest.TestCase):
             h.update(path.read_bytes())
             h.update(b"\0")
         self.assertEqual(manifest["generated_sources"]["sha256_path_and_bytes"], h.hexdigest())
+        sbom = json.loads(SBOM.read_text())
+        component = sbom["components"][0]
+        self.assertEqual(component["purl"], "pkg:maven/com.google.protobuf/protobuf-javalite@4.29.4")
+        self.assertEqual(component["hashes"][0]["content"], "622f9ddfd99e8391efb5b2be5cb149dacaba1104905635eecf6ceac8e43e122e")
 
     def test_schema_numbers_reserved_and_closed_oneof(self):
         source = PROTO.read_text()

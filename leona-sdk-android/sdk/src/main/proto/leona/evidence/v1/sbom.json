@@ -1,0 +1,16 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "components": [
+    {
+      "type": "library",
+      "group": "com.google.protobuf",
+      "name": "protobuf-javalite",
+      "version": "4.29.4",
+      "purl": "pkg:maven/com.google.protobuf/protobuf-javalite@4.29.4",
+      "licenses": [{"license": {"id": "Apache-2.0"}}],
+      "hashes": [{"alg": "SHA-256", "content": "622f9ddfd99e8391efb5b2be5cb149dacaba1104905635eecf6ceac8e43e122e"}]
+    }
+  ]
+}

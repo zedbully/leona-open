@@ -48,7 +48,9 @@ The direct runtime dependency is
 1,069,282 bytes. Its POM SHA-256 is
 `240c2b66f9a1e4691d2b7de06344e40c80b12ee3fecf992a48b7f9dea8d6a24a`.
 Gradle dependency verification records these digests and the transitive BOM /
-parent metadata. Consumer R8 rules retain generated lite bindings.
+parent metadata. A CycloneDX component record is checked in at
+`sdk/src/main/proto/leona/evidence/v1/sbom.json`. Consumer R8 rules retain generated
+lite bindings.
 
 The library is compiled with the existing API 23 floor; API 23 provider
 compatibility and the API 23--36 device matrix are **NOT_RUN/BLOCKED** pending
