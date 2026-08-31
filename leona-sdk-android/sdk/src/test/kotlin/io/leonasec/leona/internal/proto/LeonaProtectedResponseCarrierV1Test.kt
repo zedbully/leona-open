@@ -72,4 +72,14 @@ class LeonaProtectedResponseCarrierV1Test {
         assertEquals(LeonaResponseProtobufFailureCode.INVALID_INPUT,
             (LeonaEvidenceResponseProtobufCodec.encode(expired) as LeonaResponseProtobufEncodeResult.Failure).error.code)
     }
+
+    @Test
+    fun `response carrier enforces payload and carrier max plus one`() {
+        assertEquals(LeonaProtectedResponseCarrierV1.FailureCode.OVERSIZE,
+            (LeonaProtectedResponseCarrierV1.encodePayload(ByteArray(LeonaProtectedResponseCarrierV1.MAX_PAYLOAD_BYTES + 1))
+                as LeonaProtectedResponseCarrierV1.EncodeResult.Failure).code)
+        assertEquals(LeonaProtectedResponseCarrierV1.FailureCode.OVERSIZE,
+            (LeonaProtectedResponseCarrierV1.decode(ByteArray(LeonaProtectedResponseCarrierV1.MAX_CARRIER_BYTES + 1))
+                as LeonaProtectedResponseCarrierV1.DecodeResult.Failure).code)
+    }
 }
