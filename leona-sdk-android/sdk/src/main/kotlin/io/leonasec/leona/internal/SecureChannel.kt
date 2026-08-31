@@ -24,6 +24,9 @@ import io.leonasec.leona.internal.spi.SecureReportingErrorClassifier
 import io.leonasec.leona.internal.spi.SecureUploadResult
 import io.leonasec.leona.internal.proto.LeonaProtectedLogicalPayloadHandoff
 import io.leonasec.leona.internal.proto.LeonaProtectedPayloadCarrierV1
+import io.leonasec.leona.internal.proto.LeonaProtectedResponseCarrierV1
+import io.leonasec.leona.internal.proto.LeonaEvidenceResponseProtobufCodec
+import io.leonasec.leona.internal.proto.LeonaResponseProtobufDecodeResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -63,6 +66,7 @@ internal class SecureChannel(
         payload: ByteArray,
         deviceContext: SecureDeviceContext,
         includeDeviceContextHeaders: Boolean,
+        typedResponse: TypedResponseExpectation? = null,
     ): SecureUploadResult {
         if (!config.transportEnabled) {
             throw configurationError(
@@ -96,6 +100,7 @@ internal class SecureChannel(
             payload = payload,
             deviceContext = deviceContext,
             includeDeviceContextHeaders = includeDeviceContextHeaders,
+            requestIdOverride = typedResponse?.bindRequest,
         )
         val result = try {
             LeonaCryptoHttpClient(
@@ -138,6 +143,52 @@ internal class SecureChannel(
                 operation = "sense()",
                 classification = SecureReportingErrorClassification(SecureReportingErrorCode.UNKNOWN),
                 detail = "leo_crypto_invalid_response_headers",
+            )
+        }
+        if (typedResponse != null) {
+            if (protectedHeaders.keys.any { key ->
+                    key.equals("X-Leona-Payload-Codec", ignoreCase = true) ||
+                        key.equals("X-Leona-Payload-Schema", ignoreCase = true) ||
+                        key.equals("X-Leo-Payload-Codec", ignoreCase = true) ||
+                        key.equals("X-Leo-Payload-Schema", ignoreCase = true)
+                } || protectedHeaders.values.any { value ->
+                    value == LeonaEvidenceResponseProtobufCodec.PAYLOAD_CODEC ||
+                        value == LeonaEvidenceResponseProtobufCodec.PAYLOAD_SCHEMA ||
+                        value == LeonaEvidenceResponseProtobufCodec.MESSAGE_TYPE ||
+                        value == LeonaEvidenceResponseProtobufCodec.DESCRIPTOR_SHA256_HEX
+                }
+            ) {
+                throw typedResponseFailure("typed response descriptor must remain inside LPRESP01")
+            }
+            val responseCarrier = when (val decoded = LeonaProtectedResponseCarrierV1.decode(response.body)) {
+                is LeonaProtectedResponseCarrierV1.DecodeResult.Success -> decoded
+                is LeonaProtectedResponseCarrierV1.DecodeResult.Failure -> throw typedResponseFailure(
+                    "strict response carrier rejected: ${decoded.code.name.lowercase()}",
+                )
+            }
+            val response = when (val decoded = LeonaEvidenceResponseProtobufCodec.decode(
+                responseCarrier.payload,
+                typedResponse.bindRequest,
+                typedResponse.carrierHash,
+            )) {
+                is LeonaResponseProtobufDecodeResult.Success -> decoded.response
+                is LeonaResponseProtobufDecodeResult.Failure -> throw typedResponseFailure(
+                    "strict response protobuf rejected: ${decoded.error.code.name.lowercase()}",
+                )
+            }
+            return SecureUploadResult(
+                boxId = BoxId.of(response.boxId),
+                canonicalDeviceId = response.canonicalDeviceId,
+                serverVerdict = LeonaServerVerdict(
+                    boxId = response.boxId,
+                    canonicalDeviceId = response.canonicalDeviceId,
+                    decision = "evidence_collected",
+                    action = "business_defined",
+                    riskLevel = null,
+                    riskScore = null,
+                    riskTags = emptySet(),
+                ),
+                serverInstallId = response.serverInstallId,
             )
         }
         val body = response.body.toString(StandardCharsets.UTF_8)
@@ -199,7 +250,32 @@ internal class SecureChannel(
                 )
             }
         }
-        return uploadInternal(carrier, deviceContext, includeDeviceContextHeaders = false)
+        val encodedRequestPayload = when (val decoded = LeonaProtectedPayloadCarrierV1.decodeRequest(carrier)) {
+            is LeonaProtectedPayloadCarrierV1.DecodeResult.Success -> {
+                if (!decoded.payload.contentEquals(handoff.bytes)) {
+                    throw typedResponseFailure("typed request carrier payload mismatch before upload")
+                }
+                decoded.payload
+            }
+            is LeonaProtectedPayloadCarrierV1.DecodeResult.Failure -> throw typedResponseFailure(
+                "typed request carrier rejected before upload: ${decoded.code.name.lowercase()}",
+            )
+        }
+        val request = when (val decoded = io.leonasec.leona.internal.proto.LeonaEvidenceProtobufCodec.decode(
+            encodedRequestPayload,
+        )) {
+            is io.leonasec.leona.internal.proto.LeonaProtobufDecodeResult.Success -> decoded.request
+            is io.leonasec.leona.internal.proto.LeonaProtobufDecodeResult.Failure -> throw typedResponseFailure(
+                "typed request protobuf rejected before upload: ${decoded.error.code.name.lowercase()}",
+            )
+        }
+        val carrierDigest = MessageDigest.getInstance("SHA-256").digest(carrier)
+        return uploadInternal(
+            carrier,
+            deviceContext,
+            includeDeviceContextHeaders = false,
+            typedResponse = TypedResponseExpectation(request.requestId, carrierDigest),
+        )
     }
 
     private fun buildReportingRequest(
@@ -208,6 +284,7 @@ internal class SecureChannel(
         payload: ByteArray,
         deviceContext: SecureDeviceContext,
         includeDeviceContextHeaders: Boolean,
+        requestIdOverride: String? = null,
     ): LeonaCryptoHttpRequest {
         val url = endpoint.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("encrypted endpoint must be an absolute URL")
@@ -216,7 +293,7 @@ internal class SecureChannel(
             "X-Leona-Protocol" to LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR.toString(),
             "X-Leona-Reporting-Mode" to "leo_crypto",
             "X-Leona-SDK-Version" to BuildConstants.VERSION_NAME,
-            "X-Leona-Request-Id" to UUID.randomUUID().toString(),
+            "X-Leona-Request-Id" to (requestIdOverride ?: UUID.randomUUID().toString()),
             "X-Leona-Evidence-Ref" to sha256Hex(payload),
         )
         if (includeDeviceContextHeaders) {
@@ -637,4 +714,18 @@ internal class SecureChannel(
                 }
             }.orEmpty()
     }
+
+    private fun typedResponseFailure(detail: String): SecureReportingException =
+        SecureReportingErrorClassifier.exception(
+            operation = "typed_response",
+            classification = SecureReportingErrorClassification(
+                SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE,
+            ),
+            detail = detail,
+        )
+
+    private data class TypedResponseExpectation(
+        val bindRequest: String,
+        val carrierHash: ByteArray,
+    )
 }

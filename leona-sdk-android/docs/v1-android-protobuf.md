@@ -57,6 +57,39 @@ or policy authority. Outer HTTP metadata remains the Leo
 authenticated channel's media type; no `X-Leona-*` or `X-Leo-*` clear headers are
 added by this lane.
 
+## Strict typed response
+
+The typed `Leona.sense()` path accepts only the response-only `LPRESP01` carrier
+after `LeonaCryptoTransport.openResponse` succeeds. The frozen response source
+and fixtures are copied byte-for-byte:
+
+- `src/main/proto/leona/evidence/response/v1/response.proto` SHA-256
+  `90b2f2753c3cdf9e86d3690ec5e37c3de15873267bcb0b1b26f5a4091918619c`
+- `src/main/resources/leona/evidence/response/v1/response.pb` SHA-256
+  `01ca791bcbd4e7727da47e8d0351538c32e4f40394927676372a4d8d23ca6e73`
+- `src/test/resources/leona/evidence/response/v1/valid-response.bin` SHA-256
+  `38c53d6f2635ba836853d45f5fc20f27ed9eae7fe047e63c398ca933a6bbc8a1`
+- frozen response carrier SHA-256
+  `34a10a47d1334621089bc9614f892703bf63b4ca178e74c611fe7e49b7dc43ac`
+
+`LeonaProtectedResponseCarrierV1` is response-only and enforces the five
+ascending TLVs, exact response descriptor, checked lengths, and a 64 KiB
+Protobuf cap. `LeonaEvidenceResponseProtobufCodec` rejects unknown/reserved or
+duplicate fields, non-minimal varints, wrong wire types, invalid UTF-8/enums,
+malformed opaque identifiers, expired lifetimes, and request-id/full-carrier
+digest mismatches. No typed response JSON parser is reachable from this path;
+legacy JSON parsing remains only on the historical `upload()` compatibility
+method and is not called by `sense()`.
+
+Successful typed responses produce the neutral compatibility view
+`decision=evidence_collected`, `action=business_defined`, with no client risk
+score/tags. BoxId and server install/canonical identifiers are accepted only
+from this authenticated response. Any malformed, missing, provider, or network
+condition fails closed without a second operation or a JSON/plaintext/legacy
+retry. Formal provider response sealing and live interoperability remain
+`EXTERNAL_BLOCKED`; the checked-in response envelope fixture is
+`TEST_ONLY_BYTE_LAYOUT_NOT_CRYPTOGRAPHY`.
+
 ## Runtime and supply chain
 
 The direct runtime dependency is

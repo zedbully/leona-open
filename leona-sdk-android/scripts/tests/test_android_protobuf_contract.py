@@ -73,9 +73,10 @@ class AndroidProtobufContractTest(unittest.TestCase):
         self.assertIn("PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE", source)
         self.assertIn("LeonaProtectedPayloadCarrierV1", source)
         encode_at = source.index("protectedPayloadEncoder(handoff)")
-        upload_match = re.search(r"return\s+uploadInternal\(\s*carrier\s*,\s*deviceContext\s*,\s*includeDeviceContextHeaders\s*=\s*false\s*\)", source)
-        self.assertIsNotNone(upload_match)
-        upload_at = upload_match.start()
+        upload_at = source.index("uploadInternal(\n            carrier", encode_at)
+        upload_window = source[upload_at : upload_at + 500]
+        self.assertIn("includeDeviceContextHeaders = false", upload_window)
+        self.assertIn("typedResponse = TypedResponseExpectation", upload_window)
         self.assertLess(encode_at, upload_at)
         self.assertNotIn("typed protobuf descriptor carrier is not admitted", source)
         # Existing transport remains Leo media type only; no new clear custom headers.

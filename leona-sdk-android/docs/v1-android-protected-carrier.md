@@ -67,3 +67,19 @@ externally reachable through the current SDK. The descriptor/empty/oversize/
 internal encoder-failure cases are covered by direct carrier unit tests; the
 SecureChannel failure-injection test is explicitly a synthetic test seam, not
 an externally constructible handoff.
+
+## Response boundary
+
+`LPCARR01` is request-only. A typed `sense()` response must instead be the
+authenticated-open body `LPRESP01` and is parsed by the separate
+`LeonaProtectedResponseCarrierV1` decoder. Its descriptor is
+`leona.evidence.response.v1.EvidenceIngestResponse` with descriptor SHA-256
+`01ca791bcbd4e7727da47e8d0351538c32e4f40394927676372a4d8d23ca6e73`, and its
+Protobuf payload cap is 65,536 bytes. The response binds both the exact logical
+request ID and SHA-256 of the complete LPCARR01 body. The only accepted
+collection status is `ACCEPTED`; the SDK exposes a neutral compatibility view
+(`evidence_collected` / `business_defined`) and never evaluates risk or policy.
+Malformed, legacy JSON, missing, or unbound response bodies fail closed without
+retry. The response fixtures are host/JVM contract evidence only; authenticated
+Leo response sealing and runtime/provider interoperability remain
+`EXTERNAL_BLOCKED`.

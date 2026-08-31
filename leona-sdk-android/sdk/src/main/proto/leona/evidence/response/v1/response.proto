@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package leona.evidence.response.v1;
+
+option java_package = "io.leonasec.proto.response.v1";
+option java_multiple_files = true;
+option java_outer_classname = "LeonaEvidenceResponseV1";
+
+// Evidence collection receipt returned only after provider-authenticated
+// request admission. Customer backends, not the Android SDK, own business
+// risk and admission decisions.
+message EvidenceIngestResponse {
+  reserved 11 to 31;
+
+  uint32 protocol_major = 1;
+  string request_id = 2;
+  bytes request_carrier_sha256 = 3;
+  bytes response_id = 4;
+  string box_id = 5;
+  string server_install_id = 6;
+  string canonical_device_id = 7;
+  int64 issued_at_epoch_ms = 8;
+  int64 box_expires_at_epoch_ms = 9;
+  CollectionStatus collection_status = 10;
+}
+
+enum CollectionStatus {
+  COLLECTION_STATUS_UNSPECIFIED = 0;
+  COLLECTION_STATUS_ACCEPTED = 1;
+}

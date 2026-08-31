@@ -1,0 +1,29 @@
+{
+  "schema": "leona.evidence.response.v1",
+  "source": {
+    "path": "response.proto",
+    "sha256": "90b2f2753c3cdf9e86d3690ec5e37c3de15873267bcb0b1b26f5a4091918619c"
+  },
+  "descriptor": {
+    "path": "../../../../resources/leona/evidence/response/v1/response.pb",
+    "sha256": "01ca791bcbd4e7727da47e8d0351538c32e4f40394927676372a4d8d23ca6e73"
+  },
+  "golden": {
+    "path": "../../../../../test/resources/leona/evidence/response/v1/valid-response.bin",
+    "sha256": "38c53d6f2635ba836853d45f5fc20f27ed9eae7fe047e63c398ca933a6bbc8a1"
+  },
+  "protoc": "libprotoc 31.1",
+  "java_mode": "lite",
+  "runtime": {
+    "module": "com.google.protobuf:protobuf-javalite",
+    "version": "4.29.4",
+    "license": "Apache-2.0",
+    "jar_sha256": "622f9ddfd99e8391efb5b2be5cb149dacaba1104905635eecf6ceac8e43e122e"
+  },
+  "generated_sources": {
+    "directory": "Kotlin strict wire codec",
+    "file_count": 0,
+    "sha256_path_and_bytes": null,
+    "note": "The Android path uses the checked-in strict Kotlin codec; no generated Java binding is consumed. response.pb remains the authoritative descriptor allowlist."
+  }
+}

@@ -37,6 +37,8 @@ import io.leonasec.leona.internal.proto.LeonaEvidenceValue
 import io.leonasec.leona.internal.proto.LeonaClientScopeModel
 import io.leonasec.leona.internal.proto.LeonaProtobufEncodeResult
 import io.leonasec.leona.internal.proto.LeonaProtectedPayloadCarrierV1
+import io.leonasec.leona.internal.proto.LeonaProtectedResponseCarrierV1
+import io.leonasec.leona.internal.proto.LeonaEvidenceIngestResponseModel
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -71,10 +73,14 @@ class SecureChannelTest {
     @Test
     fun `protected protobuf handoff gives Leo the exact LPCARR01 golden body`() = runBlocking {
         val server = MockWebServer()
+        val responseBody = responseCarrier(
+            requestId = "request-golden",
+            requestDigest = java.security.MessageDigest.getInstance("SHA-256").digest(frozenCarrier),
+        )
         val transport = RecordingCryptoTransport(
             response = LeonaCryptoHttpResponse(
                 statusCode = 200,
-                body = """{"boxId":"box-carrier","decision":"allow"}""".toByteArray(StandardCharsets.UTF_8),
+                body = responseBody,
             ),
         )
         val responseEnvelope = LeonaCryptoEnvelopeCodec.encodeResponse(
@@ -107,8 +113,15 @@ class SecureChannelTest {
             val result = channel.uploadProtectedLogicalPayload(handoff.handoff, deviceContext())
 
             assertEquals("box-carrier", result.boxId.toString())
+            assertEquals("evidence_collected", result.serverVerdict?.decision)
+            assertEquals("business_defined", result.serverVerdict?.action)
+            assertEquals(null, result.serverVerdict?.riskScore)
+            assertTrue(result.serverVerdict?.riskTags.orEmpty().isEmpty())
+            assertEquals("I${"1".repeat(32)}", result.serverInstallId)
+            assertEquals("L${"2".repeat(32)}", result.canonicalDeviceId)
             assertEquals(1, encoderCalls)
             assertEquals(1, transport.sealCount)
+            assertEquals(1, transport.openResponseCount)
             val request = transport.request ?: error("Leo transport did not receive request")
             assertArrayEquals(frozenCarrier, request.body)
             val protectedHeaders = LeonaCryptoProtectedHeadersCodec.decode(request.protectedHeaders)
@@ -165,6 +178,35 @@ class SecureChannelTest {
             assertEquals(SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE, (error as SecureReportingException).code)
             assertEquals(0, transport.sealCount)
             assertEquals(0, server.requestCount)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `typed response rejects legacy json without fallback`() = runBlocking {
+        val server = MockWebServer()
+        val transport = RecordingCryptoTransport(
+            response = LeonaCryptoHttpResponse(statusCode = 200, body = "{\"boxId\":\"legacy\"}".toByteArray()),
+        )
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setHeader("Content-Type", LeonaCryptoEnvelopeCodec.CONTENT_TYPE)
+                .setBody(Buffer().write(LeonaCryptoEnvelopeCodec.encodeResponse(LeonaCryptoSealedResponse(byteArrayOf(9)))))
+        )
+        server.start()
+        try {
+            val handoff = (LeonaEvidenceProtobufCodec.encode(carrierGoldenModel()) as LeonaProtobufEncodeResult.Success).handoff
+            val channel = SecureChannel(
+                mockContext(),
+                LeonaConfig.Builder().reportingEndpoint(server.url("/").toString()).apiKey("key")
+                    .cryptoChannel(testCryptoChannel(transport)).build(),
+            )
+            val error = runCatching { channel.uploadProtectedLogicalPayload(handoff, deviceContext()) }.exceptionOrNull()
+            assertEquals(SecureReportingErrorCode.PROTECTED_PAYLOAD_CARRIER_UNAVAILABLE, (error as SecureReportingException).code)
+            assertEquals(1, transport.sealCount)
+            assertEquals(1, transport.openResponseCount)
+            assertEquals(1, server.requestCount)
         } finally {
             server.shutdown()
         }
@@ -470,6 +512,21 @@ class SecureChannelTest {
     private val frozenCarrier: ByteArray
         get() = javaClass.getResourceAsStream("/leona/evidence/v1/valid-carrier.bin")!!.readBytes()
 
+    private fun responseCarrier(requestId: String, requestDigest: ByteArray): ByteArray {
+        val response = LeonaEvidenceIngestResponseModel(
+            protocolMajor = 1,
+            requestId = requestId,
+            requestCarrierSha256 = requestDigest,
+            responseId = ByteArray(16) { it.toByte() },
+            boxId = "box-carrier",
+            serverInstallId = "I${"1".repeat(32)}",
+            canonicalDeviceId = "L${"2".repeat(32)}",
+            issuedAtEpochMs = 1_700_000_000_000L,
+            boxExpiresAtEpochMs = 1_700_000_100_000L,
+        )
+        return (LeonaProtectedResponseCarrierV1.encode(response) as LeonaProtectedResponseCarrierV1.EncodeResult.Success).bytes
+    }
+
     private fun carrierGoldenModel() = LeonaEvidenceIngestRequestModel(
         protocolMajor = 1,
         tenantId = "tenant-golden",
@@ -562,6 +619,8 @@ class SecureChannelTest {
         var request: LeonaCryptoHttpRequest? = null
         var sealCount: Int = 0
             private set
+        var openResponseCount: Int = 0
+            private set
 
         override val capabilities = LeonaCryptoCapabilities(
             protocolMajor = LeonaCryptoEnvelopeCodec.PROTOCOL_MAJOR,
@@ -604,7 +663,10 @@ class SecureChannelTest {
             encryptedWire: ByteArray,
             commitments: LeonaCryptoScopeCommitments,
             nowMs: Long,
-        ): LeonaCryptoResult<LeonaCryptoHttpResponse> = LeonaCryptoResult.Success(response)
+        ): LeonaCryptoResult<LeonaCryptoHttpResponse> {
+            openResponseCount += 1
+            return LeonaCryptoResult.Success(response)
+        }
 
         override fun close() = Unit
     }
