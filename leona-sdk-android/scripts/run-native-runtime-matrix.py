@@ -343,7 +343,8 @@ def preclean_package(adb: str, serial: str, package: str) -> dict[str, Any]:
     result: dict[str, Any] = {"probeRc": probe.returncode, "presentBefore": False, "uninstallRc": 0}
     if probe.returncode != 0:
         probe_text = ((probe.stdout or "") + (probe.stderr or "")).lower()
-        if "unable to find package" not in probe_text and "package:" not in probe_text:
+        absent_markers = ("unable to find package", "not found", "unknown package", "does not exist", "no package")
+        if not any(marker in probe_text for marker in absent_markers) and "package:" not in probe_text:
             result["uninstallRc"] = probe.returncode
         return result
     result["presentBefore"] = "package:" in (probe.stdout or "")
