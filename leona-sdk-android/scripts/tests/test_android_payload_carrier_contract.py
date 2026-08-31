@@ -152,6 +152,16 @@ class AndroidPayloadCarrierContractTest(unittest.TestCase):
         doc = DOC.read_text()
         explicit = re.findall(r'\.header\(\s*"([^"]+)"', client)
         self.assertEqual(set(explicit), {"Content-Type", "Accept"})
+        self.assertIn(".cookieJar(CookieJar.NO_COOKIES)", client)
+        self.assertIn(".addNetworkInterceptor(StrictOuterResponseInterceptor())", client)
+        for marker in (
+            "Content-Encoding",
+            "Set-Cookie",
+            "duplicate content-length",
+            "content-length does not match body bytes",
+            "readBoundedBody",
+        ):
+            self.assertIn(marker, client)
         self.assertIn("User-Agent", doc)
         self.assertIn("Accept-Encoding", doc)
         self.assertIn("Cookie", doc)

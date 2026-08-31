@@ -213,6 +213,58 @@ class SecureChannelTest {
     }
 
     @Test
+    fun `typed response rejects forbidden outer transforms before provider open`() = runBlocking {
+        val cases = listOf(
+            "gzip" to {
+                strictResponse().addHeader("Content-Encoding", "gzip")
+            },
+            "identity-encoding" to {
+                strictResponse().addHeader("Content-Encoding", "identity")
+            },
+            "other-encoding" to {
+                strictResponse().addHeader("Content-Encoding", "br")
+            },
+            "set-cookie" to {
+                strictResponse().addHeader("Set-Cookie", "session=forbidden")
+            },
+            "duplicate-content-type" to {
+                strictResponse().addHeader("Content-Type", LeonaCryptoEnvelopeCodec.CONTENT_TYPE)
+            },
+            "parameterized-content-type" to {
+                MockResponse().setResponseCode(200)
+                    .setHeader("Content-Type", "${LeonaCryptoEnvelopeCodec.CONTENT_TYPE}; charset=utf-8")
+                    .setBody(Buffer().write(byteArrayOf(1)))
+            },
+            "duplicate-content-length" to {
+                strictResponse()
+                    .addHeader("Content-Length", "1")
+                    .addHeader("Content-Length", "1")
+            },
+            "forged-content-length" to {
+                strictResponse().setHeader(
+                    "Content-Length",
+                    (LeonaCryptoEnvelopeCodec.MAX_TOTAL_BYTES + 1).toString(),
+                )
+            },
+            "forged-small-content-length" to {
+                strictResponse().setHeader("Content-Length", "0")
+            },
+            "chunked-body-cap" to {
+                MockResponse().setResponseCode(200)
+                    .setHeader("Content-Type", LeonaCryptoEnvelopeCodec.CONTENT_TYPE)
+                    .setChunkedBody(
+                        Buffer().write(ByteArray(LeonaCryptoEnvelopeCodec.MAX_TOTAL_BYTES + 1)),
+                        8 * 1024,
+                    )
+            },
+        )
+
+        cases.forEach { (name, responseFactory) ->
+            assertTypedOuterResponseRejected(name, responseFactory())
+        }
+    }
+
+    @Test
     fun `synthetic test seam carrier encode failures never invoke Leo or network`() = runBlocking {
         val server = MockWebServer()
         val transport = RecordingCryptoTransport(
@@ -372,6 +424,7 @@ class SecureChannelTest {
             val outer = server.takeRequest()
             assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Content-Type"))
             assertEquals(LeonaCryptoEnvelopeCodec.CONTENT_TYPE, outer.getHeader("Accept"))
+            assertEquals(null, outer.getHeader("Cookie"))
             assertEquals(null, outer.getHeader("X-Leona-Environment"))
             assertEquals(null, outer.getHeader("X-Leona-Session-Id-Sha256"))
             assertEquals(null, outer.getHeader("X-Leona-Identity-Protection"))
@@ -511,6 +564,41 @@ class SecureChannelTest {
 
     private val frozenCarrier: ByteArray
         get() = javaClass.getResourceAsStream("/leona/evidence/v1/valid-carrier.bin")!!.readBytes()
+
+    private fun strictResponse(): MockResponse = MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", LeonaCryptoEnvelopeCodec.CONTENT_TYPE)
+        .setBody(Buffer().write(byteArrayOf(1)))
+
+    private suspend fun assertTypedOuterResponseRejected(name: String, response: MockResponse) {
+        val server = MockWebServer()
+        val transport = RecordingCryptoTransport(
+            response = LeonaCryptoHttpResponse(statusCode = 200),
+        )
+        server.enqueue(response)
+        server.start()
+        try {
+            val handoff = (LeonaEvidenceProtobufCodec.encode(carrierGoldenModel())
+                as LeonaProtobufEncodeResult.Success).handoff
+            val channel = SecureChannel(
+                mockContext(),
+                LeonaConfig.Builder()
+                    .reportingEndpoint(server.url("/").toString())
+                    .apiKey("leona_test_app_key")
+                    .cryptoChannel(testCryptoChannel(transport))
+                    .build(),
+            )
+            val error = runCatching {
+                channel.uploadProtectedLogicalPayload(handoff, deviceContext())
+            }.exceptionOrNull()
+            assertTrue(name, error is SecureReportingException)
+            assertEquals(name, 1, transport.sealCount)
+            assertEquals(name, 0, transport.openResponseCount)
+            assertEquals(name, 1, server.requestCount)
+        } finally {
+            server.shutdown()
+        }
+    }
 
     private fun responseCarrier(requestId: String, requestDigest: ByteArray): ByteArray {
         val response = LeonaEvidenceIngestResponseModel(

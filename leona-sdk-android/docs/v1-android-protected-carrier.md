@@ -46,9 +46,16 @@ Under the frozen amended outer-header contract, OkHttp's automatic `User-Agent`
 and exactly one `Accept-Encoding: gzip` are transport-tolerated,
 non-authenticated, and not
 carrier metadata. This module does not add, remove, or normalize either header.
-Cookies and `Set-Cookie` remain forbidden: a caller client with a non-empty
-`CookieJar` must fail closed. Raw compressed-response verification remains a
-separate integration gate and is not accepted by these host tests.
+They are request negotiation only; an SDK caller cannot use them to carry
+application metadata. Cookies and `Set-Cookie` remain forbidden: this client
+uses an explicit `CookieJar.NO_COOKIES` jar and a caller client with
+injected/non-empty cookie state must fail closed. Any response `Content-Encoding` value,
+including `identity`, is rejected before the OkHttp bridge can decompress or
+rewrite the body. The response requires one exact media-type `Content-Type`, at
+most one bounded decimal `Content-Length` matching the raw body byte count,
+and no `Set-Cookie`; actual bytes are independently bounded before Leo opens
+the authenticated response. Raw compressed-response interoperability is
+therefore forbidden, not a deferred verification assumption.
 
 The optional Leo provider and authenticated carrier are not present in this
 candidate. Therefore actual seal/runtime interoperability remains
