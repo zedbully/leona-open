@@ -29,6 +29,14 @@ Source and artifact hashes are recorded as separate observations. The runner
 marks their relationship `UNVERIFIED` unless a same-invocation build receipt
 proves provenance; matching Git and APK hashes alone are not a build claim.
 
+Before any AVD is started, the AAR, sample APK, and SDK androidTest APK are
+opened as ZIPs. Every allowlisted ABI must contain exactly one
+`libleona.so`, with the same hash in all three artifacts. The executed runtime
+artifact is explicitly the `androidTest` APK; the sample APK is installed only
+as the consumer-package parity target. The current instrumentation manifest
+target is the test package itself (`io.leonasec.leona.test`), and any other
+relationship fails closed.
+
 The matrix distinguishes:
 
 - `PROJECT_NATIVE_RUNTIME`: project-owned JNI load/init/collect evidence.
@@ -44,8 +52,10 @@ mismatch, stale/missing smoke markers, native load/crash markers, mixed
 candidates, unsupported targets, page-size failure, cleanup failure, duplicate
 API selections, and raw serial/AVD/BoxId/token fields fail closed.
 
-The runner writes raw emulator/instrumentation logs only to a mode-0700 output
-directory with mode-0600 files. The normalized summary and `SHA256SUMS` contain
-hashes and status only. A matrix result is `CANDIDATE_ONLY`/`SUPPORT_ONLY` and
+Raw emulator output is held only in a mode-0600 temporary file outside the
+final evidence tree, then reduced to reconstructed marker/failure categories
+and removed. Final instrumentation/install/logcat/emulator files are bounded
+and sanitized; the normalized summary and `SHA256SUMS` contain hashes and
+status only. A matrix result is `CANDIDATE_ONLY`/`SUPPORT_ONLY` and
 does not establish Android release admission, Leo provider acceptance, device
 fingerprint stability, network success, or commercial admission.

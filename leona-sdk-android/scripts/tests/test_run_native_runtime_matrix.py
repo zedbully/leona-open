@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from zipfile import ZipFile
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "run-native-runtime-matrix.py"
@@ -177,6 +178,16 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         test["instrumentationTarget"] = "io.other.app"
         self.assertEqual((False, "instrumentation-target-mismatch"), MODULE.validate_package_contract(sample, test))
 
+    def test_aapt2_tool_and_metadata_failures_are_fail_closed(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "aapt2-required"):
+            MODULE.inspect_apk_identity("/sdk/build-tools/35.0.0/aapt", Path("sample.apk"))
+        with self.assertRaisesRegex(SystemExit, "aapt2-unavailable"):
+            MODULE.inspect_apk_identity("/missing/aapt2", Path("sample.apk"))
+        failure = subprocess.CompletedProcess([], 1, stdout="", stderr="error")
+        with mock.patch.object(MODULE, "run_command", return_value=failure):
+            with self.assertRaisesRegex(SystemExit, "aapt2-badging-failed"):
+                MODULE.inspect_apk_identity("/sdk/build-tools/36.0.0/aapt2", Path("sample.apk"))
+
     def test_output_directory_requires_empty_or_owned_marker_and_resets_cells(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "matrix"
@@ -222,12 +233,57 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         with mock.patch.object(MODULE, "adb_command", return_value=failure):
             self.assertEqual((False, 2), MODULE.clear_logcat_buffers("adb", "serial"))
 
+    def test_native_artifact_parity_requires_every_abi_and_matching_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            payloads = {abi: (abi.encode("ascii") * 8) for abi in MODULE.ABI_ALLOWLIST}
+
+            def make_archive(name: str, prefix: str, values: dict[str, bytes]) -> Path:
+                path = temp_path / name
+                with ZipFile(path, "w") as archive:
+                    for abi, payload in values.items():
+                        archive.writestr(f"{prefix}/{abi}/libleona.so", payload)
+                return path
+
+            aar = make_archive("sdk.aar", "jni", payloads)
+            sample = make_archive("sample.apk", "lib", payloads)
+            test = make_archive("test.apk", "lib", payloads)
+            parity = MODULE.verify_artifact_parity(aar, sample, test)
+            self.assertTrue(parity["ok"])
+            self.assertEqual("androidTestApk", parity["runtimeArtifact"])
+            self.assertEqual(set(MODULE.ABI_ALLOWLIST), set(parity["abis"]))
+
+            drift = dict(payloads)
+            drift["x86_64"] = b"different"
+            drift_sample = make_archive("drift.apk", "lib", drift)
+            with self.assertRaisesRegex(SystemExit, "native-artifact-parity-mismatch-x86_64"):
+                MODULE.verify_artifact_parity(aar, drift_sample, test)
+
+            missing = make_archive("missing.apk", "lib", {"arm64-v8a": payloads["arm64-v8a"], "x86_64": payloads["x86_64"]})
+            with self.assertRaisesRegex(SystemExit, "sample-apk-native-entry-count-armeabi-v7a"):
+                MODULE.verify_artifact_parity(aar, missing, test)
+
+            unsupported = make_archive("unsupported.apk", "lib", {**payloads, "x86": b"bad"})
+            with self.assertRaisesRegex(SystemExit, "sample-apk-unsupported-abi"):
+                MODULE.verify_artifact_parity(aar, unsupported, test)
+
+            duplicate = temp_path / "duplicate.apk"
+            with ZipFile(duplicate, "w") as archive:
+                for abi, payload in payloads.items():
+                    archive.writestr(f"lib/{abi}/libleona.so", payload)
+                archive.writestr("lib/arm64-v8a/libleona.so", b"duplicate")
+            with self.assertRaisesRegex(SystemExit, "sample-apk-duplicate-entry"):
+                MODULE.verify_artifact_parity(aar, duplicate, test)
+
     def test_candidate_failure_is_fail_not_partial(self) -> None:
         status, validation = MODULE.finalize_matrix_status(
             [{"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64}, "avd": "leaked"}]
         )
         self.assertEqual("FAIL", status)
         self.assertFalse(validation["ok"])
+
+    def test_artifact_source_relation_is_explicitly_unverified(self) -> None:
+        self.assertEqual("UNVERIFIED", MODULE.SOURCE_ARTIFACT_RELATION)
 
     def test_unsupported_payload_bound_is_rejected(self) -> None:
         marker = self.marker()

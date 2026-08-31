@@ -18,7 +18,9 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
+from zipfile import BadZipFile, ZipFile
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +39,7 @@ MARKER_RE = re.compile(
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 OUTPUT_MARKER = ".leona-native-runtime-matrix-v1"
+SOURCE_ARTIFACT_RELATION = "UNVERIFIED"
 
 
 def sha256_file(path: Path) -> str:
@@ -288,9 +291,14 @@ def locate_aapt(explicit: str) -> str:
 
 
 def inspect_apk_identity(aapt: str, apk: Path) -> dict[str, str]:
-    if not aapt:
-        return {"package": "", "instrumentationName": "", "instrumentationTarget": ""}
-    result = run_command([aapt, "dump", "badging", str(apk)], timeout=30)
+    if not aapt or Path(aapt).name != "aapt2":
+        raise SystemExit("aapt2-required")
+    try:
+        result = run_command([aapt, "dump", "badging", str(apk)], timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise SystemExit("aapt2-unavailable") from error
+    if result.returncode != 0:
+        raise SystemExit("aapt2-badging-failed")
     package = re.search(r"^package: name='([^']+)'", result.stdout, re.MULTILINE)
     instrumentation = re.search(
         r"^instrumentation: name='([^']+)' targetPackage='([^']+)'", result.stdout, re.MULTILINE
@@ -298,9 +306,14 @@ def inspect_apk_identity(aapt: str, apk: Path) -> dict[str, str]:
     instrumentation_name = instrumentation.group(1) if instrumentation else ""
     instrumentation_target = instrumentation.group(2) if instrumentation else ""
     if not instrumentation:
-        tree = run_command(
-            [aapt, "dump", "xmltree", "--file", "AndroidManifest.xml", str(apk)], timeout=30
-        )
+        try:
+            tree = run_command(
+                [aapt, "dump", "xmltree", "--file", "AndroidManifest.xml", str(apk)], timeout=30
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise SystemExit("aapt2-unavailable") from error
+        if tree.returncode != 0:
+            raise SystemExit("aapt2-xmltree-failed")
         block_match = re.search(r"(?ms)^\s*E: instrumentation.*?(?=^\s*E: |\Z)", tree.stdout)
         block = block_match.group(0) if block_match else ""
         name_match = re.search(r"android:name\([^)]*\)=\"([^\"]+)\"", block)
@@ -319,11 +332,60 @@ def validate_package_contract(sample: dict[str, str], test: dict[str, str]) -> t
         return False, "sample-package-mismatch"
     if test.get("package") != TEST_PACKAGE:
         return False, "test-package-mismatch"
-    if test.get("instrumentationTarget") not in {SAMPLE_PACKAGE, TEST_PACKAGE}:
+    if test.get("instrumentationTarget") != TEST_PACKAGE:
         return False, "instrumentation-target-mismatch"
     if not test.get("instrumentationName"):
         return False, "instrumentation-metadata-missing"
     return True, "package-contract-valid"
+
+
+def inspect_native_artifact(path: Path, *, artifact_kind: str) -> dict[str, dict[str, Any]]:
+    """Return one hash per allowlisted ABI and reject archive ambiguity before AVD use."""
+    entries: dict[str, list[str]] = {abi: [] for abi in ABI_ALLOWLIST}
+    try:
+        with ZipFile(path) as archive:
+            names = [info.filename for info in archive.infolist()]
+            if len(names) != len(set(names)):
+                raise SystemExit(f"{artifact_kind}-duplicate-entry")
+            for name in names:
+                if not name.endswith("/libleona.so"):
+                    continue
+                parts = name.split("/")
+                if len(parts) != 3 or parts[0] not in {"jni", "lib"} or parts[2] != "libleona.so":
+                    raise SystemExit(f"{artifact_kind}-unsupported-native-entry")
+                abi = parts[1]
+                if abi not in ABI_ALLOWLIST:
+                    raise SystemExit(f"{artifact_kind}-unsupported-abi")
+                entries.setdefault(abi, []).append(name)
+            result: dict[str, dict[str, Any]] = {}
+            for abi in ABI_ALLOWLIST:
+                names_for_abi = entries.get(abi, [])
+                if len(names_for_abi) != 1:
+                    raise SystemExit(f"{artifact_kind}-native-entry-count-{abi}")
+                result[abi] = {"entry": names_for_abi[0], "sha256": sha256_bytes(archive.read(names_for_abi[0]))}
+            return result
+    except BadZipFile as error:
+        raise SystemExit(f"{artifact_kind}-invalid-zip") from error
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def verify_artifact_parity(aar: Path, sample_apk: Path, test_apk: Path) -> dict[str, Any]:
+    artifacts = {
+        "aar": inspect_native_artifact(aar, artifact_kind="aar"),
+        "sampleApk": inspect_native_artifact(sample_apk, artifact_kind="sample-apk"),
+        "androidTestApk": inspect_native_artifact(test_apk, artifact_kind="android-test-apk"),
+    }
+    parity: dict[str, Any] = {"runtimeArtifact": "androidTestApk", "abis": {}}
+    for abi in ABI_ALLOWLIST:
+        hashes = {kind: artifacts[kind][abi]["sha256"] for kind in artifacts}
+        if len(set(hashes.values())) != 1:
+            raise SystemExit(f"native-artifact-parity-mismatch-{abi}")
+        parity["abis"][abi] = {"sha256": next(iter(hashes.values())), "artifacts": hashes}
+    parity["ok"] = True
+    return parity
 
 
 def runtime_page_size(adb: str, serial: str) -> int | None:
@@ -466,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("caller-source-commit-mismatch")
     if args.source_tree and args.source_tree != source_tree:
         raise SystemExit("caller-source-tree-mismatch")
+    artifact_parity = verify_artifact_parity(args.aar, args.apk, args.test_apk)
     sample_identity = inspect_apk_identity(aapt, args.apk)
     test_identity = inspect_apk_identity(aapt, args.test_apk)
     package_ok, package_reason = validate_package_contract(sample_identity, test_identity)
@@ -489,6 +552,9 @@ def main(argv: list[str] | None = None) -> int:
             "instrumentationName": test_identity["instrumentationName"],
             "instrumentationTarget": test_identity["instrumentationTarget"],
         },
+        "runtimeArtifact": "androidTestApk",
+        "artifactProvenance": {"sourceArtifactRelation": SOURCE_ARTIFACT_RELATION},
+        "artifactParity": artifact_parity,
         "artifactHashes": artifact_hashes,
         "providerStatus": "LEO_PROVIDER_RUNTIME_NOT_RUN",
         "evidenceClass": "PROJECT_NATIVE_RUNTIME",
@@ -507,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
             "abi": selected_abi,
             "targetSdk": 36,
             "artifactHashes": artifact_hashes,
+            "runtimeArtifact": "androidTestApk",
             "status": "NOT_RUN",
             "reason": "avd-missing" if not avd else "not-started",
             "installRc": None,
@@ -542,9 +609,14 @@ def main(argv: list[str] | None = None) -> int:
         cell.mkdir(parents=True, exist_ok=True)
         cell.chmod(0o700)
         emulator_log = cell / "emulator.log"
-        if not owned_emulator:
-            emulator_log.touch()
-        emulator_log_handle = emulator_log.open("w", encoding="utf-8") if owned_emulator else None
+        emulator_raw_path: Path | None = None
+        if owned_emulator:
+            raw_fd, raw_name = tempfile.mkstemp(prefix=f"leona-native-emulator-{port}-", suffix=".log", dir="/tmp")
+            emulator_raw_path = Path(raw_name)
+            emulator_raw_path.chmod(0o600)
+            emulator_log_handle = os.fdopen(raw_fd, "w", encoding="utf-8")
+        else:
+            emulator_log_handle = None
         proc = (
             subprocess.Popen(
                 [emulator, "-avd", avd, "-port", str(port), "-no-window", "-no-audio", "-no-boot-anim", "-no-snapshot"],
@@ -583,8 +655,10 @@ def main(argv: list[str] | None = None) -> int:
                 row["status"] = "FAIL"
                 row["reason"] = "pre-clean-failed"
                 continue
-            install = adb_command(adb, serial, ["install", "-r", "-d", str(args.apk)], timeout=120, output=cell / "sample-install.log")
-            test_install = adb_command(adb, serial, ["install", "-r", "-d", str(args.test_apk)], timeout=120, output=cell / "test-install.log")
+            install = adb_command(adb, serial, ["install", "-r", "-d", str(args.apk)], timeout=120, output=None)
+            write_private(cell / "sample-install.log", f"returnCode={install.returncode}\n")
+            test_install = adb_command(adb, serial, ["install", "-r", "-d", str(args.test_apk)], timeout=120, output=None)
+            write_private(cell / "test-install.log", f"returnCode={test_install.returncode}\n")
             row["installRc"] = install.returncode
             row["testInstallRc"] = test_install.returncode
             if install.returncode != 0 or test_install.returncode != 0:
@@ -614,7 +688,7 @@ def main(argv: list[str] | None = None) -> int:
             marker = parse_marker(combined)
             if marker is not None:
                 row["pageSizeBytes"] = marker.get("pageSizeBytes")
-            valid, reason = validate_smoke_marker(marker, api=api, abi=configured_abi, apk_sha256=artifact_hashes["sampleApkSha256"], text=combined)
+            valid, reason = validate_smoke_marker(marker, api=api, abi=configured_abi, apk_sha256=artifact_hashes["androidTestApkSha256"], text=combined)
             row["marker"] = marker
             row["status"] = "PASS" if instrument.returncode == 0 and valid else "FAIL"
             row["reason"] = reason if valid else reason
@@ -630,7 +704,8 @@ def main(argv: list[str] | None = None) -> int:
                     removed = adb_command(adb, serial, ["shell", "pm", "uninstall", package], timeout=30)
                     row["cleanup"][f"uninstall_{package}"] = removed.returncode
             if owned_emulator and not args.keep_emulators:
-                killed = adb_command(adb, serial, ["emu", "kill"], timeout=30, output=cell / "emulator-kill.log")
+                killed = adb_command(adb, serial, ["emu", "kill"], timeout=30, output=None)
+                write_private(cell / "emulator-kill.log", f"returnCode={killed.returncode}\n")
                 row["cleanup"]["emulatorKillRc"] = killed.returncode
             if proc is not None and not args.keep_emulators:
                 try:
@@ -641,11 +716,16 @@ def main(argv: list[str] | None = None) -> int:
                 row["cleanup"]["emulatorProcessRc"] = proc.returncode
             if emulator_log_handle is not None:
                 emulator_log_handle.close()
-            if emulator_log.is_file():
+            if emulator_raw_path is not None and emulator_raw_path.is_file():
                 write_private(
                     emulator_log,
-                    sanitize_runtime_text(emulator_log.read_text(encoding="utf-8", errors="replace")),
+                    sanitize_runtime_text(emulator_raw_path.read_text(encoding="utf-8", errors="replace")),
                 )
+                try:
+                    emulator_raw_path.unlink()
+                    row["cleanup"]["rawEmulatorLogRemoved"] = 0
+                except OSError:
+                    row["cleanup"]["rawEmulatorLogRemoved"] = 1
             cleanup_values = [value for value in row.get("cleanup", {}).values() if isinstance(value, int)]
             if row.get("status") == "PASS" and any(value != 0 for value in cleanup_values):
                 row["status"] = "FAIL"
