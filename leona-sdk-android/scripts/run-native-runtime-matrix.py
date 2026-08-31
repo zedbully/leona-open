@@ -32,7 +32,7 @@ INSTRUMENTATION = f"{TEST_PACKAGE}/androidx.test.runner.AndroidJUnitRunner"
 TEST_CLASS = "io.leonasec.leona.internal.runtime.NativeRuntimeSmokeTest#packagedNativeRuntimeLoadsInitializesAndCollects"
 MARKER_RE = re.compile(
     r"LEONA_NATIVE_SMOKE_RESULT api=(?P<api>\d+) abi=(?P<abi>[A-Za-z0-9_-]+) "
-    r"payloadBytes=(?P<size>\d+) payloadSha256=(?P<digest>[0-9a-f]{64})"
+    r"pageSizeBytes=(?P<page>\d+) payloadBytes=(?P<size>\d+) payloadSha256=(?P<digest>[0-9a-f]{64})"
 )
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -202,6 +202,7 @@ def parse_marker(text: str) -> dict[str, Any] | None:
     return {
         "apiLevel": int(match.group("api")),
         "abi": match.group("abi"),
+        "pageSizeBytes": int(match.group("page")),
         "payloadBytes": int(match.group("size")),
         "payloadSha256": match.group("digest"),
     }
@@ -215,8 +216,8 @@ def sanitize_runtime_text(text: str, *, limit: int = 65_536) -> str:
         if marker is not None:
             lines.append(
                 "LEONA_NATIVE_SMOKE_RESULT "
-                f"api={marker['apiLevel']} abi={marker['abi']} payloadBytes={marker['payloadBytes']} "
-                f"payloadSha256={marker['payloadSha256']}"
+                f"api={marker['apiLevel']} abi={marker['abi']} pageSizeBytes={marker['pageSizeBytes']} "
+                f"payloadBytes={marker['payloadBytes']} payloadSha256={marker['payloadSha256']}"
             )
             continue
         for token, category in (
@@ -341,7 +342,9 @@ def preclean_package(adb: str, serial: str, package: str) -> dict[str, Any]:
     probe = adb_command(adb, serial, ["shell", "pm", "path", package], timeout=30)
     result: dict[str, Any] = {"probeRc": probe.returncode, "presentBefore": False, "uninstallRc": 0}
     if probe.returncode != 0:
-        result["uninstallRc"] = probe.returncode
+        probe_text = ((probe.stdout or "") + (probe.stderr or "")).lower()
+        if "unable to find package" not in probe_text and "package:" not in probe_text:
+            result["uninstallRc"] = probe.returncode
         return result
     result["presentBefore"] = "package:" in (probe.stdout or "")
     if result["presentBefore"]:
@@ -362,6 +365,9 @@ def validate_smoke_marker(marker: dict[str, Any] | None, *, api: int, abi: str, 
         return False, "api-mismatch"
     if marker["abi"] != abi:
         return False, "abi-mismatch"
+    page_size = marker.get("pageSizeBytes")
+    if not isinstance(page_size, int) or page_size < 1_024 or page_size > 1_048_576 or page_size & (page_size - 1):
+        return False, "page-size-invalid"
     if marker["payloadBytes"] < 0 or marker["payloadBytes"] > 131_072:
         return False, "payload-bound-invalid"
     if not HEX64_RE.fullmatch(marker["payloadSha256"]):
@@ -557,11 +563,9 @@ def main(argv: list[str] | None = None) -> int:
                 row["status"] = "FAIL"
                 row["reason"] = "configured-abi-missing"
                 continue
-            row["pageSizeBytes"] = runtime_page_size(adb, serial)
-            if row["pageSizeBytes"] is None:
-                row["status"] = "FAIL"
-                row["reason"] = "page-size-unavailable"
-                continue
+            shell_page_size = runtime_page_size(adb, serial)
+            if shell_page_size is not None:
+                row["shellPageSizeBytes"] = shell_page_size
             row["preClean"] = {
                 SAMPLE_PACKAGE: preclean_package(adb, serial, SAMPLE_PACKAGE),
                 TEST_PACKAGE: preclean_package(adb, serial, TEST_PACKAGE),
@@ -598,6 +602,8 @@ def main(argv: list[str] | None = None) -> int:
             combined = (cell / "instrumentation.log").read_text(encoding="utf-8", errors="replace")
             combined += "\n" + logcat_path.read_text(encoding="utf-8", errors="replace")
             marker = parse_marker(combined)
+            if marker is not None:
+                row["pageSizeBytes"] = marker.get("pageSizeBytes")
             valid, reason = validate_smoke_marker(marker, api=api, abi=configured_abi, apk_sha256=artifact_hashes["sampleApkSha256"], text=combined)
             row["marker"] = marker
             row["status"] = "PASS" if instrument.returncode == 0 and valid else "FAIL"

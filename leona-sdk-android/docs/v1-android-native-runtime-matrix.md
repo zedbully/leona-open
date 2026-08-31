@@ -18,6 +18,10 @@ and are never reused or mutated; each executed lane starts an owned emulator on
 an OS-probed free port. Logcat is cleared before instrumentation and only
 bounded Leona/native marker or crash lines are persisted.
 
+The native smoke marker carries the runtime page size obtained through Android
+`Os.sysconf`; shell properties are only a diagnostic observation. Missing or
+non-power-of-two page-size evidence fails closed.
+
 Source and artifact hashes are recorded as separate observations. The runner
 marks their relationship `UNVERIFIED` unless a same-invocation build receipt
 proves provenance; matching Git and APK hashes alone are not a build claim.

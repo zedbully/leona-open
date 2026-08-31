@@ -20,6 +20,7 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         return {
             "apiLevel": api,
             "abi": abi,
+            "pageSizeBytes": 4096,
             "payloadBytes": 8,
             "payloadSha256": "a" * 64,
         }
@@ -113,12 +114,12 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         self.assertEqual("PARTIAL", status)
 
     def test_runtime_log_sanitizer_is_bounded_and_redacted(self) -> None:
-        text = "raw serial=emulator-5554\nLEONA_NATIVE_SMOKE_RESULT api=23 abi=arm64-v8a payloadBytes=8 payloadSha256=" + "a" * 64 + "\n" + "x" * 100000
+        text = "raw serial=emulator-5554\nLEONA_NATIVE_SMOKE_RESULT api=23 abi=arm64-v8a pageSizeBytes=4096 payloadBytes=8 payloadSha256=" + "a" * 64 + "\n" + "x" * 100000
         sanitized = MODULE.sanitize_runtime_text(text, limit=128)
         self.assertLessEqual(len(sanitized), 128)
         self.assertIn("LEONA_NATIVE_SMOKE_RESULT", sanitized)
         self.assertNotIn("serial=emulator-5554", sanitized)
-        adversarial = "LEONA_NATIVE_SMOKE_RESULT api=23 abi=arm64-v8a payloadBytes=8 payloadSha256=" + "a" * 64 + " token=secret"
+        adversarial = "LEONA_NATIVE_SMOKE_RESULT api=23 abi=arm64-v8a pageSizeBytes=4096 payloadBytes=8 payloadSha256=" + "a" * 64 + " token=secret"
         self.assertNotIn("token=secret", MODULE.sanitize_runtime_text(adversarial))
 
     def test_candidate_validator_is_invoked_before_pass(self) -> None:
@@ -134,6 +135,11 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         )
         with mock.patch.object(MODULE, "adb_command", side_effect=failed):
             self.assertIsNone(MODULE.runtime_page_size("missing-adb", "missing-serial"))
+        marker = self.marker()
+        marker["pageSizeBytes"] = 3000
+        ok, reason = MODULE.validate_smoke_marker(marker, api=23, abi="arm64-v8a", apk_sha256="b" * 64, text="OK")
+        self.assertFalse(ok)
+        self.assertEqual("page-size-invalid", reason)
 
     def test_source_identity_requires_clean_40_hex_git_worktree(self) -> None:
         responses = [
