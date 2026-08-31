@@ -29,7 +29,11 @@
 #include "honeypot/fake_data.h"
 
 #define TAG "leona"
-#define LOG_I(fmt, ...) __android_log_print(ANDROID_LOG_INFO,  TAG, fmt, ##__VA_ARGS__)
+
+// Keep the format string and its arguments in one standard variadic macro;
+// this is warning-clean under the NDK Clang toolchain with project warnings
+// treated as errors.
+#define LOG_I(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
 namespace leona {
 

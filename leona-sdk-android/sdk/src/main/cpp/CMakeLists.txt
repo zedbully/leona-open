@@ -58,6 +58,7 @@ target_compile_options(leona PRIVATE
     -Wall
     -Wextra
     -Wpedantic
+    -Werror
     -Werror=return-type
     -Werror=implicit-fallthrough
 )

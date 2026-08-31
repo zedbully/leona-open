@@ -8,24 +8,17 @@
 
 namespace leona::detection {
 
-static inline uint64_t read_cntvct() {
 #if defined(__aarch64__)
+static inline uint64_t read_cntvct() {
     uint64_t v;
     asm volatile("mrs %0, cntvct_el0" : "=r"(v));
     return v;
-#else
-    return 0;
-#endif
 }
 
 static inline uint64_t read_cntfrq() {
-#if defined(__aarch64__)
     uint64_t v;
     asm volatile("mrs %0, cntfrq_el0" : "=r"(v));
     return v;
-#else
-    return 0;
-#endif
 }
 
 static inline uint64_t now_ns() {
@@ -34,6 +27,7 @@ static inline uint64_t now_ns() {
     return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL +
            static_cast<uint64_t>(ts.tv_nsec);
 }
+#endif
 
 bool sample_known_workload(TimingSample* out) {
 #if !defined(__aarch64__)
