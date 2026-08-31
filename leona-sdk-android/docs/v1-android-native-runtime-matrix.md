@@ -1,12 +1,26 @@
 # Android project-native runtime matrix (W6)
 
 `run-native-runtime-matrix.py` is a bounded, redacted smoke runner for the
-project-owned `libleona.so` only. For each selected API 23--36 AVD it installs
-the frozen sample/debug and SDK androidTest APKs, runs
+project-owned `libleona.so` only. For each selected API 23--36 AVD (and its
+configured ABI from the allowlist) it installs the frozen sample/debug and SDK
+androidTest APKs, runs
 `NativeRuntimeSmokeTest`, and records API, ABI, candidate hashes, bounded
-payload size/hash, and cleanup status. The test calls native load, init, and
-collect directly; it does not call `Leona.sense()`, open a reporting channel,
-send HTTP, or make a business/risk decision.
+payload size/hash, runtime page size, and cleanup status. The test calls native
+load, init, and collect directly; it does not call `Leona.sense()`, open a
+reporting channel, send HTTP, or make a business/risk decision.
+
+Source commit/tree identity is derived from a clean checked-out Git worktree;
+dirty or malformed worktrees are rejected, and caller-supplied identity is
+rejected when it disagrees. APK package and
+instrumentation metadata are read from the built artifacts before any emulator
+is touched. AVDs already running are classified `NOT_RUN` (`avd-busy-existing-instance`)
+and are never reused or mutated; each executed lane starts an owned emulator on
+an OS-probed free port. Logcat is cleared before instrumentation and only
+bounded Leona/native marker or crash lines are persisted.
+
+Source and artifact hashes are recorded as separate observations. The runner
+marks their relationship `UNVERIFIED` unless a same-invocation build receipt
+proves provenance; matching Git and APK hashes alone are not a build claim.
 
 The matrix distinguishes:
 
@@ -16,11 +30,12 @@ The matrix distinguishes:
 - `NOT_RUN`/`MISSING`: an API image, ABI target, or boot was unavailable; an
   adjacent API is never substituted.
 
-Only an exact arm64-v8a AVD selected for a cell can produce a native-runtime
-`PASS`. armeabi-v7a and x86_64 remain `NOT_RUN` unless an executable target is
-explicitly discovered and exercised. Candidate/APK hash drift, API/ABI
+Any exact allowlisted ABI (`arm64-v8a`, `x86_64`, or `armeabi-v7a`) selected for
+a cell can produce a native-runtime `PASS`; the configured ABI and runtime ABI
+must match. A missing executable target remains `NOT_RUN`. Candidate/APK hash drift, API/ABI
 mismatch, stale/missing smoke markers, native load/crash markers, mixed
-candidates, unsupported targets, and raw serial/BoxId/token fields fail closed.
+candidates, unsupported targets, page-size failure, cleanup failure, duplicate
+API selections, and raw serial/AVD/BoxId/token fields fail closed.
 
 The runner writes raw emulator/instrumentation logs only to a mode-0700 output
 directory with mode-0600 files. The normalized summary and `SHA256SUMS` contain
