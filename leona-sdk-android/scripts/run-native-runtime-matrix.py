@@ -294,10 +294,22 @@ def inspect_apk_identity(aapt: str, apk: Path) -> dict[str, str]:
     instrumentation = re.search(
         r"^instrumentation: name='([^']+)' targetPackage='([^']+)'", result.stdout, re.MULTILINE
     )
+    instrumentation_name = instrumentation.group(1) if instrumentation else ""
+    instrumentation_target = instrumentation.group(2) if instrumentation else ""
+    if not instrumentation:
+        tree = run_command(
+            [aapt, "dump", "xmltree", "--file", "AndroidManifest.xml", str(apk)], timeout=30
+        )
+        block_match = re.search(r"(?ms)^\s*E: instrumentation.*?(?=^\s*E: |\Z)", tree.stdout)
+        block = block_match.group(0) if block_match else ""
+        name_match = re.search(r"android:name\([^)]*\)=\"([^\"]+)\"", block)
+        target_match = re.search(r"android:targetPackage\([^)]*\)=\"([^\"]+)\"", block)
+        instrumentation_name = name_match.group(1) if name_match else ""
+        instrumentation_target = target_match.group(1) if target_match else ""
     return {
         "package": package.group(1) if package else "",
-        "instrumentationName": instrumentation.group(1) if instrumentation else "",
-        "instrumentationTarget": instrumentation.group(2) if instrumentation else "",
+        "instrumentationName": instrumentation_name,
+        "instrumentationTarget": instrumentation_target,
     }
 
 
