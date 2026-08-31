@@ -244,15 +244,6 @@ android {
     }
 
     sourceSets {
-        getByName("main") {
-            kotlin.directories += "src/main/kotlin"
-        }
-        getByName("debug") {
-            kotlin.directories += "src/debug/kotlin"
-        }
-        getByName("release") {
-            kotlin.directories += "src/release/kotlin"
-        }
         getByName("cloudTest") {
             kotlin.directories += listOf("src/release/kotlin", "src/cloudTest/kotlin")
         }
