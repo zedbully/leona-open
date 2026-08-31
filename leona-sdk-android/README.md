@@ -1111,7 +1111,7 @@ io.leonasec.leona
 ```
 
 Requirements for building this repository: JDK 17+, Android SDK 36,
-NDK 26.3.11579264, and the checked-in Gradle 9.5.0 wrapper with AGP 9.3.1.
+NDK 26.3.11579264, and the checked-in Gradle 9.6.0 wrapper with AGP 9.3.2.
 Published AARs deliberately use Kotlin 2.0 metadata plus Kotlin stdlib 1.9.24;
 the compatibility gate compiles an independent AGP 8.9.1 / Kotlin 1.9.24
 consumer so existing customer builds do not have to adopt the producer

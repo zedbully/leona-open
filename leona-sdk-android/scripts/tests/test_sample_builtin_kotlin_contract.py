@@ -33,7 +33,7 @@ class SampleBuiltInKotlinContractTest(unittest.TestCase):
         self.source_sets = _block_after(self.build, "sourceSets {")
 
     def test_agp_owns_conventional_kotlin_directories(self) -> None:
-        # AGP 9.3.1 discovers these directories itself. Re-registering them via
+        # AGP 9.3.2 discovers these directories itself. Re-registering them via
         # AndroidSourceSet.kotlin can leave built-in Kotlin output present while
         # the clean unit-test classpath omits that output.
         for name in ("main", "debug", "release"):

@@ -29,7 +29,7 @@
     "minimumCompileSdk": 36,
     "minimumTargetSdk": 36,
     "maximumMinSdk": 23,
-    "minimumAgp": "9.3.1",
+    "minimumAgp": "9.3.2",
     "minimumGradle": "9.5.0",
     "requiredGradleDistributionSha256": "bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01",
     "requiredPlatform": "platforms;android-36",

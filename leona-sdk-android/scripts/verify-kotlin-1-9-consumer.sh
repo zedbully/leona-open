@@ -190,7 +190,7 @@ cat > "${OUT_DIR}/summary.md" <<EOF
 
 - status: pass
 - coordinate: \`${GROUP_ID}:${ARTIFACT_ID}:${VERSION}\`
-- producer: AGP 9.3.1 / Gradle 9.6.0 / built-in Kotlin language 2.0
+- producer: AGP 9.3.2 / Gradle 9.6.0 / built-in Kotlin language 2.0
 - consumer: AGP 8.9.1 / Gradle 8.11.1 / Kotlin 1.9.24
 - consumer APK SHA-256: \`${APK_SHA256}\`
 

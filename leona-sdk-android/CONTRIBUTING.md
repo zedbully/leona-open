@@ -26,7 +26,7 @@ cd leona-sdk-android
 ```
 
 Requirements: JDK 17+, Android SDK 36, NDK 26.3.11579264. Use the checked-in
-Gradle 9.5.0 wrapper; its distribution checksum and AGP 9.3.1 version are part
+Gradle 9.6.0 wrapper; its distribution checksum and AGP 9.3.2 version are part
 of the Android 6–16 build contract.
 
 ## Style

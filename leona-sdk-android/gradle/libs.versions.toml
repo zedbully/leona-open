@@ -1,5 +1,5 @@
 [versions]
-agp = "9.3.1"
+agp = "9.3.2"
 coroutines = "1.8.1"
 androidx-core = "1.13.1"
 androidx-appcompat = "1.7.0"

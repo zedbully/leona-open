@@ -28,7 +28,7 @@ class CompatibilityVerifierTest(unittest.TestCase):
         (self.root / "sdk").mkdir()
         (self.root / "sample-app").mkdir()
         (self.root / "gradle" / "wrapper").mkdir(parents=True)
-        (self.root / "gradle" / "libs.versions.toml").write_text('agp = "9.3.1"\n', encoding="utf-8")
+        (self.root / "gradle" / "libs.versions.toml").write_text('agp = "9.3.2"\n', encoding="utf-8")
         (self.root / "gradle" / "wrapper" / "gradle-wrapper.properties").write_text(
             "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.6.0-bin.zip\n"
             "distributionSha256Sum=bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01\n",

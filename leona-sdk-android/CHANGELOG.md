@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SDK dependencies. Publication signing can be required fail-closed, and the
   release workflow binds published artifacts to the tested AAR with detached
   signature/provenance evidence.
-- The producer toolchain now uses Android Gradle Plugin 9.3.1, Gradle 9.5.0
+- The producer toolchain now uses Android Gradle Plugin 9.3.2, Gradle 9.6.0
   with a pinned official distribution SHA-256, and AGP built-in Kotlin. Public
   and private AAR metadata remains at Kotlin language level 2.0 and publishes
   Kotlin stdlib 1.9.24 so Kotlin 1.9 customer applications remain supported.
+  AGP 9.3.2 also closes the upstream JDK 17 lint crash in the bundled
+  `JavaDocParser`; lint remains enabled, including `BidiSpoofing`.
 - Added an independent AGP 8.9.1 / Gradle 8.11.1 / Kotlin 1.9.24 consumer
   compile gate. This catches incompatible Kotlin metadata and old-D8 rewrite
   failures that dependency resolution alone cannot detect.
@@ -126,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for signed evidence lookup, support bundle export, and feedback submission.
 
 ### Validation notes
-- The current producer toolchain is AGP 9.3.1 / Gradle 9.5.0 / built-in Kotlin
+- The current producer toolchain is AGP 9.3.2 / Gradle 9.6.0 / built-in Kotlin
   language 2.0. The public and private AARs both compile in an independent
   AGP 8.9.1 / Gradle 8.11.1 / Kotlin 1.9.24 Android application.
 - Android API 36 compile/target wiring uses Platform 36 and Build Tools 36.0.0.

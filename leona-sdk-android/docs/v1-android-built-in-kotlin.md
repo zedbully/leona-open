@@ -1,6 +1,6 @@
 # AGP built-in Kotlin clean-build contract
 
-AGP 9.3.1 owns the conventional Kotlin directories for the sample app:
+AGP 9.3.2 owns the conventional Kotlin directories for the sample app:
 `src/main/kotlin`, `src/debug/kotlin`, and `src/release/kotlin`. They must not
 be added a second time through `AndroidSourceSet.kotlin.directories`. Duplicate
 registration can produce the expected classes under
