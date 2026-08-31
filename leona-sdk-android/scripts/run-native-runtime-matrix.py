@@ -339,15 +339,12 @@ def runtime_page_size(adb: str, serial: str) -> int | None:
 
 def preclean_package(adb: str, serial: str, package: str) -> dict[str, Any]:
     """Uninstall only when present; absent packages are a successful clean state."""
-    probe = adb_command(adb, serial, ["shell", "pm", "path", package], timeout=30)
+    probe = adb_command(adb, serial, ["shell", "pm", "list", "packages", package], timeout=30)
     result: dict[str, Any] = {"probeRc": probe.returncode, "presentBefore": False, "uninstallRc": 0}
     if probe.returncode != 0:
-        probe_text = ((probe.stdout or "") + (probe.stderr or "")).lower()
-        absent_markers = ("unable to find package", "not found", "unknown package", "does not exist", "no package")
-        if not any(marker in probe_text for marker in absent_markers) and "package:" not in probe_text:
-            result["uninstallRc"] = probe.returncode
+        result["uninstallRc"] = probe.returncode
         return result
-    result["presentBefore"] = "package:" in (probe.stdout or "")
+    result["presentBefore"] = any(line.strip() == f"package:{package}" for line in (probe.stdout or "").splitlines())
     if result["presentBefore"]:
         removed = adb_command(adb, serial, ["shell", "pm", "uninstall", package], timeout=30)
         result["uninstallRc"] = removed.returncode

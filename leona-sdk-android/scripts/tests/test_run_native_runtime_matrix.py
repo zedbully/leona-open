@@ -201,13 +201,13 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
                 MODULE.free_port("adb-is-not-consulted", 5570)
 
     def test_preclean_records_absent_and_uninstall_failure(self) -> None:
-        absent = subprocess.CompletedProcess([], 1, stdout="", stderr="Error: package not found")
+        absent = subprocess.CompletedProcess([], 0, stdout="", stderr="")
         with mock.patch.object(MODULE, "adb_command", return_value=absent):
             result = MODULE.preclean_package("adb", "serial", MODULE.SAMPLE_PACKAGE)
         self.assertFalse(result["presentBefore"])
         self.assertEqual(0, result["uninstallRc"])
 
-        present = subprocess.CompletedProcess([], 0, stdout="package:/data/app/base.apk\n", stderr="")
+        present = subprocess.CompletedProcess([], 0, stdout=f"package:{MODULE.SAMPLE_PACKAGE}\n", stderr="")
         failure = subprocess.CompletedProcess([], 1, stdout="", stderr="Failure")
         with mock.patch.object(MODULE, "adb_command", side_effect=[present, failure]):
             result = MODULE.preclean_package("adb", "serial", MODULE.SAMPLE_PACKAGE)
