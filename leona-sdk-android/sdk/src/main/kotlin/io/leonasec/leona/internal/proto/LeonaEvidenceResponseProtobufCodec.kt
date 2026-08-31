@@ -27,7 +27,7 @@ internal data class LeonaEvidenceIngestResponseModel(
     fun responseIdentifier(): ByteArray = responseId.copyOf()
 }
 
-internal enum class LeonaCollectionStatus { ACCEPTED }
+internal enum class LeonaCollectionStatus { UNSPECIFIED, ACCEPTED }
 
 internal enum class LeonaResponseProtobufFailureCode {
     INVALID_INPUT,
@@ -159,6 +159,7 @@ internal object LeonaEvidenceResponseProtobufCodec {
                 issuedAtEpochMs = issued ?: throw ParseFailure(LeonaResponseProtobufFailureCode.INVALID_INPUT, "issued timestamp missing"),
                 boxExpiresAtEpochMs = expires ?: throw ParseFailure(LeonaResponseProtobufFailureCode.INVALID_INPUT, "expiry timestamp missing"),
                 collectionStatus = when (status) {
+                    0L -> LeonaCollectionStatus.UNSPECIFIED
                     1L -> LeonaCollectionStatus.ACCEPTED
                     else -> throw ParseFailure(LeonaResponseProtobufFailureCode.UNKNOWN_ENUM, "collection status is not ACCEPTED")
                 },
