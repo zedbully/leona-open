@@ -5,7 +5,7 @@
 **Device environment evidence collection for Android apps — no client-side decisions, no built-in business policy.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Min SDK](https://img.shields.io/badge/minSdk-21-brightgreen)]()
+[![Min SDK](https://img.shields.io/badge/minSdk-23-brightgreen)]()
 [![Version](https://img.shields.io/badge/version-0.4.0-blue)]()
 
 </div>
@@ -284,8 +284,7 @@ forbidden public-boundary material.
 
 The public build contract covers Android 6.0 / API 23 through Android 16 /
 API 36. The SDK and sample compile against API 36, the sample targets API 36,
-and the public SDK keeps `minSdk = 21` so existing integrations are not raised
-above the declared API 23 compatibility matrix floor.
+and the V1 typed/identity public SDK floor is `minSdk = 23` (Android 6.0).
 
 Identity persistence is intentionally fail-closed below API 23: the SDK never
 stores or accepts a plaintext install/canonical identity envelope. Integrations
