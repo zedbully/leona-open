@@ -214,6 +214,14 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         self.assertTrue(result["presentBefore"])
         self.assertEqual(1, result["uninstallRc"])
 
+    def test_logcat_clear_allows_one_transient_retry_only(self) -> None:
+        failure = subprocess.CompletedProcess([], 1, stdout="", stderr="")
+        success = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with mock.patch.object(MODULE, "adb_command", side_effect=[failure, success]):
+            self.assertEqual((True, 2), MODULE.clear_logcat_buffers("adb", "serial"))
+        with mock.patch.object(MODULE, "adb_command", return_value=failure):
+            self.assertEqual((False, 2), MODULE.clear_logcat_buffers("adb", "serial"))
+
     def test_candidate_failure_is_fail_not_partial(self) -> None:
         status, validation = MODULE.finalize_matrix_status(
             [{"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64}, "avd": "leaked"}]

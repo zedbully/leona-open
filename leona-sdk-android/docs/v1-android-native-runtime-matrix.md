@@ -22,6 +22,9 @@ The native smoke marker carries the runtime page size obtained through Android
 `Os.sysconf`; shell properties are only a diagnostic observation. Missing or
 non-power-of-two page-size evidence fails closed.
 
+Logcat clear has at most one retry for a transient old-API adb race; a second
+failure marks the cell `FAIL`.
+
 Source and artifact hashes are recorded as separate observations. The runner
 marks their relationship `UNVERIFIED` unless a same-invocation build receipt
 proves provenance; matching Git and APK hashes alone are not a build claim.

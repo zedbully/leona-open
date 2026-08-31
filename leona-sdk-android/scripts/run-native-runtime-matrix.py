@@ -351,6 +351,17 @@ def preclean_package(adb: str, serial: str, package: str) -> dict[str, Any]:
     return result
 
 
+def clear_logcat_buffers(adb: str, serial: str) -> tuple[bool, int]:
+    """Clear logcat once, with a single bounded retry for transient old-API adb races."""
+    attempts = 0
+    for _ in range(2):
+        attempts += 1
+        result = adb_command(adb, serial, ["logcat", "-c"], timeout=30)
+        if result.returncode == 0:
+            return True, attempts
+    return False, attempts
+
+
 def validate_smoke_marker(marker: dict[str, Any] | None, *, api: int, abi: str, apk_sha256: str, text: str) -> tuple[bool, str]:
     """Pure admission guard used by the runner and contract tests."""
     if not HEX64_RE.fullmatch(apk_sha256):
@@ -580,8 +591,9 @@ def main(argv: list[str] | None = None) -> int:
                 row["status"] = "FAIL"
                 row["reason"] = "apk-install-failed"
                 continue
-            clear_logcat = adb_command(adb, serial, ["logcat", "-c"], timeout=30)
-            if clear_logcat.returncode != 0:
+            cleared, clear_attempts = clear_logcat_buffers(adb, serial)
+            row["logcatClearAttempts"] = clear_attempts
+            if not cleared:
                 row["status"] = "FAIL"
                 row["reason"] = "logcat-clear-failed"
                 continue
