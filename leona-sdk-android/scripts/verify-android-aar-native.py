@@ -178,11 +178,15 @@ def _parse_elf(data: bytes) -> ElfInventory:
         entry_size = struct.calcsize(entry_fmt)
         if segment.file_size % entry_size:
             raise InventoryError("ELF dynamic segment has a partial entry")
+        terminated = False
         for offset in range(segment.offset, segment.offset + segment.file_size, entry_size):
             tag, value = _unpack(entry_fmt, data, offset)
             dynamic_tags.setdefault(tag, []).append(value)
             if tag == 0:
+                terminated = True
                 break
+        if not terminated:
+            raise InventoryError("ELF dynamic segment has no terminator")
 
     dynstr_address = dynamic_tags.get(5, [None])[0]
     dynstr = b""
@@ -205,6 +209,8 @@ def _parse_elf(data: bytes) -> ElfInventory:
     if dynsym is not None:
         if dynsym.entry_size == 0:
             raise InventoryError("ELF dynamic symbol table has no entry size")
+        if dynsym.size % dynsym.entry_size:
+            raise InventoryError("ELF dynamic symbol table has a partial entry")
         linked_strtab = sections[dynsym.link] if dynsym.link < len(sections) else None
         if linked_strtab is None or linked_strtab.kind != 3:
             raise InventoryError("ELF dynamic symbol table has no string table")
