@@ -66,13 +66,13 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
 
     def test_matrix_mixed_candidate_and_raw_identity_are_rejected(self) -> None:
         rows = [
-            {"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64}},
-            {"status": "PASS", "artifactHashes": {"sampleApkSha256": "b" * 64}},
+            {"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64, "androidTestApkSha256": "c" * 64, "aarSha256": "d" * 64}},
+            {"status": "PASS", "artifactHashes": {"sampleApkSha256": "b" * 64, "androidTestApkSha256": "e" * 64, "aarSha256": "f" * 64}},
         ]
         ok, reason = MODULE.validate_matrix_candidate(rows)
         self.assertFalse(ok)
         self.assertEqual("mixed-candidate", reason)
-        rows[1]["artifactHashes"]["sampleApkSha256"] = "a" * 64
+        rows[1]["artifactHashes"] = {"sampleApkSha256": "a" * 64, "androidTestApkSha256": "c" * 64, "aarSha256": "d" * 64}
         rows[1]["serial"] = "emulator-5554"
         ok, reason = MODULE.validate_matrix_candidate(rows)
         self.assertFalse(ok)
@@ -110,7 +110,7 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
             # A busy AVD is represented as a non-PASS row by the main loop; this
             # pure guard confirms a busy row cannot be admitted as a PASS.
             status, _ = MODULE.finalize_matrix_status(
-                [{"status": "NOT_RUN", "artifactHashes": {"sampleApkSha256": "a" * 64}}]
+                [{"status": "NOT_RUN", "artifactHashes": {"sampleApkSha256": "a" * 64, "androidTestApkSha256": "c" * 64, "aarSha256": "d" * 64}}]
             )
         self.assertEqual("PARTIAL", status)
 
@@ -124,7 +124,7 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
         self.assertNotIn("token=secret", MODULE.sanitize_runtime_text(adversarial))
 
     def test_candidate_validator_is_invoked_before_pass(self) -> None:
-        rows = [{"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64}, "avd": "raw"}]
+        rows = [{"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64, "androidTestApkSha256": "c" * 64, "aarSha256": "d" * 64}, "avd": "raw"}]
         status, validation = MODULE.finalize_matrix_status(rows)
         self.assertEqual("FAIL", status)
         self.assertFalse(validation["ok"])
@@ -275,9 +275,16 @@ class NativeRuntimeMatrixContractTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "sample-apk-duplicate-entry"):
                 MODULE.verify_artifact_parity(aar, duplicate, test)
 
+            wrong_prefix_aar = make_archive("wrong-prefix.aar", "lib", payloads)
+            with self.assertRaisesRegex(SystemExit, "aar-unsupported-native-entry"):
+                MODULE.verify_artifact_parity(wrong_prefix_aar, sample, test)
+            with mock.patch.object(MODULE, "MAX_NATIVE_ENTRY_BYTES", 1):
+                with self.assertRaisesRegex(SystemExit, "aar-native-entry-size-arm64-v8a"):
+                    MODULE.verify_artifact_parity(aar, sample, test)
+
     def test_candidate_failure_is_fail_not_partial(self) -> None:
         status, validation = MODULE.finalize_matrix_status(
-            [{"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64}, "avd": "leaked"}]
+            [{"status": "PASS", "artifactHashes": {"sampleApkSha256": "a" * 64, "androidTestApkSha256": "c" * 64, "aarSha256": "d" * 64}, "avd": "leaked"}]
         )
         self.assertEqual("FAIL", status)
         self.assertFalse(validation["ok"])

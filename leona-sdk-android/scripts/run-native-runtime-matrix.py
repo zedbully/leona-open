@@ -40,6 +40,7 @@ HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 OUTPUT_MARKER = ".leona-native-runtime-matrix-v1"
 SOURCE_ARTIFACT_RELATION = "UNVERIFIED"
+MAX_NATIVE_ENTRY_BYTES = 64 * 1024 * 1024
 
 
 def sha256_file(path: Path) -> str:
@@ -351,7 +352,8 @@ def inspect_native_artifact(path: Path, *, artifact_kind: str) -> dict[str, dict
                 if not name.endswith("/libleona.so"):
                     continue
                 parts = name.split("/")
-                if len(parts) != 3 or parts[0] not in {"jni", "lib"} or parts[2] != "libleona.so":
+                expected_prefix = "jni" if artifact_kind == "aar" else "lib"
+                if len(parts) != 3 or parts[0] != expected_prefix or parts[2] != "libleona.so":
                     raise SystemExit(f"{artifact_kind}-unsupported-native-entry")
                 abi = parts[1]
                 if abi not in ABI_ALLOWLIST:
@@ -362,7 +364,10 @@ def inspect_native_artifact(path: Path, *, artifact_kind: str) -> dict[str, dict
                 names_for_abi = entries.get(abi, [])
                 if len(names_for_abi) != 1:
                     raise SystemExit(f"{artifact_kind}-native-entry-count-{abi}")
-                result[abi] = {"entry": names_for_abi[0], "sha256": sha256_bytes(archive.read(names_for_abi[0]))}
+                info = archive.getinfo(names_for_abi[0])
+                if info.file_size <= 0 or info.file_size > MAX_NATIVE_ENTRY_BYTES:
+                    raise SystemExit(f"{artifact_kind}-native-entry-size-{abi}")
+                result[abi] = {"entry": names_for_abi[0], "size": info.file_size, "sha256": sha256_bytes(archive.read(names_for_abi[0]))}
             return result
     except BadZipFile as error:
         raise SystemExit(f"{artifact_kind}-invalid-zip") from error
@@ -448,14 +453,14 @@ def validate_smoke_marker(marker: dict[str, Any] | None, *, api: int, abi: str, 
 
 def validate_matrix_candidate(rows: list[dict[str, Any]]) -> tuple[bool, str]:
     """Reject mixed APK candidates and unredacted runtime identity material."""
-    hashes = {
-        str(row.get("artifactHashes", {}).get("sampleApkSha256") or "")
+    tuples = {
+        tuple(str(row.get("artifactHashes", {}).get(key) or "") for key in ("sampleApkSha256", "androidTestApkSha256", "aarSha256"))
         for row in rows
         if row.get("status") == "PASS"
     }
-    if any(not HEX64_RE.fullmatch(value) for value in hashes):
+    if any(any(not HEX64_RE.fullmatch(value) for value in candidate) for candidate in tuples):
         return False, "candidate-apk-sha256-invalid"
-    if len(hashes) > 1:
+    if len(tuples) > 1:
         return False, "mixed-candidate"
     for row in rows:
         for value in (
@@ -690,11 +695,15 @@ def main(argv: list[str] | None = None) -> int:
                 row["pageSizeBytes"] = marker.get("pageSizeBytes")
             valid, reason = validate_smoke_marker(marker, api=api, abi=configured_abi, apk_sha256=artifact_hashes["androidTestApkSha256"], text=combined)
             row["marker"] = marker
-            row["status"] = "PASS" if instrument.returncode == 0 and valid else "FAIL"
-            row["reason"] = reason if valid else reason
-            if instrument.returncode != 0 and row["status"] == "PASS":
+            if instrument.returncode != 0:
                 row["status"] = "FAIL"
                 row["reason"] = "instrumentation-failed"
+            elif not valid:
+                row["status"] = "FAIL"
+                row["reason"] = reason
+            else:
+                row["status"] = "PASS"
+                row["reason"] = reason
         except subprocess.TimeoutExpired:
             row["status"] = "NOT_RUN"
             row["reason"] = "command-timeout"
@@ -750,6 +759,9 @@ def main(argv: list[str] | None = None) -> int:
         f"- status: {summary['status']}",
         "- evidence class: PROJECT_NATIVE_RUNTIME",
         "- provider status: LEO_PROVIDER_RUNTIME_NOT_RUN",
+        "- runtime artifact: androidTestApk",
+        "- source/artifact relation: UNVERIFIED",
+        "- artifact parity: PASS (AAR/sample/androidTest per-ABI hashes recorded in summary.json)",
         f"- cells: {sum(row['status'] == 'PASS' for row in rows)}/{len(rows)} PASS",
         f"- candidate validation: {summary.get('candidateValidation', {}).get('reason', 'not-run')}",
         f"- sample APK SHA-256: {artifact_hashes['sampleApkSha256']}",
